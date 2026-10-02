@@ -41,7 +41,8 @@ export async function signup(_prev: AuthState, form: FormData): Promise<AuthStat
   redirect(safeNext(form.get("next")));
 }
 
-export async function logout() {
+export async function logout(form?: FormData) {
   await endSession();
-  redirect("/");
+  const to = form?.get("to");
+  redirect(typeof to === "string" && /^\/(login|signup)(\?|$)/.test(to) ? to : "/");
 }

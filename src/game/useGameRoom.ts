@@ -27,6 +27,7 @@ const ICE_SERVERS: RTCIceServer[] = (() => {
 
 type RoomInfo = {
   exists: boolean;
+  you?: string; // the logged-in user, to notice an account switch in another tab
   isHost?: boolean;
   full?: boolean;
   offer?: string;
@@ -60,7 +61,38 @@ function gatherIce(pc: RTCPeerConnection, ms = 3000): Promise<void> {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export function useGameRoom(code: string, fighterId: string | null) {
+const SWITCHED = "You logged into a different account in another tab, and this tab now uses it too. Reload the page. To play against yourself, open the second account in an incognito window or another browser.";
+const OTHER_TAB = "This room is already open in another tab of this browser. To play against yourself, open the second account in an incognito window or another browser.";
+
+// Same-browser tabs share one login, so two tabs can't be two different players.
+// Ask other tabs whether one of them already holds this room.
+function roomOpenInAnotherTab(code: string): Promise<boolean> {
+  if (typeof BroadcastChannel === "undefined") return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const ch = new BroadcastChannel(`inkfight-room-${code}`);
+    const t = setTimeout(() => {
+      ch.close();
+      resolve(false);
+    }, 400);
+    ch.onmessage = (e) => {
+      if (e.data === "here") {
+        clearTimeout(t);
+        ch.close();
+        resolve(true);
+      }
+    };
+    ch.postMessage("who");
+  });
+}
+
+function claimRoomTab(code: string): () => void {
+  if (typeof BroadcastChannel === "undefined") return () => {};
+  const ch = new BroadcastChannel(`inkfight-room-${code}`);
+  ch.onmessage = (e) => e.data === "who" && ch.postMessage("here");
+  return () => ch.close();
+}
+
+export function useGameRoom(code: string, fighterId: string | null, userId?: string) {
   const snaps = useRef<SnapBuffer>({ prev: null, cur: null, at: 0 });
   const [lobby, setLobby] = useState<Lobby | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -81,9 +113,13 @@ export function useGameRoom(code: string, fighterId: string | null) {
     };
 
     async function run() {
+      if (await roomOpenInAnotherTab(code)) return setError(OTHER_TAB);
+      if (cancelled) return;
+      cleanups.push(claimRoomTab(code));
       const info = await api<RoomInfo>(`/api/rooms/${code}`);
       if (cancelled) return;
-      if (info.status === 401) return setError("Log in to play.");
+      if (info.status === 401) return setError("You're logged out. Log in again to play.");
+      if (userId && info.you && info.you !== userId) return setError(SWITCHED);
       if (info.exists && info.full) return setError("Room's full. Two's a fight, three's a crowd.");
       if (!info.exists || info.isHost) return host();
       // We already answered earlier (page refresh): wait for the host to reopen the room.
@@ -268,6 +304,11 @@ export function useGameRoom(code: string, fighterId: string | null) {
           await sleep(POLL_MS);
           const info = await api<RoomInfo>(`/api/rooms/${code}`);
           if (cancelled || gen !== generation) return;
+          if (userId && info.you && info.you !== userId) {
+            generation++;
+            thisPc.close();
+            return setError(SWITCHED);
+          }
           if (info.answer && info.guestFighter) {
             seats[1] = { fighter: info.guestFighter, input: { ...EMPTY_INPUT }, ready: false, rematch: false };
             broadcast(`${info.guestFighter.name} is connecting…`);
@@ -358,7 +399,7 @@ export function useGameRoom(code: string, fighterId: string | null) {
       cleanups.forEach((f) => f());
       sendRef.current = () => {};
     };
-  }, [code, fighterId, attempt]);
+  }, [code, fighterId, attempt, userId]);
 
   const send = useCallback((msg: ClientMsg) => sendRef.current(msg), []);
   const sendInput = useCallback((input: Input) => sendRef.current({ t: "input", input }), []);

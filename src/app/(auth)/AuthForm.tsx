@@ -50,7 +50,9 @@ export function AuthForm({ mode, next, demo }: { mode: "login" | "signup"; next?
       {demo && demo.length > 0 && (
         <div className="mt-6 rounded-2xl bg-card p-4 text-sm ring-1 ring-line">
           <p className="font-semibold">Demo accounts</p>
-          <p className="text-xs text-muted">Open one in each browser to fight yourself.</p>
+          <p className="text-xs text-muted">
+            To fight yourself, use one here and the other in an <b>incognito window</b> or another browser (tabs share one login).
+          </p>
           <ul className="mt-2 grid gap-1 font-mono text-xs">
             {demo.map((d) => (
               <li key={d.email}>

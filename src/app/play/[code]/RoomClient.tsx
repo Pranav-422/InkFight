@@ -46,11 +46,11 @@ export function RoomClient({ code, initialFighter, userId }: { code: string; ini
     );
   }
   if (!fighterId) return <Loader2 className="mx-auto mt-20 size-5 animate-spin text-muted" />;
-  return <Room key={fighterId} code={code} fighterId={fighterId} onChangeFighter={() => setPicking(true)} />;
+  return <Room key={fighterId} code={code} fighterId={fighterId} userId={userId} onChangeFighter={() => setPicking(true)} />;
 }
 
-function Room({ code, fighterId, onChangeFighter }: { code: string; fighterId: string; onChangeFighter: () => void }) {
-  const { lobby, error, status, snaps, matchOver, send, sendInput, retry } = useGameRoom(code, fighterId);
+function Room({ code, fighterId, userId, onChangeFighter }: { code: string; fighterId: string; userId: string; onChangeFighter: () => void }) {
+  const { lobby, error, status, snaps, matchOver, send, sendInput, retry } = useGameRoom(code, fighterId, userId);
 
   if (error) {
     return (

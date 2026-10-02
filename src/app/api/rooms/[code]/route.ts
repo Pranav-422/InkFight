@@ -9,7 +9,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/rooms/[code]">)
   if (!s) return Response.json({ error: "Log in first." }, { status: 401 });
   const code = (await ctx.params).code.toUpperCase();
   const room = await db.room.findUnique({ where: { code } });
-  if (!room || isStale(room)) return Response.json({ exists: false });
+  if (!room || isStale(room)) return Response.json({ exists: false, you: s.userId });
 
   const [host, guest] = await Promise.all([
     db.character.findUnique({ where: { id: room.hostFighterId } }),
@@ -17,6 +17,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/rooms/[code]">)
   ]);
   return Response.json({
     exists: true,
+    you: s.userId,
     isHost: room.hostUserId === s.userId,
     full: Boolean(room.answer) && room.guestUserId !== s.userId && room.hostUserId !== s.userId,
     offer: room.offer,
