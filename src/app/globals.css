@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+:root {
+  --paper: #f7f5f0;
+  --card: #ffffff;
+  --ink: #17171a;
+  --muted: #6b6a66;
+  --line: #e4e1d9;
+  --hit: #e5482d;   /* attack / primary accent */
+  --guard: #2f5be0; /* defense / secondary accent */
+  --gold: #f2b705;  /* winners, top 3 */
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-hit: var(--hit);
+  --color-guard: var(--guard);
+  --color-gold: var(--gold);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.pop-in { animation: pop-in 220ms ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pop-in { animation: none !important; }
+}

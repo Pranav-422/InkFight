@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+model User {
+  id           String      @id @default(cuid())
+  email        String      @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime    @default(now())
+  characters   Character[]
+}
+
+model Character {
+  id            String   @id @default(cuid())
+  name          String
+  ownerId       String?
+  owner         User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  ownerHandle   String
+  imageUrl      String
+  class         String
+  hp            Int
+  atk           Int
+  def           Int
+  spd           Int
+  specialMove   String
+  specialDesc   String   @default("")
+  flavorText    String
+  detectedItems String   // JSON: rule-based features, raw model proposal, stat breakdown
+  createdAt     DateTime @default(now())
+
+  battlesAsA Battle[] @relation("CharacterA")
+  battlesAsB Battle[] @relation("CharacterB")
+}
+
+model Battle {
+  id           String    @id @default(cuid())
+  characterAId String
+  characterBId String
+  characterA   Character @relation("CharacterA", fields: [characterAId], references: [id], onDelete: Cascade)
+  characterB   Character @relation("CharacterB", fields: [characterBId], references: [id], onDelete: Cascade)
+  winnerId     String
+  matchKey     String?   @unique // "<room>:<random id>" so a reported match is saved once
+  log          String    // JSON summary: wins, damage, rounds
+  createdAt    DateTime  @default(now())
+}
+
+// WebRTC signaling for peer-to-peer matches. The fight itself never touches the server.
+model Room {
+  code          String   @id
+  hostUserId    String
+  hostFighterId String
+  offer         String   // host SDP (ICE gathered)
+  guestUserId   String?
+  guestFighterId String?
+  answer        String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}

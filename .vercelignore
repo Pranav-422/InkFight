@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+uploads
+prisma/*.db*
+prisma/sqlite-migrations-old
+.next
+node_modules
+.agents
+.claude
+skills-lock.json
