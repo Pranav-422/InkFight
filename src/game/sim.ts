@@ -12,6 +12,8 @@ const ROUND_END_TICKS = 2.5 * TICK_HZ;
 export const WINS_NEEDED = 2;
 
 const ATTACK = { duration: 18, activeFrom: 6, activeTo: 11, reach: 70 };
+// Kick: slower to come out, longer reach, hits low, hurts more.
+export const KICK = { duration: 28, activeFrom: 11, activeTo: 17, reach: 95, mult: 1.5 };
 const HITSTUN = 16;
 const PASSIVE_ENERGY = 0.05; // per tick → a full meter in ~33s without fighting
 
@@ -61,13 +63,14 @@ export type Input = {
   block: boolean;
   // Press counters, not booleans: a quick tap between two network packets still registers.
   jump: number;
-  attack: number;
+  attack: number; // punch
+  kick: number;
   special: number;
 };
 
-export const EMPTY_INPUT: Input = { left: false, right: false, block: false, jump: 0, attack: 0, special: 0 };
+export const EMPTY_INPUT: Input = { left: false, right: false, block: false, jump: 0, attack: 0, kick: 0, special: 0 };
 
-export type Action = "idle" | "attack" | "special" | "hit" | "ko";
+export type Action = "idle" | "attack" | "kick" | "special" | "hit" | "ko";
 
 export type Fighter = {
   slot: Slot;
@@ -86,7 +89,7 @@ export type Fighter = {
   cooldown: number;
   armorTicks: number;
   landed: boolean; // current swing already connected
-  seen: { jump: number; attack: number; special: number };
+  seen: { jump: number; attack: number; kick: number; special: number };
 };
 
 export type Projectile = { id: number; owner: Slot; kind: SpecialKind; x: number; y: number; vx: number; r: number; dmg: number };
@@ -286,13 +289,15 @@ function updateSpecial(m: Match, f: Fighter, opp: Fighter) {
 
 function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
   const def = m.defs[f.slot];
-  const pressed = (k: "jump" | "attack" | "special") => {
-    const p = input[k] !== f.seen[k];
-    f.seen[k] = input[k];
+  const pressed = (k: "jump" | "attack" | "kick" | "special") => {
+    const now = input[k] ?? 0;
+    const p = now !== (f.seen[k] ?? 0);
+    f.seen[k] = now;
     return p;
   };
   const jumpP = pressed("jump");
   const attackP = pressed("attack");
+  const kickP = pressed("kick");
   const specialP = pressed("special");
   const canAct = m.phase === "fight";
 
@@ -310,6 +315,14 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
     }
     if (f.t >= ATTACK.duration) f.action = "idle";
   }
+  if (f.action === "kick") {
+    const x1 = f.x + f.facing * (BODY.w / 2);
+    if (!f.landed && f.t >= KICK.activeFrom && f.t <= KICK.activeTo && overlaps(x1, x1 + f.facing * KICK.reach, f.y - BODY.h * 0.6, f.y - 5, opp)) {
+      f.landed = true;
+      applyHit(m, f, opp, def.punch * KICK.mult, { knock: 10, special: false, at: { x: x1 + f.facing * KICK.reach * 0.75, y: f.y - BODY.h * 0.35 } });
+    }
+    if (f.t >= KICK.duration) f.action = "idle";
+  }
   if (f.action === "special") updateSpecial(m, f, opp);
 
   if (f.action === "idle" && canAct) {
@@ -320,6 +333,11 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
       f.t = 0;
       f.landed = false;
       f.cooldown = def.cooldown;
+    } else if (kickP && f.cooldown === 0 && !f.blocking && f.grounded) {
+      f.action = "kick";
+      f.t = 0;
+      f.landed = false;
+      f.cooldown = Math.round(def.cooldown * 1.6);
     } else if (specialP && f.energy >= 100 && !f.blocking) {
       startSpecial(m, f);
     } else {
@@ -337,7 +355,7 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
   }
 
   // Physics
-  if (!canAct || f.action === "hit" || f.action === "ko" || (f.action === "attack" && f.grounded)) f.vx *= 0.85;
+  if (!canAct || f.action === "hit" || f.action === "ko" || ((f.action === "attack" || f.action === "kick") && f.grounded)) f.vx *= 0.85;
   f.vy += GRAVITY;
   f.x += f.vx;
   f.y += f.vy;

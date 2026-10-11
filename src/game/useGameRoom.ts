@@ -142,7 +142,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
       if (me.status !== 200) return setError("That fighter doesn't exist. Draw a new one?");
       const myFighter: PublicFighter = {
         id: me.id, name: me.name, class: me.class, imageUrl: me.imageUrl, specialMove: me.specialMove,
-        hp: me.hp, atk: me.atk, def: me.def, spd: me.spd,
+        hp: me.hp, atk: me.atk, def: me.def, spd: me.spd, pose: me.pose, rotation: me.rotation,
       };
 
       type Seat = { fighter: PublicFighter; input: Input; ready: boolean; rematch: boolean };
@@ -414,5 +414,5 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
 
 function sanitize(i: Partial<Input> | undefined): Input {
   const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
-  return { left: !!i?.left, right: !!i?.right, block: !!i?.block, jump: n(i?.jump), attack: n(i?.attack), special: n(i?.special) };
+  return { left: !!i?.left, right: !!i?.right, block: !!i?.block, jump: n(i?.jump), attack: n(i?.attack), kick: n(i?.kick), special: n(i?.special) };
 }

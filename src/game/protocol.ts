@@ -10,6 +10,8 @@ export type PublicFighter = {
   atk: number;
   def: number;
   spd: number;
+  pose?: string | null; // JSON keypoints from vision (see src/lib/vision.ts)
+  rotation?: number; // degrees clockwise to stand the drawing upright
 };
 
 export type LobbyPlayer = PublicFighter & { ready: boolean; rematch: boolean };

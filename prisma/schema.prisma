@@ -33,6 +33,8 @@ model Character {
   specialDesc   String   @default("")
   flavorText    String
   detectedItems String   // JSON: rule-based features, raw model proposal, stat breakdown
+  pose          String?  // JSON body keypoints (0..1 of the photo) from vision; null → estimated in the browser
+  rotation      Int      @default(0) // degrees clockwise (0/90/180/270) to stand a sideways drawing upright
   createdAt     DateTime @default(now())
 
   battlesAsA Battle[] @relation("CharacterA")

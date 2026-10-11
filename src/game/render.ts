@@ -1,8 +1,10 @@
 // Canvas renderer. Draws an interpolated snapshot: the sketchbook arena, the
 // drawings as sprites with state-driven squash/stretch, projectiles, hit FX and HUD.
 
+import { poseFor } from "./poses";
+import { deform, drawRig, resolvePose, type BoneName } from "./skeleton";
 import type { Sprite } from "./sprite";
-import { ARENA, BODY, TICK_HZ, WINS_NEEDED, type GameEvent, type Slot, type Snapshot } from "./sim";
+import { ARENA, BODY, TICK_HZ, WINS_NEEDED, type GameEvent, type Slot, type Snapshot, type SpecialKind } from "./sim";
 
 const C = {
   paper: "#f7f5f0",
@@ -27,6 +29,8 @@ export class Renderer {
   private fontDisplay = "sans-serif";
   private fontBody = "sans-serif";
   sprites: [Sprite | null, Sprite | null] = [null, null];
+  private limbs: [Record<BoneName, number> | null, Record<BoneName, number> | null] = [null, null];
+  private lastNow = 0;
 
   constructor(private canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext("2d")!;
@@ -93,7 +97,8 @@ export class Renderer {
     }
     this.background();
 
-    fighters.forEach((f) => this.fighter(f, now, hud.you === f.slot));
+    fighters.forEach((f) => this.fighter(f, cur.specials[f.slot], now, hud.you === f.slot));
+    this.lastNow = now;
     for (const p of projectiles) this.projectile(p.kind, p.x, p.y, p.r, p.vx, now);
     this.fx();
     ctx.restore();
@@ -133,7 +138,7 @@ export class Renderer {
     ctx.stroke();
   }
 
-  private fighter(f: Snapshot["fighters"][number], now: number, isYou: boolean) {
+  private fighter(f: Snapshot["fighters"][number], special: SpecialKind, now: number, isYou: boolean) {
     const { ctx } = this;
     const sprite = this.sprites[f.slot];
 
@@ -146,48 +151,21 @@ export class Renderer {
 
     let sx = 1, sy = 1, rot = 0, dx = 0, dy = 0, alpha = 1;
     const t = f.t;
-    switch (f.action) {
-      case "idle":
-        if (!f.grounded) {
-          sx = 0.94;
-          sy = 1.07;
-        } else if (f.moving) {
-          rot = Math.sin(now / 90) * 0.07;
-          dy = -Math.abs(Math.sin(now / 90)) * 6;
-        } else {
-          sy = 1 + Math.sin(now / 380) * 0.025; // breathing
-        }
-        if (f.blocking) {
-          sx = 0.92;
-          rot = -0.08 * f.facing;
-        }
-        break;
-      case "attack":
-        if (t < 6) {
-          rot = -0.12 * f.facing;
-          dx = -6 * f.facing;
-        } else if (t <= 12) {
-          rot = 0.2 * f.facing;
-          dx = 22 * f.facing;
-          sx = 1.08;
-        }
-        break;
-      case "special":
-        rot = (t < 8 ? -0.18 : 0.25) * f.facing;
-        dx = (t < 8 ? -10 : 18) * f.facing;
-        sx = t < 8 ? 0.9 : 1.12;
-        sy = t < 8 ? 1.1 : 0.95;
-        break;
-      case "hit":
-        dx = (Math.random() - 0.5) * 8;
-        rot = -0.18 * f.facing;
-        break;
-      case "ko":
-        sy = 0.28;
-        sx = 1.12;
-        rot = -0.12 * f.facing;
-        alpha = 0.55;
-        break;
+    const motion = poseFor(f, special, now);
+    dx = motion.lunge * f.facing;
+    if (f.action === "idle" && f.grounded && f.moving) dy = -Math.abs(Math.sin(now / 105)) * 5;
+    if (f.action === "hit") dx += (Math.random() - 0.5) * 6;
+    if (f.action === "ko") alpha = 0.7;
+    if (!sprite?.rig) {
+      // No skeleton (still loading / couldn't rig): fall back to moving the drawing as one piece.
+      if (f.action === "attack" && t >= 6 && t <= 12) {
+        rot = 0.2 * f.facing;
+        sx = 1.08;
+      }
+      if (f.action === "ko") {
+        sy = 0.3;
+        sx = 1.1;
+      }
     }
 
     // Sprite size: fit a 180-tall box, but never wider than 230.
@@ -202,6 +180,11 @@ export class Renderer {
     ctx.translate(f.x + dx, f.y + dy);
     ctx.rotate(rot);
     ctx.scale(sx * f.facing, sy);
+    if (motion.fall && sprite?.rig) {
+      // Fall backwards, unless that would land outside the arena.
+      const behind = f.x - f.facing * h;
+      ctx.rotate(behind < 0 || behind > ARENA.w ? -motion.fall : motion.fall);
+    }
     ctx.globalAlpha = alpha;
     if (f.armorTicks > 0 || f.action === "special") {
       ctx.shadowColor = f.action === "special" ? C.hit : C.guard;
@@ -209,7 +192,26 @@ export class Renderer {
     }
     if (sprite) {
       const img = f.action === "hit" && t < 8 ? sprite.hurt : sprite.normal;
-      ctx.drawImage(img, -w / 2, -h, w, h);
+      if (sprite.rig) {
+        // Ease each joint toward its target so moves read as motion, not snapping.
+        const target = resolvePose(sprite.rig, motion.pose);
+        const prev = this.limbs[f.slot];
+        const dt = Math.min(0.05, Math.max(0, (now - this.lastNow) / 1000));
+        const k = 1 - Math.exp(-dt * 24);
+        const cur = {} as Record<BoneName, number>;
+        for (const name of Object.keys(target) as BoneName[]) {
+          const p0 = prev?.[name] ?? target[name];
+          cur[name] = p0 + Math.atan2(Math.sin(target[name] - p0), Math.cos(target[name] - p0)) * k;
+        }
+        this.limbs[f.slot] = cur;
+        deform(sprite.rig, cur);
+        ctx.shadowBlur = 0; // per-triangle shadows would be very slow
+        ctx.translate(-w / 2, -h);
+        ctx.scale(w / img.width, h / img.height);
+        drawRig(ctx, img, sprite.rig);
+      } else {
+        ctx.drawImage(img, -w / 2, -h, w, h);
+      }
     } else {
       // Placeholder stick figure while the drawing loads.
       ctx.strokeStyle = C.ink;

@@ -6,6 +6,7 @@ import { Renderer } from "@/game/render";
 import { ARENA, EMPTY_INPUT, TICK_HZ, type Input, type Slot } from "@/game/sim";
 import { loadSprite } from "@/game/sprite";
 import type { SnapBuffer } from "@/game/useGameRoom";
+import { Controller, type Control } from "./Controller";
 
 type Props = {
   snaps: RefObject<SnapBuffer>;
@@ -15,9 +16,10 @@ type Props = {
 };
 
 const SNAP_MS = (1000 / TICK_HZ) * 2;
+const TAPS = new Set<Control>(["jump", "attack", "kick", "special"]); // sent as press counters
 
-// Keyboard: A/D or ←/→ move · W/↑/Space jump · J attack · K block · L special
-const KEYS: Record<string, keyof Input> = {
+// A/D or ←/→ move · W/↑/Space jump · S/↓ block (hold) · J punch · K kick · L special
+const KEYS: Record<string, Control> = {
   KeyA: "left",
   ArrowLeft: "left",
   KeyD: "right",
@@ -25,36 +27,77 @@ const KEYS: Record<string, keyof Input> = {
   KeyW: "jump",
   ArrowUp: "jump",
   Space: "jump",
+  KeyS: "block",
+  ArrowDown: "block",
   KeyJ: "attack",
   KeyZ: "attack",
-  KeyK: "block",
-  KeyX: "block",
-  ArrowDown: "block",
-  KeyS: "block",
+  KeyK: "kick",
+  KeyX: "kick",
   KeyL: "special",
   KeyC: "special",
 };
 
+// Standard gamepad mapping (Xbox / PlayStation / most Bluetooth pads).
+const PAD_BUTTONS: [number, Control][] = [
+  [0, "jump"], // A / Cross
+  [2, "attack"], // X / Square
+  [3, "kick"], // Y / Triangle
+  [1, "special"], // B / Circle
+  [4, "block"], // LB
+  [5, "block"], // RB
+  [6, "block"], // LT
+  [12, "jump"], // D-pad up
+  [13, "block"], // D-pad down
+  [14, "left"],
+  [15, "right"],
+];
+
 export function GameCanvas({ snaps, players, you, onInput }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const input = useRef<Input>({ ...EMPTY_INPUT });
-  // Only rendered after the WebSocket lobby arrives, so this never runs during SSR.
+  // Only rendered once a match exists (client-side), so window is available.
   const [touch] = useState(() => window.matchMedia("(pointer: coarse)").matches);
+  const [lit, setLit] = useState<ReadonlySet<Control>>(new Set());
+  const [energy, setEnergy] = useState(0);
+  const [gamepad, setGamepad] = useState<string | null>(null);
 
   const onInputRef = useRef(onInput);
   useEffect(() => {
     onInputRef.current = onInput;
   }, [onInput]);
 
-  // Press/release from keyboard or touch buttons.
-  const press = useRef((key: keyof Input, down: boolean) => {
+  // One entry point for keyboard, on-screen console and gamepad. `source` keeps
+  // a held direction from being released by a different device.
+  const holders = useRef(new Map<Control, Set<string>>());
+  const press = useRef((key: Control, down: boolean, source = "ui") => {
     const i = input.current;
-    if (key === "jump" || key === "attack" || key === "special") {
-      if (down) i[key]++;
-      else return;
+    if (TAPS.has(key)) {
+      if (!down) return;
+      (i[key] as number)++;
+      setLit((s) => new Set(s).add(key));
+      setTimeout(
+        () =>
+          setLit((s) => {
+            const n = new Set(s);
+            n.delete(key);
+            return n;
+          }),
+        140,
+      );
     } else {
-      if (i[key] === down) return;
-      i[key] = down;
+      const set = holders.current.get(key) ?? new Set<string>();
+      if (down) set.add(source);
+      else set.delete(source);
+      holders.current.set(key, set);
+      const held = set.size > 0;
+      if (i[key] === held) return;
+      (i[key] as boolean) = held;
+      setLit((s) => {
+        const n = new Set(s);
+        if (held) n.add(key);
+        else n.delete(key);
+        return n;
+      });
     }
     onInputRef.current({ ...i });
   });
@@ -62,17 +105,19 @@ export function GameCanvas({ snaps, players, you, onInput }: Props) {
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       const k = KEYS[e.code];
-      if (!k) return;
+      if (!k || e.target instanceof HTMLInputElement) return;
       e.preventDefault();
-      if (!e.repeat) press.current(k, true);
+      if (!e.repeat) press.current(k, true, `key:${e.code}`);
     };
     const up = (e: KeyboardEvent) => {
       const k = KEYS[e.code];
-      if (k) press.current(k, false);
+      if (k) press.current(k, false, `key:${e.code}`);
     };
     // Releasing everything on blur avoids a "stuck walking" fighter after alt-tab.
     const blur = () => {
+      holders.current.clear();
       input.current = { ...input.current, left: false, right: false, block: false };
+      setLit(new Set());
       onInputRef.current({ ...input.current });
     };
     window.addEventListener("keydown", down);
@@ -80,13 +125,19 @@ export function GameCanvas({ snaps, players, you, onInput }: Props) {
     window.addEventListener("blur", blur);
     // Heartbeat in case a packet was dropped.
     const beat = setInterval(() => onInputRef.current({ ...input.current }), 250);
+    // Special meter on the console.
+    const meter = setInterval(() => {
+      const f = snaps.current.cur?.fighters[you];
+      if (f) setEnergy(Math.round(f.energy));
+    }, 120);
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", blur);
       clearInterval(beat);
+      clearInterval(meter);
     };
-  }, []);
+  }, [snaps, you]);
 
   useEffect(() => {
     const canvas = canvasRef.current!;
@@ -97,7 +148,7 @@ export function GameCanvas({ snaps, players, you, onInput }: Props) {
 
     let alive = true;
     players.forEach((p, i) =>
-      loadSprite(p.imageUrl)
+      loadSprite(p.imageUrl, p.pose, p.rotation)
         .then((s) => alive && (renderer.sprites[i] = s))
         .catch((err) => console.warn("[sprite]", err)),
     );
@@ -107,8 +158,30 @@ export function GameCanvas({ snaps, players, you, onInput }: Props) {
       specialNames: [players[0].specialMove, players[1].specialMove] as [string, string],
       you,
     };
+
+    const padPrev = new Map<string, boolean>();
+    let padName: string | null = null;
+    const pollGamepad = () => {
+      const pads = typeof navigator.getGamepads === "function" ? navigator.getGamepads() : [];
+      const pad = Array.from(pads).find((p) => p && p.connected) ?? null;
+      const name = pad ? pad.id.replace(/\(.*?\)/g, "").trim().slice(0, 40) || "Gamepad" : null;
+      if (name !== padName) setGamepad((padName = name));
+      if (!pad) return;
+      const states = new Map<string, [Control, boolean]>();
+      for (const [idx, ctl] of PAD_BUTTONS) states.set(`b${idx}`, [ctl, !!pad.buttons[idx]?.pressed]);
+      const ax = pad.axes[0] ?? 0, ay = pad.axes[1] ?? 0;
+      states.set("axL", ["left", ax < -0.5]);
+      states.set("axR", ["right", ax > 0.5]);
+      states.set("axD", ["block", ay > 0.6]);
+      for (const [id, [ctl, on]] of states) {
+        if (on !== (padPrev.get(id) ?? false)) press.current(ctl, on, `pad:${id}`);
+        padPrev.set(id, on);
+      }
+    };
+
     let raf = 0;
     const frame = (now: number) => {
+      pollGamepad();
       const { prev, cur, at } = snaps.current;
       if (cur) {
         renderer.ingest(cur, hud);
@@ -126,56 +199,12 @@ export function GameCanvas({ snaps, players, you, onInput }: Props) {
 
   return (
     <div className="grid gap-3">
-      {/* Fit the 16:9 arena inside the viewport height too (landscape phones), leaving room for controls. */}
-      <div className="mx-auto w-full" style={{ maxWidth: `calc((100svh - ${touch ? 200 : 150}px) * ${ARENA.w / ARENA.h})` }}>
+      {/* Fit the 16:9 arena inside the viewport height too, leaving room for the console. */}
+      <div className="mx-auto w-full" style={{ maxWidth: `calc((100svh - 230px) * ${ARENA.w / ARENA.h})` }}>
         <canvas ref={canvasRef} className="block w-full touch-none rounded-2xl bg-paper ring-1 ring-line" />
       </div>
       {touch && <p className="text-center text-xs text-muted portrait:block landscape:hidden">Tip: turn your phone sideways for a bigger arena.</p>}
-      {touch ? (
-        <TouchPad press={(k, d) => press.current(k, d)} />
-      ) : (
-        <p className="text-center text-xs text-muted">
-          <Kbd>A</Kbd>
-          <Kbd>D</Kbd> move · <Kbd>W</Kbd> jump · <Kbd>J</Kbd> attack · <Kbd>K</Kbd> block · <Kbd>L</Kbd> special (when the meter is full)
-        </p>
-      )}
-    </div>
-  );
-}
-
-function Kbd({ children }: { children: string }) {
-  return <kbd className="mx-0.5 rounded-md bg-card px-1.5 py-0.5 font-sans text-[11px] font-semibold text-ink ring-1 ring-line">{children}</kbd>;
-}
-
-function TouchPad({ press }: { press: (k: keyof Input, down: boolean) => void }) {
-  const btn = (k: keyof Input, label: string, cls: string) => (
-    <button
-      key={k}
-      onPointerDown={(e) => {
-        e.preventDefault();
-        (e.target as HTMLElement).setPointerCapture(e.pointerId);
-        press(k, true);
-      }}
-      onPointerUp={() => press(k, false)}
-      onPointerCancel={() => press(k, false)}
-      onContextMenu={(e) => e.preventDefault()}
-      className={`h-16 w-full select-none rounded-2xl font-display text-lg font-extrabold active:scale-95 ${cls}`}
-    >
-      {label}
-    </button>
-  );
-  return (
-    <div className="mx-auto grid w-full max-w-xl touch-none grid-cols-2 gap-3">
-      <div className="grid grid-cols-3 gap-1.5">
-        {btn("left", "◀", "bg-card ring-1 ring-line")}
-        {btn("jump", "▲", "bg-card ring-1 ring-line")}
-        {btn("right", "▶", "bg-card ring-1 ring-line")}
-      </div>
-      <div className="grid grid-cols-3 gap-1.5">
-        {btn("block", "🛡", "bg-guard text-white")}
-        {btn("special", "★", "bg-gold text-ink")}
-        {btn("attack", "HIT", "bg-hit text-white")}
-      </div>
+      <Controller press={(k, d) => press.current(k, d, "ui")} lit={lit} energy={energy} showKeys={!touch} gamepad={gamepad} />
     </div>
   );
 }

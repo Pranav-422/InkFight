@@ -44,6 +44,8 @@ export async function POST(request: Request) {
       specialDesc: a.specialMove.description,
       flavorText: a.flavorText,
       detectedItems: JSON.stringify(a.breakdown),
+      pose: a.pose ? JSON.stringify(a.pose) : null,
+      rotation: a.rotation,
     },
   });
   return Response.json(character, { status: 201 });

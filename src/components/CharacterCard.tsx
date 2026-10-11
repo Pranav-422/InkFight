@@ -10,7 +10,12 @@ export function CharacterCard({ character: c, variant = "full" }: Props) {
     <article className="rounded-2xl bg-card p-3 shadow-[0_1px_2px_rgba(0,0,0,.06),0_8px_24px_-12px_rgba(0,0,0,.18)] ring-1 ring-line">
       <div className="relative aspect-[4/5] overflow-hidden rounded-xl bg-white ring-1 ring-line">
         {/* eslint-disable-next-line @next/next/no-img-element -- user uploads served from an API route */}
-        <img src={c.imageUrl} alt={`Drawing of ${c.name}`} className="h-full w-full object-contain" />
+        <img
+          src={c.imageUrl}
+          alt={`Drawing of ${c.name}`}
+          className="h-full w-full object-contain transition-transform"
+          style={c.rotation ? { transform: `rotate(${c.rotation}deg)${c.rotation % 180 ? " scale(0.8)" : ""}` } : undefined}
+        />
         <div className="absolute left-2 top-2">
           <ClassBadge cls={c.class} size={full ? "md" : "sm"} />
         </div>

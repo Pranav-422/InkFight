@@ -17,5 +17,7 @@ export function publicFighter(c: Character): PublicFighter {
     atk: c.atk,
     def: c.def,
     spd: c.spd,
+    pose: c.pose,
+    rotation: c.rotation,
   };
 }

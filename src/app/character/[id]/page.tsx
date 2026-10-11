@@ -1,7 +1,11 @@
+import { Bot } from "lucide-react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CharacterCard } from "@/components/CharacterCard";
 import { FightButtons } from "@/components/FightButtons";
+import { RotateControl } from "@/components/RotateControl";
 import { deriveDef, TICK_HZ } from "@/game/sim";
+import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import type { Analysis } from "@/lib/vision";
 
@@ -14,6 +18,8 @@ export default async function CharacterPage({ params, searchParams }: PageProps<
   const { new: isNew } = await searchParams;
   const me = await db.character.findUnique({ where: { id } });
   if (!me) notFound();
+  const session = await getSession();
+  const owns = session?.userId === me.ownerId;
   const def = deriveDef(me);
   const SPECIAL_HOW: Record<string, string> = {
     bolt: "fires a magic bolt",
@@ -42,6 +48,7 @@ export default async function CharacterPage({ params, searchParams }: PageProps<
       <div>
         {isNew && <p className="mb-3 font-display text-lg font-extrabold">A challenger appears!</p>}
         <CharacterCard character={me} />
+        {owns && <RotateControl id={me.id} rotation={me.rotation} />}
       </div>
 
       <div className="grid content-start gap-8">
@@ -98,11 +105,30 @@ export default async function CharacterPage({ params, searchParams }: PageProps<
           </p>
         </section>
 
-        <section>
-          <h2 className="font-display text-xl font-extrabold">Fight a friend</h2>
-          <p className="mb-3 text-sm text-muted">Each player controls their own fighter on their own device.</p>
-          <FightButtons fighterId={me.id} />
-        </section>
+        {owns ? (
+          <section>
+            <h2 className="font-display text-xl font-extrabold">Fight a friend</h2>
+            <p className="mb-3 text-sm text-muted">Each player controls their own fighter on their own device.</p>
+            <FightButtons fighterId={me.id} />
+            <Link
+              href={`/play/cpu?fighter=${me.id}`}
+              className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-muted underline-offset-2 hover:text-ink hover:underline"
+            >
+              <Bot className="size-4" /> Or practice against the computer
+            </Link>
+          </section>
+        ) : (
+          <section>
+            <h2 className="font-display text-xl font-extrabold">Think you can take {me.name}?</h2>
+            <p className="mb-3 text-sm text-muted">The computer will play as this drawing. You pick one of yours.</p>
+            <Link
+              href={`/play/cpu?opponent=${me.id}`}
+              className="inline-flex items-center gap-2 rounded-xl bg-hit px-5 py-3 font-semibold text-white hover:brightness-110"
+            >
+              <Bot className="size-4" /> Fight {me.name} vs computer
+            </Link>
+          </section>
+        )}
       </div>
     </div>
   );

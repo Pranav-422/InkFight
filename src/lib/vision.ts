@@ -20,6 +20,8 @@ export function hasApiKey(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY);
 }
 
+const Point = z.object({ x: z.number(), y: z.number() });
+
 const VisionSchema = z.object({
   name: z.string().describe("A short, punchy fighter name inspired by the drawing"),
   class: z.enum(CLASSES),
@@ -32,7 +34,24 @@ const VisionSchema = z.object({
   stats: z.object({ hp: z.number(), atk: z.number(), def: z.number(), spd: z.number() }),
   special_move: z.object({ name: z.string(), description: z.string() }),
   flavor_text: z.string(),
+  head_points: z.enum(["up", "left", "right", "down"]).describe("Which edge of the image the figure's head points toward (up = drawn upright)"),
+  // Where the body parts are, as fractions of the image (x: 0 = left, y: 0 = top). Used to animate the drawing like a puppet.
+  pose: z.object({
+    head: Point,
+    shoulder: Point,
+    hip: Point,
+    left_elbow: Point,
+    left_hand: Point,
+    right_elbow: Point,
+    right_hand: Point,
+    left_knee: Point,
+    left_foot: Point,
+    right_knee: Point,
+    right_foot: Point,
+  }),
 });
+
+export type PoseKeypoints = z.infer<typeof VisionSchema>["pose"];
 
 export type Analysis = {
   name: string;
@@ -40,6 +59,8 @@ export type Analysis = {
   stats: Stats;
   specialMove: { name: string; description: string };
   flavorText: string;
+  pose: PoseKeypoints | null;
+  rotation: number; // degrees clockwise to stand the drawing upright
   // Persisted in Character.detectedItems so the reveal screen can explain the stats.
   breakdown: {
     source: "claude" | "offline";
@@ -61,6 +82,8 @@ Look only at what is actually drawn. Report:
 - proposed stats within HP 60-140, ATK 40-90, DEF 40-90, SPD 40-90
 - a special move whose name and description reference something specific in the drawing (hair, a scribble, a hat, the item...)
 - a one-line flavor text, playful trash-talk tone, under 90 characters
+- which edge of the image the head points toward (the drawing may be sideways in the photo)
+- the pose: where the figure's head center, shoulder (where the arms meet the body), hip (where the legs meet the body), both elbows, hands, knees and feet are, as fractions of the whole image (x from the left edge, y from the top edge). "left"/"right" mean the image's left/right side. If a joint isn't drawn (stick arms have no elbow), give the midpoint of that limb
 If the image is not a drawing of a character, still do your best with whatever is drawn.`;
 
 type MediaType = "image/jpeg" | "image/png" | "image/webp" | "image/gif";
@@ -98,7 +121,9 @@ function build(
   modelStats: Stats | null,
   special: { name: string; description: string },
   flavor: string,
+  pose: PoseKeypoints | null,
   note?: string,
+  rotation = 0,
 ): Analysis {
   // Class is decided by the item rule, not trusted from the model.
   const cls = classFromItems(items);
@@ -109,6 +134,8 @@ function build(
     stats: blendStats(rule, modelStats),
     specialMove: { name: special.name.slice(0, 40), description: special.description.slice(0, 160) },
     flavorText: flavor.slice(0, 140),
+    pose,
+    rotation,
     breakdown: {
       source,
       items,
@@ -120,6 +147,13 @@ function build(
       note,
     },
   };
+}
+
+// Keep only plausible keypoints (all inside the image, feet below the head).
+function validPose(p: PoseKeypoints): PoseKeypoints | null {
+  const pts = Object.values(p);
+  const inside = pts.every((q) => q.x >= -0.05 && q.x <= 1.05 && q.y >= -0.05 && q.y <= 1.05);
+  return inside ? p : null; // orientation is handled by head_points → rotation
 }
 
 // Deterministic stand-in used when there's no API key or the vision call fails twice.
@@ -148,6 +182,7 @@ function offlineAnalysis(image: Buffer, note: string): Analysis {
     null,
     pick(moves, 6),
     "Drawn in thirty seconds, fights like it took thirty years.",
+    null, // the browser estimates the skeleton from the ink
     note,
   );
 }
@@ -167,6 +202,9 @@ export async function analyzeDrawing(image: Buffer, mediaType: MediaType): Promi
         v.stats,
         v.special_move,
         v.flavor_text,
+        validPose(v.pose),
+        undefined,
+        ({ up: 0, left: 90, down: 180, right: 270 } as const)[v.head_points] ?? 0,
       );
     } catch (err) {
       lastError = err;

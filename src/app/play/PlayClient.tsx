@@ -1,5 +1,7 @@
 "use client";
 
+import { Bot } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { newRoomCode, ROOM_CODE } from "@/game/protocol";
@@ -50,6 +52,17 @@ export function PlayClient() {
             Join
           </button>
         </form>
+      </section>
+      <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-ink p-5 text-white sm:col-span-2">
+        <div>
+          <h2 className="flex items-center gap-2 font-display text-xl font-extrabold">
+            <Bot className="size-5" /> No friend around?
+          </h2>
+          <p className="mt-1 text-sm text-white/70">Fight the computer. It can play as any drawing in the gallery.</p>
+        </div>
+        <Link href="/play/cpu" className="rounded-xl bg-hit px-5 py-3 font-semibold text-white hover:brightness-110">
+          Vs computer
+        </Link>
       </section>
     </div>
   );
