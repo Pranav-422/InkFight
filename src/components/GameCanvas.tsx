@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import type { LobbyPlayer } from "@/game/protocol";
 import { Renderer } from "@/game/render";
 import { ARENA, EMPTY_INPUT, TICK_HZ, type Input, type Slot } from "@/game/sim";
@@ -16,6 +16,8 @@ type Props = {
 };
 
 const SNAP_MS = (1000 / TICK_HZ) * 2;
+const subscribeNoop = () => () => {};
+const isTouchDevice = () => window.matchMedia("(pointer: coarse)").matches;
 const TAPS = new Set<Control>(["jump", "attack", "kick", "special"]); // sent as press counters
 
 // A/D or ←/→ move · W/↑/Space jump · S/↓ block (hold) · J punch · K kick · L special
@@ -55,8 +57,8 @@ const PAD_BUTTONS: [number, Control][] = [
 export function GameCanvas({ snaps, players, you, onInput }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const input = useRef<Input>({ ...EMPTY_INPUT });
-  // Only rendered once a match exists (client-side), so window is available.
-  const [touch] = useState(() => window.matchMedia("(pointer: coarse)").matches);
+  // Server render (e.g. /demo) has no window: assume a mouse, then use the real value in the browser.
+  const touch = useSyncExternalStore(subscribeNoop, isTouchDevice, () => false);
   const [lit, setLit] = useState<ReadonlySet<Control>>(new Set());
   const [energy, setEnergy] = useState(0);
   const [gamepad, setGamepad] = useState<string | null>(null);
