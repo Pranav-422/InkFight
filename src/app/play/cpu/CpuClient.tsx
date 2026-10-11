@@ -158,7 +158,19 @@ function FighterGrid({
   );
 }
 
-function CpuFight({ me, cpu, level, onExit }: { me: PublicFighter; cpu: PublicFighter; level: Level; onExit: () => void }) {
+export function CpuFight({
+  me,
+  cpu,
+  level,
+  onExit,
+  exitLabel = "Change fighters",
+}: {
+  me: PublicFighter;
+  cpu: PublicFighter;
+  level: Level;
+  onExit: () => void;
+  exitLabel?: string;
+}) {
   const { lobby, snaps, matchOver, sendInput, rematch } = useCpuMatch(me, cpu, level);
   const [p0, p1] = lobby.players;
   const players = useMemo(() => [p0!, p1!] as [NonNullable<typeof p0>, NonNullable<typeof p1>], [p0?.id, p1?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -170,7 +182,7 @@ function CpuFight({ me, cpu, level, onExit }: { me: PublicFighter; cpu: PublicFi
           <Bot className="size-4" /> Vs computer · {level}
         </span>
         <button onClick={onExit} className="text-muted underline-offset-2 hover:text-ink hover:underline">
-          Change fighters
+          {exitLabel}
         </button>
       </div>
       <GameCanvas snaps={snaps} players={players} you={0} onInput={sendInput} />

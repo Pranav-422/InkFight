@@ -53,6 +53,9 @@ export default async function Landing() {
               {session ? "Fight a friend" : "Log in"}
             </Link>
           </div>
+          <Link href="/demo" className="mt-4 inline-flex items-center gap-2 font-semibold text-ink underline-offset-4 hover:underline">
+            <Gamepad2 className="size-5 text-hit" /> Try a sample fight — no login needed →
+          </Link>
         </div>
 
         {/* Mini arena */}
