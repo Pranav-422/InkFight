@@ -4,6 +4,7 @@
 // tore apart on most real drawings.
 
 import { BONES, type BoneName, type Joints, type Vec } from "./skeleton";
+import type { Prop } from "./sprite";
 
 // Rest stance in world units, feet at y = 0, facing +x. 180 tall like BODY.h * 1.06.
 const REST_JOINTS: Joints = {
@@ -57,12 +58,12 @@ const LIMBS: [keyof Joints, keyof Joints, keyof Joints][] = [
 export function drawStick(
   ctx: CanvasRenderingContext2D,
   { joints: j, world }: StickPose,
-  o: { ink: string; head: HTMLCanvasElement | null; cls: string; accent: string },
+  o: { ink: string; head: HTMLCanvasElement | null; prop: Prop | null; cls: string; accent: string; width: number },
 ) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.strokeStyle = o.ink;
-  ctx.lineWidth = 7;
+  ctx.lineWidth = o.width; // the drawing's own pen weight
   // Far limbs first, then torso, then near limbs: reads as depth.
   const limb = ([a, b, c]: (typeof LIMBS)[number]) => {
     ctx.beginPath();
@@ -101,7 +102,20 @@ export function drawStick(
   }
   ctx.restore();
 
-  drawItem(ctx, o.cls, j, world.foreF, o.ink, o.accent);
+  if (o.prop) {
+    // The item the player actually drew, turned with the forearm.
+    const p = o.prop;
+    ctx.save();
+    ctx.translate(j.handF.x, j.handF.y);
+    // Only half the forearm's turn: a held sword mostly keeps the angle it was drawn at,
+    // instead of sweeping across the face on every guard.
+    ctx.rotate((world.foreF - p.rest) * 0.45);
+    ctx.scale(p.scale, p.scale);
+    ctx.drawImage(p.img, -p.hx, -p.hy);
+    ctx.restore();
+  } else drawItem(ctx, o.cls, j, world.foreF, o.ink, o.accent);
+  ctx.lineWidth = o.width;
+  ctx.strokeStyle = o.ink;
   limb(LIMBS[3]);
 }
 

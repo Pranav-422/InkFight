@@ -4,8 +4,24 @@
 
 import { estimateJoints, jointsFromVision, type Joints, type Vec } from "./skeleton";
 
-// head: the drawing's head, cut out as a circle. ink: its average ink colour.
-export type Sprite = { head: HTMLCanvasElement | null; ink: string | null };
+// What a fighter wears from its drawing. head: the drawn head, cut out as a circle.
+// ink: average ink colour. prop: the item drawn in its hand (the stickman holds it).
+// width: the drawing's pen width, in arena units.
+export type Prop = { img: HTMLCanvasElement; hx: number; hy: number; scale: number; rest: number };
+export type Sprite = { head: HTMLCanvasElement | null; ink: string | null; prop: Prop | null; width: number };
+
+// Loading a drawing is a few ms of pixel work; the gallery, pickers and the arena share it.
+const cache = new Map<string, Promise<Sprite>>();
+export function loadSpriteCached(url: string, poseJson?: string | null, rotation = 0): Promise<Sprite> {
+  const key = `${url}|${rotation}|${poseJson ?? ""}`;
+  let p = cache.get(key);
+  if (!p) {
+    p = loadSprite(url, poseJson, rotation);
+    p.catch(() => cache.delete(key));
+    cache.set(key, p);
+  }
+  return p;
+}
 
 const MAX_SIDE = 512;
 
@@ -235,7 +251,44 @@ export async function loadSprite(url: string, poseJson?: string | null, rotation
     } catch {}
   }
   joints ??= estimateJoints(px2, W, H);
-  return { head: cutHead(normal, joints), ink: inkColor(px2) };
+  // The arena body is 180 units from head to feet; the cropped drawing is H pixels.
+  const unit = 180 / H;
+  const side = propSide((x, y) => px2[(y * W + x) * 4 + 3] >= 64, W, H, joints, H);
+  return {
+    head: cutHead(normal, joints),
+    ink: inkColor(px2),
+    prop: side ? cutProp(px2, W, H, side, unit) : null,
+    width: Math.min(11, Math.max(4, (side?.stroke ?? strokeWidth((x, y) => px2[(y * W + x) * 4 + 3] >= 64, W, H, joints)) * unit * 1.1)),
+  };
+}
+
+// Copy exactly the prop's pixels into their own canvas, anchored at the hand. A prop
+// on the drawing's left is mirrored, since the stickman always holds it in front.
+function cutProp(px: Uint8ClampedArray, W: number, H: number, s: PropSide, scale: number): Prop | null {
+  let x0 = W, y0 = H, x1 = 0, y1 = 0;
+  for (const p of s.pts) {
+    x0 = Math.min(x0, p.x);
+    y0 = Math.min(y0, p.y);
+    x1 = Math.max(x1, p.x);
+    y1 = Math.max(y1, p.y);
+  }
+  const w = x1 - x0 + 1, h = y1 - y0 + 1;
+  if (w * h > W * H * 0.5) return null; // that's half the drawing: not a prop
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const g = c.getContext("2d")!;
+  const out = g.createImageData(w, h);
+  for (const p of s.pts) {
+    const src = (p.y * W + p.x) * 4;
+    const dx = s.left ? x1 - p.x : p.x - x0;
+    const dst = ((p.y - y0) * w + dx) * 4;
+    for (let k = 0; k < 4; k++) out.data[dst + k] = px[src + k];
+  }
+  g.putImageData(out, 0, 0);
+  const hx = s.left ? x1 - s.hand.x : s.hand.x - x0, hy = s.hand.y - y0;
+  const rest = Math.atan2(s.hand.y - s.elbow.y, (s.hand.x - s.elbow.x) * (s.left ? -1 : 1));
+  return { img: c, hx, hy, scale, rest };
 }
 
 // The head as a circle around the head joint (head-to-shoulder is about two head radii),
@@ -336,32 +389,59 @@ export function measureInk(px: ArrayLike<number>, alpha: ArrayLike<number>, w: n
   };
 }
 
-// The held prop: ink that isn't head, spine or legs, and is more than a stick arm's
-// worth. Its shape picks the item. A guess — the create page lets the user fix it.
+// The held prop: ink that isn't head, spine, legs or the arm's own stroke, on the side
+// with far more of it than a bare forearm. A guess — the create page lets the user fix it.
 function guessItem(alpha: ArrayLike<number>, w: number, h: number, j: Joints, bh: number): Item {
+  const side = propSide((x, y) => alpha[y * w + x] >= 64, w, h, j, bh);
+  return side ? shapeOf(side.pts, w, h, bh) : "nothing";
+}
+
+type PropSide = { pts: Vec[]; left: boolean; hand: Vec; elbow: Vec; stroke: number };
+
+// Pen width from the legs (two strokes from hip to feet), so thresholds fit pen or marker.
+function strokeWidth(ink: (x: number, y: number) => boolean, w: number, h: number, j: Joints) {
+  let legInk = 0;
+  for (let y = Math.max(0, Math.ceil(j.hip.y)); y < h; y++) for (let x = 0; x < w; x++) if (ink(x, y)) legInk++;
+  const legLen = Math.max(1, Math.max(j.footF.y, j.footB.y) - j.hip.y);
+  return Math.max(1.5, legInk / (2 * legLen * 1.1));
+}
+
+function propSide(ink: (x: number, y: number) => boolean, w: number, h: number, j: Joints, bh: number): PropSide | null {
+  const stroke = strokeWidth(ink, w, h, j);
   const headR = Math.max(6, Math.hypot(j.head.x - j.shoulder.x, j.head.y - j.shoulder.y) * 0.7);
   const band = bh * 0.07;
-  const pts: Vec[] = [];
-  for (let y = 0; y < h; y++) {
-    if (y > j.hip.y) continue; // legs
+  // Hands: F is the one further right in the drawing (see estimateJoints).
+  const arms = [
+    { left: true, hand: j.handB, elbow: j.elbowB },
+    { left: false, hand: j.handF, elbow: j.elbowF },
+  ];
+  // The arm stroke is at most about a third of the body long. The "hand" found on the ink
+  // can be a sword's tip, so cap the arm there and keep what's beyond it.
+  const reachOf = arms.map(({ hand }) => {
+    const d = Math.hypot(hand.x - j.shoulder.x, hand.y - j.shoulder.y) || 1, k = Math.min(1, (bh * 0.36) / d);
+    return { x: j.shoulder.x + (hand.x - j.shoulder.x) * k, y: j.shoulder.y + (hand.y - j.shoulder.y) * k };
+  });
+  const sides: Vec[][] = [[], []];
+  for (let y = 0; y < Math.min(h, j.hip.y); y++) {
     for (let x = 0; x < w; x++) {
-      if (alpha[y * w + x] < 64) continue;
+      if (!ink(x, y)) continue;
       if (Math.hypot(x - j.head.x, y - j.head.y) < headR) continue;
       if (Math.abs(x - j.shoulder.x) < band && y > j.head.y) continue; // spine
       if (Math.hypot(x - j.shoulder.x, y - j.shoulder.y) < bh * 0.22) continue; // upper arms
-      pts.push({ x, y });
+      const i = x < j.shoulder.x ? 0 : 1;
+      if (distToSeg({ x, y }, j.shoulder, reachOf[i]) < stroke * 2.2) continue; // the arm itself
+      sides[i].push({ x, y });
     }
   }
-  // Stroke width from the legs (two strokes from hip to feet), so the threshold fits pen or marker.
-  let legInk = 0;
-  for (let y = Math.ceil(j.hip.y); y < h; y++) for (let x = 0; x < w; x++) if (alpha[y * w + x] >= 64) legInk++;
-  const legLen = Math.max(1, Math.max(j.footF.y, j.footB.y) - j.hip.y);
-  const stroke = Math.max(1.5, legInk / (2 * legLen * 1.1));
-  // A bare forearm is a short thin line; a side with far more ink than that holds a prop.
-  const left = pts.filter((p) => p.x < j.shoulder.x), right = pts.filter((p) => p.x >= j.shoulder.x);
-  const side = left.length > right.length ? left : right;
-  if (side.length < bh * 0.12 * stroke * 2) return "nothing";
-  return shapeOf(side, w, h, bh);
+  const i = sides[0].length > sides[1].length ? 0 : 1;
+  if (sides[i].length < bh * 0.16 * stroke) return null; // shorter than a sixth of the body: just a hand
+  return { pts: sides[i], ...arms[i], stroke };
+}
+
+function distToSeg(p: Vec, a: Vec, b: Vec) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1)));
+  return Math.hypot(p.x - a.x - dx * t, p.y - a.y - dy * t);
 }
 
 function shapeOf(pts: Vec[], w: number, h: number, bh: number): Item {
