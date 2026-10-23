@@ -1,6 +1,7 @@
 import { getSession, isAdmin, type Session } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { cleanName } from "@/lib/names";
+import { rateLimit, tooMany } from "@/lib/rateLimit";
 import { deleteDrawing } from "@/lib/storage";
 
 export async function GET(_req: Request, ctx: RouteContext<"/api/characters/[id]">) {
@@ -15,6 +16,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/characters/[id]
 async function editable(ctx: RouteContext<"/api/characters/[id]">) {
   const s = await getSession();
   if (!s) return { error: Response.json({ error: "Log in first." }, { status: 401 }) };
+  if (!(await rateLimit(`edit:${s.userId}`, 60, 60_000))) return { error: tooMany() };
   const { id } = await ctx.params;
   const c = await db.character.findUnique({ where: { id } });
   if (!c) return { error: Response.json({ error: "No fighter by that id." }, { status: 404 }) };

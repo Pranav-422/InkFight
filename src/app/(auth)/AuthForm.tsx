@@ -24,7 +24,7 @@ export function AuthForm({ mode, next, demo }: { mode: "login" | "signup"; next?
           label="Password"
           name="password"
           type="password"
-          placeholder={isLogin ? "••••••" : "At least 6 characters"}
+          placeholder={isLogin ? "••••••••" : "At least 8 characters"}
           autoComplete={isLogin ? "current-password" : "new-password"}
         />
         {state.error && <p className="rounded-xl bg-hit/10 px-3 py-2 text-sm text-hit">{state.error}</p>}

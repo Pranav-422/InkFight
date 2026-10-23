@@ -1,4 +1,5 @@
 import { ROOM_CODE } from "@/game/protocol";
+import { rateLimit, tooMany } from "@/lib/rateLimit";
 import { getSession, isAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isStale, publicFighter } from "@/lib/rooms";
@@ -32,6 +33,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/rooms/[code]">)
 export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]">) {
   const s = await getSession();
   if (!s) return Response.json({ error: "Log in first." }, { status: 401 });
+  if (!(await rateLimit(`room:${s.userId}`, 30, 60_000))) return tooMany();
   const code = (await ctx.params).code.toUpperCase();
   if (!ROOM_CODE.test(code)) return Response.json({ error: "That room code looks wrong." }, { status: 400 });
 

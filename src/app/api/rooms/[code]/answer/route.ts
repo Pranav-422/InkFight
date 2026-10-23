@@ -1,3 +1,4 @@
+import { rateLimit, tooMany } from "@/lib/rateLimit";
 import { getSession, isAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isStale } from "@/lib/rooms";
@@ -5,6 +6,7 @@ import { isStale } from "@/lib/rooms";
 export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/answer">) {
   const s = await getSession();
   if (!s) return Response.json({ error: "Log in first." }, { status: 401 });
+  if (!(await rateLimit(`answer:${s.userId}`, 30, 60_000))) return tooMany();
   const code = (await ctx.params).code.toUpperCase();
   const { fighterId, answer, version } = (await req.json().catch(() => ({}))) as { fighterId?: string; answer?: string; version?: number };
   if (!fighterId || !answer || answer.length > 20000) return Response.json({ error: "Bad answer." }, { status: 400 });

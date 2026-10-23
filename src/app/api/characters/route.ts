@@ -1,11 +1,21 @@
 import { z } from "zod";
 import { getSession, isAdmin } from "@/lib/auth";
 import { cleanName } from "@/lib/names";
+import { rateLimit, tooMany } from "@/lib/rateLimit";
 import { db } from "@/lib/db";
 import { saveDrawing } from "@/lib/storage";
 import { analyzeDrawing } from "@/lib/vision";
 
 const TYPES = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" } as const;
+
+// The real type from the file's first bytes; the browser-sent type is not trusted.
+function sniff(b: Buffer): keyof typeof TYPES | null {
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "image/jpeg";
+  if (b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "image/png";
+  if (b.subarray(0, 4).toString("latin1") === "GIF8") return "image/gif";
+  if (b.subarray(0, 4).toString("latin1") === "RIFF" && b.subarray(8, 12).toString("latin1") === "WEBP") return "image/webp";
+  return null;
+}
 const MAX_BYTES = 4 * 1024 * 1024; // Vercel functions cap request bodies at 4.5MB
 
 // Measurements from the browser. Untrusted: clamp every number, allow only known words.
@@ -44,18 +54,18 @@ export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return Response.json({ error: "Log in to create a fighter." }, { status: 401 });
 
+  // Each upload costs storage and an AI call: cap bursts and the daily total per player.
+  if (!(await rateLimit(`upload-min:${session.userId}`, 4, 60_000)) || !(await rateLimit(`upload-day:${session.userId}`, 25, 86_400_000))) return tooMany("Uploads");
+
   const form = await request.formData();
   const file = form.get("image");
   if (!(file instanceof File)) return Response.json({ error: "No drawing attached. Did it fall off the table?" }, { status: 400 });
-  const ext = TYPES[file.type as keyof typeof TYPES];
-  if (!ext) return Response.json({ error: "That's not a JPG, PNG, WEBP or GIF." }, { status: 400 });
   if (file.size > MAX_BYTES) return Response.json({ error: "Image is over 4MB. Try a smaller photo." }, { status: 400 });
 
   const bytes = Buffer.from(await file.arrayBuffer());
-  const [imageUrl, a] = await Promise.all([
-    saveDrawing(bytes, ext, file.type),
-    analyzeDrawing(bytes, file.type as keyof typeof TYPES, parseFacts(form.get("features"))),
-  ]);
+  const type = sniff(bytes);
+  if (!type) return Response.json({ error: "That's not a JPG, PNG, WEBP or GIF." }, { status: 400 });
+  const [imageUrl, a] = await Promise.all([saveDrawing(bytes, TYPES[type], type), analyzeDrawing(bytes, type, parseFacts(form.get("features")))]);
   const character = await db.character.create({
     data: {
       name: cleanName(form.get("name")) ?? a.name,

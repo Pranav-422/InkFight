@@ -1,3 +1,4 @@
+import { rateLimit, tooMany } from "@/lib/rateLimit";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 
@@ -5,6 +6,7 @@ import { db } from "@/lib/db";
 export async function POST(req: Request) {
   const s = await getSession();
   if (!s) return Response.json({ error: "Log in first." }, { status: 401 });
+  if (!(await rateLimit(`battle:${s.userId}`, 20, 60_000))) return tooMany();
   const body = (await req.json().catch(() => ({}))) as {
     roomCode?: string;
     matchId?: string;

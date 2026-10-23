@@ -69,3 +69,10 @@ model Room {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
+
+// Fixed-window rate limit counters (src/lib/rateLimit.ts). Key = "<action>:<who>".
+model RateLimit {
+  key     String   @id
+  count   Int      @default(0)
+  resetAt DateTime
+}
