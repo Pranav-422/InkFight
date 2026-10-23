@@ -1,6 +1,7 @@
 import { Bot, PenLine, Swords, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { CharacterCard } from "@/components/CharacterCard";
+import { OwnerActions } from "@/components/OwnerActions";
 import { requireUser } from "@/lib/auth";
 import { getLeaderboard } from "@/lib/queries";
 
@@ -75,6 +76,7 @@ export default async function HomePage() {
                 <p className="mt-1 text-center text-xs text-muted tabular-nums">
                   {c.wins}W · {c.losses}L
                 </p>
+                {!c.imageUrl.startsWith("/samples/") && <OwnerActions id={c.id} name={c.name} />}
               </li>
             ))}
           </ul>

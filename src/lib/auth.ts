@@ -51,6 +51,13 @@ export const getSession = cache(async (): Promise<Session | null> => {
   }
 });
 
+// Admins are listed by email in ADMIN_EMAILS (comma-separated), checked on the server only.
+export function isAdmin(s: Session | null): boolean {
+  if (!s) return false;
+  const list = (process.env.ADMIN_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+  return list.includes(s.email.toLowerCase());
+}
+
 // For pages: bounce to /login and come back afterwards.
 export async function requireUser(next: string): Promise<Session> {
   const s = await getSession();

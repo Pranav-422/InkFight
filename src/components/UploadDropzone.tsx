@@ -54,6 +54,7 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
   const [line, setLine] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [facts, setFacts] = useState<Measured | null>(null);
+  const [name, setName] = useState("");
   const [measuring, setMeasuring] = useState(false);
 
   useEffect(() => {
@@ -90,6 +91,7 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
     try {
       const body = new FormData();
       body.append("image", await downscale(file), "drawing.jpg");
+      if (name.trim()) body.append("name", name.trim());
       if (facts) body.append("features", JSON.stringify(facts));
       const res = await fetch("/api/characters", { method: "POST", body });
       const data = await res.json();
@@ -178,6 +180,19 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
         >
           <Camera className="size-4" /> Take a photo
         </button>
+      )}
+
+      {preview && !busy && (
+        <label className="grid gap-1 text-sm font-semibold">
+          Name your fighter <span className="font-normal text-muted">(optional: leave empty and the AI names it)</span>
+          <input
+            value={name}
+            maxLength={32}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Professor Scribbles"
+            className="rounded-xl bg-card px-4 py-2.5 font-normal ring-1 ring-line outline-none focus:ring-2 focus:ring-ink"
+          />
+        </label>
       )}
 
       {preview && !busy && (

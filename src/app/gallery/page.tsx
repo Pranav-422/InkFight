@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { CharacterCard } from "@/components/CharacterCard";
+import { OwnerActions } from "@/components/OwnerActions";
+import { getSession, isAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
 export default async function GalleryPage() {
-  const characters = await db.character.findMany({ orderBy: { createdAt: "desc" } });
+  const [characters, session] = await Promise.all([db.character.findMany({ orderBy: { createdAt: "desc" } }), getSession()]);
+  const admin = isAdmin(session);
 
   return (
     <div>
@@ -31,6 +34,7 @@ export default async function GalleryPage() {
               <Link href={`/character/${c.id}`} className="block transition hover:-translate-y-0.5">
                 <CharacterCard character={c} variant="compact" />
               </Link>
+              {(admin || (c.ownerId === session?.userId && !c.imageUrl.startsWith("/samples/"))) && <OwnerActions id={c.id} name={c.name} />}
             </li>
           ))}
         </ul>

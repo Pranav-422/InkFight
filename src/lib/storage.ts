@@ -1,7 +1,7 @@
 import "server-only";
-import { put } from "@vercel/blob";
+import { del, put } from "@vercel/blob";
 import { randomUUID } from "crypto";
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, unlink, writeFile } from "fs/promises";
 import path from "path";
 
 // On Vercel the filesystem is read-only/ephemeral, so drawings go to Vercel Blob.
@@ -17,4 +17,14 @@ export async function saveDrawing(bytes: Buffer, ext: string, contentType: strin
   await mkdir(dir, { recursive: true });
   await writeFile(path.join(dir, filename), bytes);
   return `/api/uploads/${filename}`;
+}
+
+// Remove a drawing's file when its fighter is deleted. Starter art in /public is never touched.
+export async function deleteDrawing(url: string) {
+  try {
+    if (url.includes(".blob.vercel-storage.com/") && process.env.BLOB_READ_WRITE_TOKEN) await del(url);
+    else if (/^\/api\/uploads\/[\w-]+\.(jpg|png|webp|gif)$/.test(url)) await unlink(path.join(process.cwd(), "uploads", url.split("/").pop()!));
+  } catch (err) {
+    console.warn("[storage] couldn't delete", url, err); // the fighter is gone either way
+  }
 }

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
+import { cleanName } from "@/lib/names";
 import { db } from "@/lib/db";
 import { saveDrawing } from "@/lib/storage";
 import { analyzeDrawing } from "@/lib/vision";
@@ -56,7 +57,7 @@ export async function POST(request: Request) {
   ]);
   const character = await db.character.create({
     data: {
-      name: a.name,
+      name: cleanName(form.get("name")) ?? a.name,
       ownerId: session.userId,
       ownerHandle: session.name,
       imageUrl,

@@ -3,10 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CharacterCard } from "@/components/CharacterCard";
 import { FightButtons } from "@/components/FightButtons";
+import { OwnerActions } from "@/components/OwnerActions";
 import { RotateControl } from "@/components/RotateControl";
 import { MOVES, SPECIAL_INFO, STYLE_INFO, type MoveName } from "@/game/moves";
 import { deriveDef, TICK_HZ } from "@/game/sim";
-import { getSession } from "@/lib/auth";
+import { getSession, isAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import type { Analysis } from "@/lib/vision";
 
@@ -24,6 +25,7 @@ export default async function CharacterPage({ params, searchParams }: PageProps<
   if (!me) notFound();
   const session = await getSession();
   const owns = session?.userId === me.ownerId;
+  const canEdit = isAdmin(session) || (owns && !me.imageUrl.startsWith("/samples/"));
   const def = deriveDef(me);
   const power = [
     ["Health", `${def.maxHp} HP`, "from HP"],
@@ -44,6 +46,7 @@ export default async function CharacterPage({ params, searchParams }: PageProps<
       <div>
         {isNew && <p className="mb-3 font-display text-lg font-extrabold">A challenger appears!</p>}
         <CharacterCard character={me} />
+        {canEdit && <OwnerActions id={me.id} name={me.name} afterDelete="/home" />}
         {owns && <RotateControl id={me.id} rotation={me.rotation} />}
       </div>
 

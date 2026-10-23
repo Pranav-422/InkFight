@@ -1,5 +1,7 @@
-import { getSession } from "@/lib/auth";
+import { getSession, isAdmin, type Session } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { cleanName } from "@/lib/names";
+import { deleteDrawing } from "@/lib/storage";
 
 export async function GET(_req: Request, ctx: RouteContext<"/api/characters/[id]">) {
   const { id } = await ctx.params;
@@ -8,17 +10,42 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/characters/[id]
   return Response.json(character);
 }
 
-// Owner-only tweaks. For now: rotate a drawing that was photographed sideways.
-export async function PATCH(req: Request, ctx: RouteContext<"/api/characters/[id]">) {
+// Owner (or admin) only. The demo accounts' starters are shared by everyone who logs
+// into them, so only an admin may rename or delete those.
+async function editable(ctx: RouteContext<"/api/characters/[id]">) {
   const s = await getSession();
-  if (!s) return Response.json({ error: "Log in first." }, { status: 401 });
+  if (!s) return { error: Response.json({ error: "Log in first." }, { status: 401 }) };
   const { id } = await ctx.params;
   const c = await db.character.findUnique({ where: { id } });
-  if (!c) return Response.json({ error: "No fighter by that id." }, { status: 404 });
-  if (c.ownerId !== s.userId) return Response.json({ error: "That's not your fighter." }, { status: 403 });
+  if (!c) return { error: Response.json({ error: "No fighter by that id." }, { status: 404 }) };
+  const admin = isAdmin(s);
+  if (c.ownerId !== s.userId && !admin) return { error: Response.json({ error: "That's not your fighter." }, { status: 403 }) };
+  if (c.imageUrl.startsWith("/samples/") && !admin) return { error: Response.json({ error: "Starter fighters can't be changed." }, { status: 403 }) };
+  return { s: s as Session, c };
+}
 
-  const { rotation } = (await req.json().catch(() => ({}))) as { rotation?: number };
-  if (![0, 90, 180, 270].includes(Number(rotation))) return Response.json({ error: "Rotation must be 0, 90, 180 or 270." }, { status: 400 });
-  const updated = await db.character.update({ where: { id }, data: { rotation: Number(rotation) } });
-  return Response.json(updated);
+export async function PATCH(req: Request, ctx: RouteContext<"/api/characters/[id]">) {
+  const r = await editable(ctx);
+  if (r.error) return r.error;
+  const body = (await req.json().catch(() => ({}))) as { rotation?: unknown; name?: unknown };
+  const data: { rotation?: number; name?: string } = {};
+  if (body.rotation !== undefined) {
+    if (![0, 90, 180, 270].includes(Number(body.rotation))) return Response.json({ error: "Rotation must be 0, 90, 180 or 270." }, { status: 400 });
+    data.rotation = Number(body.rotation);
+  }
+  if (body.name !== undefined) {
+    const name = cleanName(body.name);
+    if (!name) return Response.json({ error: "Names need 2 to 32 characters." }, { status: 400 });
+    data.name = name;
+  }
+  if (!Object.keys(data).length) return Response.json({ error: "Nothing to change." }, { status: 400 });
+  return Response.json(await db.character.update({ where: { id: r.c.id }, data }));
+}
+
+export async function DELETE(_req: Request, ctx: RouteContext<"/api/characters/[id]">) {
+  const r = await editable(ctx);
+  if (r.error) return r.error;
+  await db.character.delete({ where: { id: r.c.id } }); // its battles go with it (cascade)
+  await deleteDrawing(r.c.imageUrl);
+  return Response.json({ ok: true });
 }
