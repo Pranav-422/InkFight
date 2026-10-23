@@ -1,4 +1,4 @@
-# InkFight: project memory (chat 1 on 2026-10-02, chat 2 on 2026-10-11, chat 3 on 2026-10-23)
+# InkFight: project memory (chats 1-5: 2026-10-02 to 2026-10-24)
 
 Read this first in a new chat. It explains what was built, why it's built this way, and what's still open.
 
@@ -17,7 +17,7 @@ You draw a stick figure on paper, photograph it, and upload it. Your drawing bec
 | demo1@inkfight.app | inkfight123 | InkNinja | Sir Scribbles (Warrior) |
 | demo2@inkfight.app | inkfight123 | DoodleDon | Margin Mage (Mage) |
 
-To fight yourself, use the **split-screen test match** at `/play/test` (chat 3), or one normal window + one incognito window. Tabs in the same browser share one login cookie.
+To fight yourself, use one normal window + one incognito window (the split-screen test match was removed in chat 5). Tabs in the same browser share one login cookie.
 
 ## History (why things are the way they are)
 
@@ -62,7 +62,7 @@ To fight yourself, use the **split-screen test match** at `/play/test` (chat 3),
 
 - **Dashboard `/home`:** greeting, W/L + best rank, quick actions, my fighters. Login/signup default to `/home`, and `/` redirects there when logged in. Nav: logged in = Home/New fighter/Fight/Gallery/Leaderboard; logged out = Gallery/Leaderboard/Log in/Sign up.
 - **Invite fix:** a friend opening `/play/CODE` while logged out sees "Your friend challenged you → Sign up and scan my fighter" (→ `/create?room=CODE`), with **no demo accounts** shown. Before, they took a demo login and fought with the gallery starters. The room always shows the picker ("Scan a new fighter" first, last fighter only highlighted); `?fighter=` still skips it.
-- **Split-screen test match `/play/test`:** a real room + WebRTC with both players in one tab. `POST /api/test-session` returns a 3h JWT for the *other* demo account; `getSession` accepts `Authorization: Bearer` before the cookie. `useGameRoom(code, fighter, user, { token, sameTab, record })`. Keys: P1 WASD + J/K/L, P2 arrows + 1/2/3. Not recorded on the leaderboard.
+- **Split-screen test match:** added here, **removed in chat 5** (with the bearer-token login) at the user's request.
 - **Clean stickman renderer (`src/game/stickman.ts`):** a fixed skeleton posed by `poses.ts`, drawn as strokes in the drawing's ink colour. The head is the drawing's head (circle crop, `sprite.ts` `cutHead`), plus a class item in the hand. Specials glow red with afterimages, armor glows blue. The photo-mesh puppet (`buildRig`/`drawRig` in `skeleton.ts`) is no longer used. `estimateJoints` now finds the head on the spine column, so a raised sword isn't the head.
 - **Real offline stats:** `measureDrawing`/`measureInk` (`sprite.ts`) measure fill, aspect, stance, arm spread, ink hues, and guess the item (sword/staff/bow/shield/book/nothing). The create page shows "Holding: [guess ▾]" for the user to confirm. Server validates with zod (`features` form field). `featuresFromMeasurements` + 2 new rules (Wide stance +DEF, Arms out +ATK). The hash now only picks name/special. "Why these stats" shows the measured numbers. With a Claude key, Claude's items win when it sees one.
 - **Fixes:** RoomClient memoizes `players` (the renderer was rebuilt on every lobby update). The guest drops late snapshots (`n` seq in `HostMsg`). `/create?next=/play/cpu|/play/test` returns there. Camera button on upload (`capture="environment"`).
@@ -77,7 +77,21 @@ To fight yourself, use the **split-screen test match** at `/play/test` (chat 3),
 - **Avatars:** `FighterAvatar` (idle + showcase moves, IntersectionObserver-paused) on cards, pickers, gallery, leaderboard, landing. Sprites cached by `loadSpriteCached`.
 - **App:** PWA (`app/manifest.ts`, icons at `/pwa-icon/[192|180|512]` via `ImageResponse`, `InstallButton`), `BackButton` in the header on every page but `/` and `/home`.
 - **AI decisions:** `GEMINI_API_KEY` (wins) or `ANTHROPIC_API_KEY`. Gemini via REST `generateContent` (JSON mode, schema in the prompt, zod-validated), model `GEMINI_MODEL` (default `gemini-3.8-flash`). The AI picks special kind, style, name, stats. Offline picks from `CLASS_SPECIAL_POOL` + `styleFromLook`. Neither key is set on Vercel yet.
-- **Commits:** the user wants one commit per feature, pushed to GitHub.
+- **Commits:** one commit per finished feature (or a few related changes) and push those together; not a push per small change.
+
+## Chat 5 additions (2026-10-23/24)
+
+- **Removed** `/play/test`, `/api/test-session`, bearer auth, P1/P2 keymaps.
+- **Back button** everywhere incl. `/home`; `useLeaveGuard` confirms before leaving an unfinished upload/build or a running fight (links, `[data-leave]` buttons, tab close).
+- **Names:** optional name on upload/build (`cleanName`, 2-32 chars). Owner/admin **rename + delete** (`PATCH`/`DELETE /api/characters/[id]`, `OwnerActions`); delete removes the Blob/local file; demo starters (`/samples/…`) only an admin may change.
+- **Player profiles** `/player/[id]` (W/L, win rate, best rank, fighters, recent fights).
+- **Admin** `/admin`, `isAdmin()` = email in `ADMIN_EMAILS` (`iamabadguy001@gmail.com`; set it on Vercel too). Lists every design with photo + owner email + AI source; toggles `Character.cpu` (CPU roster) and `Character.hidden` (off gallery/leaderboard/CPU lists); admins may fight with any design (CPU and rooms). No email verification exists, so the admin email must be signed up by the user before anyone else.
+- **Security:** `RateLimit` table + `rateLimit()` (login per IP and per email+IP, signup per IP, uploads 4/min 25/day, room/answer/battle/edit APIs); upload type sniffed from bytes; unknown-email logins still run bcrypt; 8+ char passwords; security headers in `next.config.ts` (CSP frame-ancestors/object-src/base-uri/form-action, XFO, nosniff, HSTS…).
+- **Crayon fix (sprite.ts):** figure blob = most *solid* ink (alpha ≥ 200), found at 1024 px (`FIND_SIDE`), blobs link only at alpha ≥ 140 (faint page shading used to chain the doodle to the photo edge), wider merge margin, empty head crop → plain circle. Upload "Turn" button (user rotation wins over AI). Prompt checks both hands. Root cause of the bad prod upload: it went through an *old deployment URL*, and the Gemini key was added after the last deploy (needs a redeploy).
+- **Fair stats:** HP 200 for all; `BUDGET` 210 over atk/def(durability, shown "DUR")/spd, each 40-100; `clampStats` rebalances any line (migration `fair_stats` rescaled rows). `deriveDef` tunables in `TUNE`; SPD also sets punch/kick **tempo**. `scripts/balance.ts` (CPU vs CPU matrix; `--tune` bisects `STYLE_TUNE`/`SPECIAL_TUNE` in moves.ts against every style×special). Matrix 28-70% (was 0-100%).
+- **Research:** `docs/gemini-research-prompt.md` + `scripts/research.ts` → `docs/research/*.json` (stats, 30 martial arts, 37 anime / 90 chars / 112 moves, 15 new special ideas). Free key: Pro/search unavailable and 3.8-flash daily quota ran out, so data is thin; rerun with a paid key for depth.
+- **Builder** `/build`: categories (head, ink, item, style, special, name) are drawn as a stick figure and sent through the normal pipeline with `builder=1` (no AI) + `pick_*` fields. Upload has a "Correct the AI" panel; explicit `pick_item/style/special` always win.
+- **Online:** guest jitter buffer (3 snapshots, steady playout); cached notebook page; lighter glow. **Disconnects:** guest drops → host's CPU plays them, room reopens with `keepGuest` (seat reserved), they resume on return; host drops → guest continues locally vs CPU via `sim.resumeMatch`. Such fights aren't recorded. Notices show above the arena.
 
 ## Architecture
 
@@ -140,7 +154,7 @@ To fight yourself, use the **split-screen test match** at `/play/test` (chat 3),
 ## Open items / ideas
 
 - **TURN server:** P2P fails on strict networks (some mobile data / corporate). Add one via the `NEXT_PUBLIC_ICE_SERVERS` env (JSON array). Free option: metered.ca, which needs a signup.
-- **Claude Vision key:** `ANTHROPIC_API_KEY` is not set anywhere yet, so fighters come from the offline generator. Real analysis has never been tested.
+- **AI key:** `GEMINI_API_KEY` is set locally and on Vercel (Production); Claude key not set. Free Gemini quota is small (3.8-flash ran out in one day of testing).
 - **Auto-deploy:** link the GitHub repo to the Vercel project so pushes deploy.
 - **Possible next steps:** sound effects, a mid-match reconnect for the guest, a host-migration-free rematch flow, more classes, shareable result cards.
 

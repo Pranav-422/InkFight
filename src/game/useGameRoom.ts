@@ -376,6 +376,47 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
         if (s) pushSnap(s);
       }, TICK_MS);
       cleanups.push(() => clearInterval(playout));
+      let lobbyNow: Lobby | null = null;
+      let lastInput: Input = { ...EMPTY_INPUT };
+
+      // The host left mid-fight: carry on in this browser from the last snapshot, with the
+      // computer playing the host's fighter. Not recorded (only a host can report results).
+      let taken = false;
+      const takeOver = () => {
+        const last = snaps.current.cur;
+        const [p0, p1] = lobbyNow?.players ?? [null, null];
+        if (taken || !last || !p0 || !p1 || lobbyNow?.status !== "playing" || last.phase === "matchEnd") return false;
+        taken = true;
+        clearInterval(playout);
+        queue.length = 0;
+        const me: Input = { ...lastInput }, them: Input = { ...EMPTY_INPUT };
+        const m = resumeMatch(last, { ...p0 }, { ...p1 }, [them, me]);
+        const brain = newBrain("normal");
+        sendRef.current = (msg) => {
+          if (msg.t === "input") Object.assign(me, msg.input);
+        };
+        const lobby: Lobby = { ...lobbyNow, notice: `${p0.name}'s player left. The computer plays them now; this fight won't count.` };
+        setLobby(lobby);
+        let t0 = performance.now(), acc = 0;
+        const loop = setInterval(() => {
+          const now = performance.now();
+          acc = Math.min(acc + now - t0, 250);
+          t0 = now;
+          while (acc >= TICK_MS) {
+            acc -= TICK_MS;
+            cpuThink(m, 0, brain, them);
+            step(m, [them, me]);
+            pushSnap(snapshot(m));
+            if (m.phase === "matchEnd") {
+              clearInterval(loop);
+              setLobby({ ...lobby, status: "over" });
+              return;
+            }
+          }
+        }, 4);
+        cleanups.push(() => clearInterval(loop));
+        return true;
+      };
 
       const onHostMessage = (raw: string) => {
         const msg = JSON.parse(raw) as HostMsg;
@@ -385,6 +426,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
           lastSeq = msg.n;
           queue.push(msg.s);
         } else if (msg.t === "lobby") {
+          lobbyNow = msg.lobby;
           setLobby(msg.lobby);
           if (msg.lobby.status === "playing") {
             setMatchOver(null);
@@ -403,13 +445,18 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
         e.channel.onmessage = (ev) => onHostMessage(ev.data);
       };
       sendRef.current = (msg) => {
+        if (msg.t === "input") lastInput = msg.input;
         const ch = msg.t === "input" ? game : ctl;
         if (ch?.readyState === "open") ch.send(JSON.stringify(msg));
       };
       pc.onconnectionstatechange = () => {
-        if (cancelled) return;
-        if (pc.connectionState === "failed" || pc.connectionState === "closed") {
-          setError("Lost the connection to the host.");
+        if (cancelled || taken) return;
+        const st = pc.connectionState;
+        if (st === "failed" || st === "closed") {
+          if (!takeOver()) setError("Lost the connection to the host.");
+        } else if (st === "disconnected") {
+          // Often recovers on its own; if not, keep the fight going without the host.
+          setTimeout(() => !cancelled && pc.connectionState === "disconnected" && takeOver(), 4000);
         }
       };
 

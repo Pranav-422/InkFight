@@ -96,6 +96,11 @@ function Room({ code, fighterId, userId, onChangeFighter }: { code: string; figh
     const me = lobby.players[lobby.you]!;
     return (
       <div className="relative grid gap-4">
+        {lobby.notice && lobby.status === "playing" && (
+          <p data-notice className="pop-in rounded-xl bg-gold/20 px-4 py-2 text-center text-sm font-medium">
+            {lobby.notice}
+          </p>
+        )}
         <GameCanvas snaps={snaps} players={players} you={lobby.you} onInput={sendInput} />
         {lobby.status === "over" && winner !== null && (
           <div className="pop-in absolute inset-x-0 top-[12%] mx-auto w-[min(92%,26rem)] rounded-2xl bg-ink p-6 text-center text-white shadow-2xl">
