@@ -69,6 +69,16 @@ To fight yourself, use the **split-screen test match** at `/play/test` (chat 3),
 - **Self-check:** `npx tsx scripts/check-stats.ts` (stat mapping + synthetic drawings).
 - **Known limits:** item guess is a heuristic (user confirms). Sideways photos are measured before rotation, so their aspect/arm numbers are off.
 
+## Chat 4 additions (2026-10-23)
+
+- **Moves (`src/game/moves.ts`):** 6 fighting styles (Boxing, Taekwondo, Muay Thai, Karate, Street, Systema; a nod to Lookism), each a punch chain + kick chain (tap again within `COMBO_WINDOW` to continue; late presses are buffered). 12 special building blocks: bolt, arrow, orb, beam (Kamehameha-style), wave, slash, charge, uppercut, spiral (Rasengan-style), teleport, barrage, meteor. Stored as `Character.specialKind` / `style` (migration `character_moves`); null = class default (`CLASS_SPECIAL` / `CLASS_STYLE`).
+- **Sim feel:** hit-stop (`m.freeze`), a 16-tick super-freeze when a special starts, KO slow-motion (`m.slow`, every 3rd tick). Snapshots now go out every tick (60/s).
+- **Renderer:** strike smears, impact rings, ink splats on the floor, flash, special dim + speed lines, per-special FX, camera push-in on specials and the KO, cinema bars in slow-mo, drifting background doodles, intro taunts and a victory pose. The renderer keeps the lowest foot on the floor (bent legs = crouch). The stickman holds the item **cut from the photo** (`sprite.ts` `propSide`/`cutProp`), with the drawing's pen width.
+- **Avatars:** `FighterAvatar` (idle + showcase moves, IntersectionObserver-paused) on cards, pickers, gallery, leaderboard, landing. Sprites cached by `loadSpriteCached`.
+- **App:** PWA (`app/manifest.ts`, icons at `/pwa-icon/[192|180|512]` via `ImageResponse`, `InstallButton`), `BackButton` in the header on every page but `/` and `/home`.
+- **AI decisions:** `GEMINI_API_KEY` (wins) or `ANTHROPIC_API_KEY`. Gemini via REST `generateContent` (JSON mode, schema in the prompt, zod-validated), model `GEMINI_MODEL` (default `gemini-3.8-flash`). The AI picks special kind, style, name, stats. Offline picks from `CLASS_SPECIAL_POOL` + `styleFromLook`. Neither key is set on Vercel yet.
+- **Commits:** the user wants one commit per feature, pushed to GitHub.
+
 ## Architecture
 
 | Piece | File(s) |
