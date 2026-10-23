@@ -1,7 +1,8 @@
 // Authoritative real-time fight simulation. Pure and framework-free: the game
 // server steps it at TICK_HZ and broadcasts snapshots; clients only render.
 
-import { COMBO_WINDOW, MOVES, specialOf, STYLE_INFO, styleOf, type MoveName, type SpecialKind, type Style } from "./moves";
+import { clampStats, HP } from "../lib/stats";
+import { COMBO_WINDOW, MOVES, SPECIAL_TUNE, specialOf, STYLE_INFO, STYLE_POWER, STYLE_TUNE, styleOf, type MoveName, type SpecialKind, type Style } from "./moves";
 
 export type { SpecialKind } from "./moves";
 
@@ -33,20 +34,29 @@ export type FighterDef = {
   armor: number; // DEF → multiplier on damage taken
   blockReduce: number; // DEF → fraction of damage a block absorbs
   cooldown: number; // SPD → ticks between combos
+  tempo: number; // SPD → speed of punches/kicks (1 = normal)
   special: SpecialKind;
   style: Style;
 };
 
+export const TUNE = { DUR_SPAN: 180, SPD_COOLDOWN: 14, ATK_SPAN: 120, TEMPO_SPAN: 800 };
+const { DUR_SPAN, SPD_COOLDOWN, ATK_SPAN, TEMPO_SPAN } = TUNE;
+
+// Everyone has HP 200; the drawing only splits a fixed budget (src/lib/stats.ts), and
+// old fighters are rebalanced into it here. 70 is "average" for every stat.
 export function deriveDef(s: FighterStats): FighterDef {
-  const t = (v: number) => (v - 40) / 50; // 40..90 → 0..1
+  const f = clampStats(s);
+  const t = (v: number) => (v - 40) / 60; // 40..100 → 0..1
   return {
-    maxHp: s.hp,
-    speed: 3.4 + t(s.spd) * 2.2,
-    jump: 13.5 + t(s.spd) * 2.5,
-    punch: 4 + t(s.atk) * 6,
-    armor: 1 - t(s.def) * 0.3,
-    blockReduce: 0.55 + t(s.def) * 0.35,
-    cooldown: Math.round(24 - t(s.spd) * 7),
+    maxHp: HP,
+    // Ranges tuned with scripts/balance.ts so a point of any stat is worth about the same.
+    speed: 3 + t(f.spd) * 3.4,
+    jump: 13.5 + t(f.spd) * 2.5,
+    punch: 10 * (1 + (f.atk - 70) / ATK_SPAN), // a jab-to-straight lands 7-14 of 200 HP
+    tempo: 1 + (f.spd - 70) / TEMPO_SPAN, // fast fighters' punches and kicks play out quicker
+    armor: 1 - (f.def - 70) / DUR_SPAN, // durability: damage-taken multiplier
+    blockReduce: 0.55 + t(f.def) * 0.25,
+    cooldown: Math.round(26 - t(f.spd) * SPD_COOLDOWN),
     special: specialOf(s.specialKind, s.class),
     style: styleOf(s.style, s.class),
   };
@@ -89,6 +99,7 @@ export type Fighter = {
   comboT: number; // ticks left to continue the chain
   buffer: "attack" | "kick" | null; // press made late in a move, fired when it ends
   hitN: number; // multi-hit specials: hits so far (meteor: the tick it landed)
+  tempoAcc: number; // fractional ticks owed by tempo != 1
   seen: { jump: number; attack: number; kick: number; special: number };
 };
 
@@ -145,6 +156,7 @@ function spawn(slot: Slot, def: FighterDef, seen: Fighter["seen"]): Fighter {
     comboT: 0,
     buffer: null,
     hitN: 0,
+    tempoAcc: 0,
     seen: { ...seen },
   };
 }
@@ -266,14 +278,14 @@ export const SPECIAL_DURATION: Record<SpecialKind, number> = {
 export const BEAM = { fireFrom: 30, fireTo: 62, every: 8 };
 const PROJECTILE: Partial<Record<SpecialKind, { speed: number; r: number; mult: number; at: number; low?: boolean }>> = {
   bolt: { speed: 10, r: 16, mult: 2.4, at: 10 },
-  arrow: { speed: 15, r: 10, mult: 2.0, at: 10 },
+  arrow: { speed: 15, r: 10, mult: 2.6, at: 10 },
   orb: { speed: 6, r: 26, mult: 2.9, at: 10 },
   wave: { speed: 9, r: 24, mult: 2.4, at: 14, low: true },
 };
 
 function updateSpecial(m: Match, f: Fighter, opp: Fighter) {
   const kind = m.defs[f.slot].special;
-  const punch = m.defs[f.slot].punch;
+  const punch = m.defs[f.slot].punch * SPECIAL_TUNE[kind];
   const proj = PROJECTILE[kind];
   const t = f.t;
   const front = (reach: number, top = 1, bot = 0.15) => {
@@ -342,12 +354,12 @@ function updateSpecial(m: Match, f: Fighter, opp: Fighter) {
     f.vx = f.facing * 1.2;
     if (t >= 6 && t < 42 && t % 4 === 2 && front(85, 0.9, 0.35)) {
       f.hitN++;
-      hit(0.42, 1.5);
+      hit(0.26, 1.5);
       opp.vx = f.facing * 1.2; // keep them in front of the fists
     }
     if (!f.landed && t === 44 && front(85, 0.9, 0.3)) {
       f.landed = true;
-      hit(1.2, 15, 6);
+      hit(1.0, 15, 6);
     }
   } else if (kind === "meteor") {
     if (t === 1) {
@@ -415,6 +427,17 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
   f.comboT = Math.max(0, f.comboT - 1);
   f.armorTicks = Math.max(0, f.armorTicks - 1);
   f.t++;
+  // Tempo: a fast fighter's punch/kick sometimes skips a tick, a slow one's sometimes holds.
+  if (f.action === "attack" || f.action === "kick") {
+    f.tempoAcc += def.tempo - 1;
+    if (f.tempoAcc >= 1) {
+      f.t++;
+      f.tempoAcc--;
+    } else if (f.tempoAcc <= -1) {
+      f.t--;
+      f.tempoAcc++;
+    }
+  }
   f.moving = false;
 
   if (f.action === "hit" && f.t >= HITSTUN) f.action = "idle";
@@ -427,7 +450,7 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
     const finisher = chain.length > 1 && f.combo === chain.length - 1;
     if (!f.landed && f.t >= mv.from && f.t <= mv.to && overlaps(x1, x1 + f.facing * mv.reach, f.y - BODY.h * mv.top, f.y - BODY.h * mv.bot, opp)) {
       f.landed = true;
-      applyHit(m, f, opp, def.punch * mv.mult * (finisher ? 1.15 : 1), {
+      applyHit(m, f, opp, def.punch * mv.mult * STYLE_POWER[def.style][type === "attack" ? "punch" : "kick"] * STYLE_TUNE[def.style] * (finisher ? 1.15 : 1), {
         knock: mv.knock * (finisher ? 1.4 : 1),
         launch: mv.launch,
         special: false,

@@ -2,13 +2,13 @@
 
 import assert from "node:assert/strict";
 import { measureInk } from "../src/game/sprite";
-import { classFromItems, featuresFromMeasurements, ruleStats, STAT_CAPS, type StatKey } from "../src/lib/stats";
+import { BUDGET, classFromItems, clampStats, featuresFromMeasurements, HP, ruleStats, STAT_CAPS, type StatKey } from "../src/lib/stats";
 
 const thin = featuresFromMeasurements({ fill: 0.05, aspect: 0.35, stance: 0.2, armSpread: 0.3 }, ["black"]);
 const bulky = featuresFromMeasurements({ fill: 0.25, aspect: 1, stance: 0.5, armSpread: 0.5 }, ["red"]);
 assert.equal(thin.size, "small");
 assert.equal(bulky.size, "large");
-assert.ok(ruleStats("Brawler", bulky).hp > ruleStats("Brawler", thin).hp, "bigger fill → more HP");
+assert.ok(ruleStats("Brawler", bulky).def > ruleStats("Brawler", thin).def, "bigger fill → more durability");
 assert.ok(ruleStats("Brawler", thin).spd > ruleStats("Brawler", bulky).spd, "thin → faster");
 assert.equal(featuresFromMeasurements({ fill: 0.1, aspect: 0.6, stance: 0.2, armSpread: 0.8 }, []).pose, "aggressive");
 assert.equal(featuresFromMeasurements({ fill: 0.1, aspect: 0.6, stance: 0.6, armSpread: 0.3 }, []).pose, "defensive");
@@ -17,6 +17,11 @@ assert.equal(classFromItems([]), "Brawler");
 // Caps hold even for absurd input.
 const huge = ruleStats("Tank", featuresFromMeasurements({ fill: 1, aspect: 5, stance: 3, armSpread: 0 }, ["blue"]));
 for (const k of Object.keys(STAT_CAPS) as StatKey[]) assert.ok(huge[k] >= STAT_CAPS[k][0] && huge[k] <= STAT_CAPS[k][1], k);
+// Fairness: every line, however lopsided, ends at 200 HP and exactly the budget.
+for (const s of [huge, ruleStats("Ranger", thin), clampStats({ hp: 60, atk: 90, def: 90, spd: 90 }), clampStats({ hp: 140, atk: 1, def: 1, spd: 1 }), clampStats({ hp: 100, atk: 100, def: 40, spd: 40 })]) {
+  assert.equal(s.hp, HP);
+  assert.equal(s.atk + s.def + s.spd, BUDGET, JSON.stringify(s));
+}
 
 // Synthetic drawings: ink strokes on white paper.
 function figure(extra?: (line: Line) => void) {

@@ -28,10 +28,10 @@ export default async function CharacterPage({ params, searchParams }: PageProps<
   const canEdit = isAdmin(session) || (owns && !me.imageUrl.startsWith("/samples/"));
   const def = deriveDef(me);
   const power = [
-    ["Health", `${def.maxHp} HP`, "from HP"],
+    ["Health", `${def.maxHp} HP`, "same for everyone"],
     ["Punch damage", def.punch.toFixed(1), "from ATK"],
-    ["Damage taken", `${Math.round(def.armor * 100)}%`, "from DEF"],
-    ["Block absorbs", `${Math.round(def.blockReduce * 100)}%`, "from DEF"],
+    ["Damage taken", `${Math.round(def.armor * 100)}%`, "from DUR"],
+    ["Block absorbs", `${Math.round(def.blockReduce * 100)}%`, "from DUR"],
     ["Run speed", `${Math.round(def.speed * TICK_HZ)} px/s`, "from SPD"],
     ["Attack rate", `${(TICK_HZ / def.cooldown).toFixed(1)}/s`, "from SPD"],
   ];

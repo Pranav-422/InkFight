@@ -10,7 +10,7 @@ export const SAMPLE_FIGHTERS: [PublicFighter, PublicFighter] = [
     specialMove: "Ballpoint Rush",
     specialKind: "slash",
     style: "Karate",
-    hp: 120, atk: 76, def: 63, spd: 52,
+    hp: 200, atk: 80, def: 72, spd: 58,
   },
   {
     id: "sample-mage",
@@ -20,6 +20,6 @@ export const SAMPLE_FIGHTERS: [PublicFighter, PublicFighter] = [
     specialMove: "Ink-ame-hameha",
     specialKind: "beam",
     style: "Systema",
-    hp: 82, atk: 74, def: 52, spd: 68,
+    hp: 200, atk: 84, def: 54, spd: 72,
   },
 ];

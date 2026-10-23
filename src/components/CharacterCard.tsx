@@ -28,7 +28,6 @@ export function CharacterCard({ character: c, variant = "full" }: Props) {
         <p className="text-xs text-muted">drawn by @{c.ownerHandle}</p>
 
         <div className={`grid ${full ? "mt-4 gap-2" : "mt-2 gap-1"}`}>
-          <StatBar stat="hp" value={c.hp} compact={!full} />
           <StatBar stat="atk" value={c.atk} compact={!full} />
           <StatBar stat="def" value={c.def} compact={!full} />
           <StatBar stat="spd" value={c.spd} compact={!full} />

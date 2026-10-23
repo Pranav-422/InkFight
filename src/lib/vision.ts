@@ -97,7 +97,7 @@ Look only at what is actually drawn. Report:
 - held items/props as lowercase nouns (empty list if empty-handed). Check BOTH hands and the whole figure: a round, oval or spiral shape held at a hand or arm is usually a shield; a long straight line from a hand is a sword, staff or spear; hats/helmets are not items
 - the class implied by the items: book→Mage, sword/blade→Warrior, staff/wand→Caster, shield→Tank, bow→Ranger, nothing→Brawler
 - size of the figure relative to the page (small/medium/large), pose (aggressive/defensive/neutral), and dominant ink colors
-- proposed stats within HP 60-140, ATK 40-90, DEF 40-90, SPD 40-90
+- proposed stats. Every fighter has HP 200 (put 200). Split the rest between ATK (damage dealt), DEF (durability: damage taken) and SPD (movement and combo speed), each 40-100, about 210 points in total: bulky/armored → more DEF, big weapon or spiky → more ATK, thin/small/dynamic → more SPD. They are rebalanced to exactly 210
 - a special move. First pick its kind, the one that best matches the drawing's vibe:
 ${SPECIAL_KINDS.map((k) => `  - ${k}: ${SPECIAL_INFO[k].looks}`).join("\n")}
   Then name it like an over-the-top anime finisher that only THIS drawing could have: riff on something specific you see (the hair, a scribble, a hat, the item, the ink colour, the paper). Puns, fake-Japanese-sounding names and homages to famous anime moves are welcome (e.g. "Ink-ame-hameha", "Scribble-gan"), but make it fresh, never a straight copy. Description: one vivid sentence of what it looks like

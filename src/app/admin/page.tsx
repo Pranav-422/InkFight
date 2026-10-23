@@ -34,7 +34,7 @@ export default async function AdminPage() {
       specialMove: c.specialMove,
       pose: c.pose,
       rotation: c.rotation,
-      stats: `${c.hp} HP · ${c.atk} ATK · ${c.def} DEF · ${c.spd} SPD`,
+      stats: `${c.atk} ATK · ${c.def} DUR · ${c.spd} SPD`,
       owner: c.ownerHandle,
       ownerEmail: c.owner?.email ?? "(deleted user)",
       ownerId: c.ownerId,

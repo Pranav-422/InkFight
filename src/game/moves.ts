@@ -69,6 +69,25 @@ export const STYLE_INFO: Record<Style, { punch: MoveName[]; kick: MoveName[]; bl
 
 export const COMBO_WINDOW = 22; // ticks after a move ends in which the next press continues the chain
 
+// Damage scale per style and chain, so every chain deals the same damage per second
+// when strung out in full (a 4-hit boxing chain otherwise out-damages a 2-hit karate
+// one). Duration counts each move plus the ~20-tick cooldown after the last one.
+const TARGET_DPS = 4.6 / 96; // the boxing punch chain's mult per tick, the reference
+export const STYLE_POWER = Object.fromEntries(
+  STYLES.map((s) => {
+    const power = (chain: MoveName[]) => TARGET_DPS / (chain.reduce((n, m) => n + MOVES[m].mult, 0) / (chain.reduce((n, m) => n + MOVES[m].dur, 0) + 20));
+    return [s, { punch: power(STYLE_INFO[s].punch), kick: power(STYLE_INFO[s].kick) }];
+  }),
+) as Record<Style, { punch: number; kick: number }>;
+
+// Damage factors found by simulation (`npx tsx scripts/balance.ts --tune`): each style
+// and special set so it wins about half its fights against a mixed pool of every
+// style x special with the same stats. Re-run the tuner after changing moves or specials.
+export const STYLE_TUNE: Record<Style, number> = { Boxing: 0.86, Taekwondo: 1.2, "Muay Thai": 1.05, Karate: 0.99, Street: 0.94, Systema: 0.8 };
+export const SPECIAL_TUNE: Record<SpecialKind, number> = {
+  bolt: 2, arrow: 1.51, orb: 1.62, slash: 1.2, charge: 0.63, uppercut: 1.41, beam: 1.03, spiral: 2.27, wave: 2.21, teleport: 1.2, barrage: 0.61, meteor: 1.91,
+};
+
 // Defaults for fighters made before moves were stored (and for unknown values).
 export const CLASS_SPECIAL: Record<string, SpecialKind> = {
   Mage: "beam",

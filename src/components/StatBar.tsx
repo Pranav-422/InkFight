@@ -4,7 +4,7 @@ import { STAT_CAPS, type StatKey } from "@/lib/stats";
 const META: Record<StatKey, { label: string; icon: LucideIcon; color: string }> = {
   hp: { label: "HP", icon: Heart, color: "bg-ink" },
   atk: { label: "ATK", icon: Swords, color: "bg-hit" },
-  def: { label: "DEF", icon: Shield, color: "bg-guard" },
+  def: { label: "DUR", icon: Shield, color: "bg-guard" }, // durability: how little damage it takes
   spd: { label: "SPD", icon: Zap, color: "bg-gold" },
 };
 

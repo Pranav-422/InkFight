@@ -176,7 +176,7 @@ function SeatCard({ p, you }: { p: LobbyPlayer | null; you: boolean }) {
       <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
         <ClassBadge cls={p.class} />
         <span className="tabular-nums">
-          {p.hp} HP · {p.atk} ATK · {p.def} DEF · {p.spd} SPD
+          {p.atk} ATK · {p.def} DUR · {p.spd} SPD
         </span>
       </div>
       <p className="mt-2 text-xs">

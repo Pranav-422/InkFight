@@ -1,14 +1,21 @@
 // Rule half of the hybrid stat engine. Pure and deterministic: the same
 // detected features always produce the same rule stats.
+//
+// Fairness model (docs/research/stats.json): everyone has the same 200 HP. A drawing
+// only decides how a fixed BUDGET of points is split between durability (`def`, damage
+// taken), attack and speed. A tank trades speed for durability; nobody gets more total.
 
 export type Stats = { hp: number; atk: number; def: number; spd: number };
 export type StatKey = keyof Stats;
 
+export const HP = 200;
+export const BUDGET = 210; // atk + def + spd, for every fighter
+
 export const STAT_CAPS: Record<StatKey, [number, number]> = {
-  hp: [60, 140],
-  atk: [40, 90],
-  def: [40, 90],
-  spd: [40, 90],
+  hp: [HP, HP],
+  atk: [40, 100],
+  def: [40, 100],
+  spd: [40, 100],
 };
 
 export const CLASSES = ["Mage", "Warrior", "Brawler", "Caster", "Tank", "Ranger"] as const;
@@ -30,14 +37,14 @@ export function classFromItems(items: string[]): CharacterClass {
   return "Brawler";
 }
 
-// Each class starts from a baseline that already sits inside the caps.
+// Each class's shape of the budget (each row sums to BUDGET).
 const CLASS_BASE: Record<CharacterClass, Stats> = {
-  Mage: { hp: 85, atk: 72, def: 48, spd: 66 },
-  Warrior: { hp: 105, atk: 74, def: 62, spd: 56 },
-  Brawler: { hp: 110, atk: 64, def: 58, spd: 62 },
-  Caster: { hp: 90, atk: 68, def: 52, spd: 64 },
-  Tank: { hp: 130, atk: 52, def: 80, spd: 44 },
-  Ranger: { hp: 90, atk: 66, def: 50, spd: 78 },
+  Mage: { hp: HP, atk: 82, def: 55, spd: 73 },
+  Warrior: { hp: HP, atk: 78, def: 72, spd: 60 },
+  Brawler: { hp: HP, atk: 72, def: 70, spd: 68 },
+  Caster: { hp: HP, atk: 76, def: 60, spd: 74 },
+  Tank: { hp: HP, atk: 58, def: 94, spd: 58 },
+  Ranger: { hp: HP, atk: 68, def: 55, spd: 87 },
 };
 
 export type Features = {
@@ -62,9 +69,9 @@ export type Adjustment = { reason: string; stat: StatKey; delta: number };
 export function ruleAdjustments(features: Features): Adjustment[] {
   const adj: Adjustment[] = [];
   if (features.size === "large") {
-    adj.push({ reason: "Big figure", stat: "hp", delta: 15 }, { reason: "Big figure", stat: "spd", delta: -6 });
+    adj.push({ reason: "Big figure", stat: "def", delta: 12 }, { reason: "Big figure", stat: "spd", delta: -8 });
   } else if (features.size === "small") {
-    adj.push({ reason: "Tiny figure", stat: "hp", delta: -12 }, { reason: "Tiny figure", stat: "spd", delta: 10 });
+    adj.push({ reason: "Tiny figure", stat: "def", delta: -10 }, { reason: "Tiny figure", stat: "spd", delta: 10 });
   }
   if (features.pose === "aggressive") {
     adj.push({ reason: "Aggressive pose", stat: "atk", delta: 8 }, { reason: "Aggressive pose", stat: "def", delta: -5 });
@@ -81,13 +88,24 @@ export function ruleAdjustments(features: Features): Adjustment[] {
   return adj;
 }
 
-export function clamp(stat: StatKey, value: number): number {
-  const [min, max] = STAT_CAPS[stat];
-  return Math.round(Math.min(max, Math.max(min, value)));
-}
-
+// Fit any stat line into the fairness model: HP fixed, atk+def+spd = BUDGET, each
+// inside its caps, keeping the line's proportions. Works for old fighters too.
 export function clampStats(s: Stats): Stats {
-  return { hp: clamp("hp", s.hp), atk: clamp("atk", s.atk), def: clamp("def", s.def), spd: clamp("spd", s.spd) };
+  const keys = ["atk", "def", "spd"] as const;
+  const v = { atk: Math.max(1, s.atk), def: Math.max(1, s.def), spd: Math.max(1, s.spd) };
+  // Scale to the budget, clamp, then hand the leftover to stats that still have room.
+  for (let round = 0; round < 4; round++) {
+    const sum = v.atk + v.def + v.spd;
+    const free = keys.filter((k) => (sum < BUDGET ? v[k] < STAT_CAPS[k][1] : v[k] > STAT_CAPS[k][0]));
+    if (Math.abs(sum - BUDGET) < 0.5 || !free.length) break;
+    const share = free.reduce((n, k) => n + v[k], 0);
+    for (const k of free) v[k] = Math.min(STAT_CAPS[k][1], Math.max(STAT_CAPS[k][0], v[k] + ((BUDGET - sum) * v[k]) / share));
+  }
+  const out = { hp: HP, atk: Math.round(v.atk), def: Math.round(v.def), spd: Math.round(v.spd) };
+  // Rounding can leave the total one point off; settle it on the largest stat.
+  const big = keys.reduce((a, b) => (out[a] >= out[b] ? a : b));
+  out[big] += BUDGET - (out.atk + out.def + out.spd);
+  return out;
 }
 
 export function ruleStats(cls: CharacterClass, features: Features): Stats {
