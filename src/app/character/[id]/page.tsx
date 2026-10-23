@@ -13,7 +13,7 @@ import type { Analysis } from "@/lib/vision";
 
 export const dynamic = "force-dynamic";
 
-const LABEL = { hp: "HP", atk: "ATK", def: "DEF", spd: "SPD" } as const;
+const LABEL = { hp: "HP", atk: "ATK", def: "DUR", spd: "SPD" } as const;
 
 const MOVE_LABEL: Partial<Record<MoveName, string>> = { uppercutP: "Uppercut", flyingKnee: "Flying knee", frontKick: "Front kick", spinKick: "Spinning back kick", axeKick: "Axe kick", lowKick: "Low kick" };
 const moveLabel = (m: MoveName) => MOVE_LABEL[m] ?? m[0].toUpperCase() + m.slice(1);
@@ -95,9 +95,10 @@ export default async function CharacterPage({ params, searchParams }: PageProps<
                 </ul>
               )}
               <p className="text-xs text-muted">
-                Final stats = 70% class + drawing rules, 30%{" "}
-                {breakdown.source === "claude" ? "Claude's read of your art" : breakdown.source === "gemini" ? "Gemini's read of your art" : "rules only (offline)"}, clamped to fixed
-                ranges so nobody gets a 9000-power scribble.
+                Everyone has 200 HP and the same 210 points across ATK, DUR and SPD. The class and the drawing rules
+                set the split (70%),{" "}
+                {breakdown.source === "claude" ? "Claude's read of your art" : breakdown.source === "gemini" ? "Gemini's read of your art" : "with no AI read this time"}
+                {breakdown.source === "offline" ? "" : " sets the other 30%"}, so nobody gets a 9000-power scribble.
               </p>
               {breakdown.note && <p className="text-xs text-muted">{breakdown.note}</p>}
             </div>

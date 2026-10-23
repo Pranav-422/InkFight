@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { UploadDropzone } from "@/components/UploadDropzone";
 import { ROOM_CODE } from "@/game/protocol";
 import { requireUser } from "@/lib/auth";
@@ -22,6 +23,9 @@ export default async function CreatePage({ searchParams }: PageProps<"/create">)
       <section>
         <p className="text-sm text-muted">Hey {user.name} 👋</p>
         <h1 className="font-display text-4xl font-extrabold leading-[1.05] tracking-tight">Scan a new fighter</h1>
+        <Link href="/build" className="text-sm font-semibold text-hit underline-offset-2 hover:underline">
+          No drawing? Build one from parts →
+        </Link>
         <p className="mt-2 max-w-md text-muted">
           Snap a photo of your doodle. We read what you drew — size, pose, what it&apos;s holding — and turn it into a fighter.
         </p>

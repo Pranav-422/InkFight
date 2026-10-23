@@ -20,6 +20,17 @@ import {
 // What the browser measured on the drawing, plus the item the user confirmed.
 export type DrawingFacts = Measurements & { colors: string[]; item: string };
 
+// What the player chose explicitly (correction panel or the category builder). These
+// always win over the AI. noAi: the image is our own rendering (builder), skip vision.
+export type Picks = { item?: string; style?: Style; special?: SpecialKind; noAi?: boolean };
+
+// A special the player picked gets a generated name, unless the AI named that same kind.
+function pickSpecial(p: Picks, ai: { kind: SpecialKind; name: string; description: string }, roll: number) {
+  if (!p.special || p.special === ai.kind) return ai;
+  const [name, description] = SPECIAL_NAMES[p.special][roll % SPECIAL_NAMES[p.special].length];
+  return { kind: p.special, name, description };
+}
+
 export const MODEL = "claude-opus-5-5";
 // Gemini decides when GEMINI_API_KEY is set (it wins over Claude); GEMINI_MODEL overrides the model.
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
@@ -244,11 +255,11 @@ function styleFromLook(f: Features, cls: CharacterClass, roll: number): Style {
 
 // Used when there's no API key or the vision call fails twice. Stats come from the
 // browser's measurements; the hash only picks a name and special.
-function offlineAnalysis(image: Buffer, note: string, facts: DrawingFacts | null): Analysis {
+function offlineAnalysis(image: Buffer, note: string, facts: DrawingFacts | null, picks: Picks = {}): Analysis {
   const h = createHash("sha256").update(image).digest();
   const pick = <T,>(arr: readonly T[], i: number) => arr[h[i] % arr.length];
   // No measurements (an old client): fall back to guesses, and say so.
-  const items = facts ? itemList(facts) : pick([[], ["sword"], ["book"], [], ["shield"], ["staff"], ["bow"]], 0);
+  const items = picks.item ? itemList({ item: picks.item } as DrawingFacts) : facts ? itemList(facts) : pick([[], ["sword"], ["book"], [], ["shield"], ["staff"], ["bow"]], 0);
   const features: Features = facts
     ? featuresFromMeasurements(facts, facts.colors)
     : {
@@ -268,17 +279,18 @@ function offlineAnalysis(image: Buffer, note: string, facts: DrawingFacts | null
     items,
     features,
     null,
-    { kind, name, description },
-    styleFromLook(features, cls, h[8]),
+    pickSpecial(picks, { kind, name, description }, h[9]),
+    picks.style ?? styleFromLook(features, cls, h[8]),
     "Drawn in thirty seconds, fights like it took thirty years.",
     null, // the browser estimates the skeleton from the ink
     note,
   );
 }
 
-export async function analyzeDrawing(image: Buffer, mediaType: MediaType, facts: DrawingFacts | null = null): Promise<Analysis> {
+export async function analyzeDrawing(image: Buffer, mediaType: MediaType, facts: DrawingFacts | null = null, picks: Picks = {}): Promise<Analysis> {
   const ai = provider();
-  if (!ai) return offlineAnalysis(image, "Offline mode: name and special are generated, stats come from your drawing's measurements.", facts);
+  if (picks.noAi) return offlineAnalysis(image, "Built from the category panel: you chose the moves; stats are split fairly from the class.", facts, picks);
+  if (!ai) return offlineAnalysis(image, "Offline mode: name and special are generated, stats come from your drawing's measurements.", facts, picks);
 
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -288,12 +300,12 @@ export async function analyzeDrawing(image: Buffer, mediaType: MediaType, facts:
       return build(
         ai,
         v.name,
-        // The AI's read of the item wins when it saw one; otherwise trust the user's pick.
-        seen.length || !facts ? seen : itemList(facts),
+        // The player's explicit correction wins; then the AI's read; then the browser's guess.
+        picks.item ? itemList({ item: picks.item } as DrawingFacts) : seen.length || !facts ? seen : itemList(facts),
         facts ? featuresFromMeasurements(facts, v.detected_features.dominant_colors) : v.detected_features,
         v.stats,
-        v.special_move,
-        v.fighting_style,
+        pickSpecial(picks, v.special_move, image.length),
+        picks.style ?? v.fighting_style,
         v.flavor_text,
         validPose(v.pose),
         undefined,
@@ -305,5 +317,5 @@ export async function analyzeDrawing(image: Buffer, mediaType: MediaType, facts:
     }
   }
   const reason = lastError instanceof Error ? lastError.message : "unknown error";
-  return offlineAnalysis(image, `Vision analysis failed twice (${reason}); used offline generator.`, facts);
+  return offlineAnalysis(image, `Vision analysis failed twice (${reason}); used offline generator.`, facts, picks);
 }

@@ -1,4 +1,4 @@
-import { Bot, PenLine, Swords, type LucideIcon } from "lucide-react";
+import { Blocks, Bot, PenLine, Swords, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { CharacterCard } from "@/components/CharacterCard";
 import { OwnerActions } from "@/components/OwnerActions";
@@ -11,6 +11,7 @@ const ACTIONS: [string, string, string, LucideIcon, boolean][] = [
   ["/play", "Fight a friend", "Create a room or join with a code", Swords, true],
   ["/play/cpu", "Vs computer", "Any gallery drawing, three levels", Bot, false],
   ["/create", "New fighter", "Scan another drawing", PenLine, false],
+  ["/build", "Build from parts", "No drawing: pick head, weapon, style, special", Blocks, false],
 ];
 
 export default async function HomePage() {
@@ -42,7 +43,7 @@ export default async function HomePage() {
         </dl>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-3">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {ACTIONS.map(([href, title, sub, Icon, primary]) => (
           <Link
             key={href}

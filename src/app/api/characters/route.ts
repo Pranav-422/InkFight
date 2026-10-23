@@ -4,7 +4,8 @@ import { cleanName } from "@/lib/names";
 import { rateLimit, tooMany } from "@/lib/rateLimit";
 import { db } from "@/lib/db";
 import { saveDrawing } from "@/lib/storage";
-import { analyzeDrawing } from "@/lib/vision";
+import { SPECIAL_KINDS, STYLES } from "@/game/moves";
+import { analyzeDrawing, type Picks } from "@/lib/vision";
 
 const TYPES = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" } as const;
 
@@ -28,6 +29,20 @@ const Facts = z.object({
   colors: z.array(z.enum(["red", "blue", "green", "yellow", "black"])).max(5),
   item: z.enum(["sword", "book", "staff", "shield", "bow", "nothing"]),
 });
+
+// Explicit choices from the correction panel / builder: known values only.
+function parsePicks(form: FormData): Picks {
+  const one = <T extends string>(k: string, allowed: readonly T[]) => {
+    const v = form.get(k);
+    return typeof v === "string" && (allowed as readonly string[]).includes(v) ? (v as T) : undefined;
+  };
+  return {
+    item: one("pick_item", ["sword", "book", "staff", "shield", "bow", "nothing"] as const),
+    style: one("pick_style", STYLES),
+    special: one("pick_special", SPECIAL_KINDS),
+    noAi: form.get("builder") === "1",
+  };
+}
 
 function parseFacts(raw: FormDataEntryValue | null) {
   if (typeof raw !== "string") return null;
@@ -65,7 +80,7 @@ export async function POST(request: Request) {
   const bytes = Buffer.from(await file.arrayBuffer());
   const type = sniff(bytes);
   if (!type) return Response.json({ error: "That's not a JPG, PNG, WEBP or GIF." }, { status: 400 });
-  const [imageUrl, a] = await Promise.all([saveDrawing(bytes, TYPES[type], type), analyzeDrawing(bytes, type, parseFacts(form.get("features")))]);
+  const [imageUrl, a] = await Promise.all([saveDrawing(bytes, TYPES[type], type), analyzeDrawing(bytes, type, parseFacts(form.get("features")), parsePicks(form))]);
   const character = await db.character.create({
     data: {
       name: cleanName(form.get("name")) ?? a.name,

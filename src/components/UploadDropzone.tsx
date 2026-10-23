@@ -3,6 +3,7 @@
 import { Camera, ImageUp, Loader2, RotateCcw, RotateCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { SPECIAL_INFO, SPECIAL_KINDS, STYLE_INFO, STYLES, type SpecialKind, type Style } from "@/game/moves";
 import { ITEMS, measureDrawing, type Item, type Measured } from "@/game/sprite";
 import { useLeaveGuard } from "./useLeaveGuard";
 
@@ -56,6 +57,10 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
   const [facts, setFacts] = useState<Measured | null>(null);
   const [name, setName] = useState("");
   const [turn, setTurn] = useState(0); // degrees clockwise to stand a sideways photo up
+  // Correction panel: explicit choices beat the AI. "" = let the AI decide.
+  const [itemPicked, setItemPicked] = useState(false);
+  const [style, setStyle] = useState<Style | "">("");
+  const [special, setSpecial] = useState<SpecialKind | "">("");
   const measureId = useRef(0);
   const [measuring, setMeasuring] = useState(false);
 
@@ -77,6 +82,7 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
     setFile(f);
     setPreview(URL.createObjectURL(f));
     setTurn(0);
+    setItemPicked(false);
     measure(f, 0);
   }
 
@@ -103,6 +109,9 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
       if (name.trim()) body.append("name", name.trim());
       if (facts) body.append("features", JSON.stringify(facts));
       if (turn) body.append("rotation", String(turn));
+      if (itemPicked && facts) body.append("pick_item", facts.item);
+      if (style) body.append("pick_style", style);
+      if (special) body.append("pick_special", special);
       const res = await fetch("/api/characters", { method: "POST", body });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Something went sideways.");
@@ -229,7 +238,10 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
           {facts ? (
             <select
               value={facts.item}
-              onChange={(e) => setFacts({ ...facts, item: e.target.value as Item })}
+              onChange={(e) => {
+                setFacts({ ...facts, item: e.target.value as Item });
+                setItemPicked(true);
+              }}
               className="min-w-0 flex-1 rounded-lg bg-paper px-2 py-1.5 ring-1 ring-line"
             >
               {ITEMS.map((i) => (
@@ -247,6 +259,36 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
           )}
           <span className="w-full text-xs text-muted">Our best guess from the ink. Wrong? Fix it: the item decides the class.</span>
         </label>
+      )}
+
+      {preview && !busy && (
+        <details className="rounded-xl bg-card px-4 py-3 text-sm ring-1 ring-line">
+          <summary className="cursor-pointer font-semibold">Correct the AI (optional): fighting style and special move</summary>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-1">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted">Fighting style</span>
+              <select value={style} onChange={(e) => setStyle(e.target.value as Style | "")} className="rounded-lg bg-paper px-2 py-1.5 ring-1 ring-line">
+                <option value="">Auto: AI reads the drawing</option>
+                {STYLES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}: {STYLE_INFO[s].blurb}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted">Special move</span>
+              <select value={special} onChange={(e) => setSpecial(e.target.value as SpecialKind | "")} className="rounded-lg bg-paper px-2 py-1.5 ring-1 ring-line">
+                <option value="">Auto: AI picks and names it</option>
+                {SPECIAL_KINDS.map((k) => (
+                  <option key={k} value={k}>
+                    {k}: {SPECIAL_INFO[k].looks}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </details>
       )}
 
       <div className="flex">
