@@ -63,6 +63,18 @@ export default async function CharacterPage({ params, searchParams }: PageProps<
                   `, mostly ${breakdown.features.dominant_colors.join(" & ")}`}
                 .
               </p>
+              {breakdown.features.measured ? (
+                <p className="text-xs text-muted">
+                  Measured from your drawing: ink fills {Math.round(breakdown.features.measured.fill * 100)}% of its box, width{" "}
+                  {Math.round(breakdown.features.measured.aspect * 100)}% of height, feet{" "}
+                  {Math.round(breakdown.features.measured.stance * 100)}% and hands{" "}
+                  {Math.round(breakdown.features.measured.armSpread * 100)}% of height apart.
+                </p>
+              ) : (
+                breakdown.source === "offline" && (
+                  <p className="text-xs text-muted">This fighter was made before we measured drawings, so its size and pose were guessed.</p>
+                )
+              )}
               {breakdown.adjustments.length > 0 && (
                 <ul className="flex flex-wrap gap-1.5">
                   {breakdown.adjustments.map((a, i) => (

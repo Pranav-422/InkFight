@@ -1,7 +1,7 @@
 import "server-only";
 import bcrypt from "bcryptjs";
 import { jwtVerify, SignJWT } from "jose";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 
@@ -19,13 +19,16 @@ function secret() {
 export const hashPassword = (pw: string) => bcrypt.hash(pw, 10);
 export const verifyPassword = (pw: string, hash: string) => bcrypt.compare(pw, hash);
 
-export async function startSession(s: Session) {
-  const token = await new SignJWT({ name: s.name, email: s.email })
+export const signToken = (s: Session, maxAge = MAX_AGE) =>
+  new SignJWT({ name: s.name, email: s.email })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(s.userId)
     .setIssuedAt()
-    .setExpirationTime(`${MAX_AGE}s`)
+    .setExpirationTime(`${maxAge}s`)
     .sign(secret());
+
+export async function startSession(s: Session) {
+  const token = await signToken(s);
   (await cookies()).set(COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
@@ -39,8 +42,11 @@ export async function endSession() {
   (await cookies()).delete(COOKIE);
 }
 
+// A "Bearer" header wins over the cookie: the split-screen test match runs a second
+// player (a demo account) in the same tab, which can't have its own cookie.
 export const getSession = cache(async (): Promise<Session | null> => {
-  const token = (await cookies()).get(COOKIE)?.value;
+  const bearer = (await headers()).get("authorization")?.match(/^Bearer (.+)$/)?.[1];
+  const token = bearer ?? (await cookies()).get(COOKIE)?.value;
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secret());

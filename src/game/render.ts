@@ -1,9 +1,10 @@
-// Canvas renderer. Draws an interpolated snapshot: the sketchbook arena, the
-// drawings as sprites with state-driven squash/stretch, projectiles, hit FX and HUD.
+// Canvas renderer. Draws an interpolated snapshot: the sketchbook arena, each
+// fighter as a posed stickman wearing its drawing's head, projectiles, hit FX and HUD.
 
 import { poseFor } from "./poses";
-import { deform, drawRig, resolvePose, type BoneName } from "./skeleton";
+import { resolvePose, type BoneName } from "./skeleton";
 import type { Sprite } from "./sprite";
+import { drawStick, solveStick, STICK_REST, type StickPose } from "./stickman";
 import { ARENA, BODY, TICK_HZ, WINS_NEEDED, type GameEvent, type Slot, type Snapshot, type SpecialKind } from "./sim";
 
 const C = {
@@ -29,6 +30,8 @@ export class Renderer {
   private fontDisplay = "sans-serif";
   private fontBody = "sans-serif";
   sprites: [Sprite | null, Sprite | null] = [null, null];
+  classes: [string, string] = ["Brawler", "Brawler"];
+  private trails: [StickPose[], StickPose[]] = [[], []];
   private limbs: [Record<BoneName, number> | null, Record<BoneName, number> | null] = [null, null];
   private lastNow = 0;
 
@@ -149,82 +152,60 @@ export class Renderer {
     ctx.ellipse(f.x, ARENA.ground + 4, 46 * (1 - air * 0.4), 7, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    let sx = 1, sy = 1, rot = 0, dx = 0, dy = 0, alpha = 1;
-    const t = f.t;
+    let dx = 0, dy = 0;
     const motion = poseFor(f, special, now);
     dx = motion.lunge * f.facing;
     if (f.action === "idle" && f.grounded && f.moving) dy = -Math.abs(Math.sin(now / 105)) * 5;
     if (f.action === "hit") dx += (Math.random() - 0.5) * 6;
-    if (f.action === "ko") alpha = 0.7;
-    if (!sprite?.rig) {
-      // No skeleton (still loading / couldn't rig): fall back to moving the drawing as one piece.
-      if (f.action === "attack" && t >= 6 && t <= 12) {
-        rot = 0.2 * f.facing;
-        sx = 1.08;
-      }
-      if (f.action === "ko") {
-        sy = 0.3;
-        sx = 1.1;
-      }
-    }
+    const h = BODY.h * 1.06;
 
-    // Sprite size: fit a 180-tall box, but never wider than 230.
-    let h = BODY.h * 1.06;
-    let w = sprite ? h * sprite.aspect : BODY.w;
-    if (w > 230) {
-      w = 230;
-      h = w / (sprite?.aspect ?? 1);
+    // Ease each joint toward its target so moves read as motion, not snapping.
+    const target = resolvePose(STICK_REST, motion.pose);
+    const prev = this.limbs[f.slot];
+    const dt = Math.min(0.05, Math.max(0, (now - this.lastNow) / 1000));
+    const k = 1 - Math.exp(-dt * 24);
+    const cur = {} as Record<BoneName, number>;
+    for (const name of Object.keys(target) as BoneName[]) {
+      const p0 = prev?.[name] ?? target[name];
+      cur[name] = p0 + Math.atan2(Math.sin(target[name] - p0), Math.cos(target[name] - p0)) * k;
     }
+    this.limbs[f.slot] = cur;
+    const pose = solveStick(cur);
+
+    // Afterimages while a special (or a punch/kick's active frames) is out.
+    const trail = this.trails[f.slot];
+    const striking = f.action === "special" || (f.action === "attack" && f.t >= 6 && f.t <= 12) || f.action === "kick";
+    if (striking) {
+      trail.unshift(pose);
+      trail.length = Math.min(trail.length, 5);
+    } else trail.length = 0;
+
+    const hurt = f.action === "hit" && f.t < 8;
+    const ink = hurt ? C.hit : (sprite?.ink ?? C.ink);
+    const cls = this.classes[f.slot];
+    const accent = cls === "Tank" || cls === "Mage" ? C.guard : cls === "Brawler" ? C.hit : C.gold;
 
     ctx.save();
     ctx.translate(f.x + dx, f.y + dy);
-    ctx.rotate(rot);
-    ctx.scale(sx * f.facing, sy);
-    if (motion.fall && sprite?.rig) {
-      // Fall backwards, unless that would land outside the arena.
+    ctx.scale(f.facing, 1);
+    if (motion.fall) {
+      // Fall backwards, unless that would land outside the arena. Lift a little so
+      // the flopped-out limbs lie on the ground instead of through it.
+      ctx.translate(0, (motion.fall / 1.45) * 16);
       const behind = f.x - f.facing * h;
       ctx.rotate(behind < 0 || behind > ARENA.w ? -motion.fall : motion.fall);
     }
-    ctx.globalAlpha = alpha;
+    if (f.action === "ko") ctx.globalAlpha = 0.75;
+    trail.slice(1).forEach((p, i) => {
+      ctx.globalAlpha = 0.22 - i * 0.04;
+      drawStick(ctx, p, { ink: f.action === "special" ? C.hit : C.muted, head: null, cls, accent });
+    });
+    ctx.globalAlpha = f.action === "ko" ? 0.75 : 1;
     if (f.armorTicks > 0 || f.action === "special") {
       ctx.shadowColor = f.action === "special" ? C.hit : C.guard;
       ctx.shadowBlur = 22;
     }
-    if (sprite) {
-      const img = f.action === "hit" && t < 8 ? sprite.hurt : sprite.normal;
-      if (sprite.rig) {
-        // Ease each joint toward its target so moves read as motion, not snapping.
-        const target = resolvePose(sprite.rig, motion.pose);
-        const prev = this.limbs[f.slot];
-        const dt = Math.min(0.05, Math.max(0, (now - this.lastNow) / 1000));
-        const k = 1 - Math.exp(-dt * 24);
-        const cur = {} as Record<BoneName, number>;
-        for (const name of Object.keys(target) as BoneName[]) {
-          const p0 = prev?.[name] ?? target[name];
-          cur[name] = p0 + Math.atan2(Math.sin(target[name] - p0), Math.cos(target[name] - p0)) * k;
-        }
-        this.limbs[f.slot] = cur;
-        deform(sprite.rig, cur);
-        ctx.shadowBlur = 0; // per-triangle shadows would be very slow
-        ctx.translate(-w / 2, -h);
-        ctx.scale(w / img.width, h / img.height);
-        drawRig(ctx, img, sprite.rig);
-      } else {
-        ctx.drawImage(img, -w / 2, -h, w, h);
-      }
-    } else {
-      // Placeholder stick figure while the drawing loads.
-      ctx.strokeStyle = C.ink;
-      ctx.lineWidth = 5;
-      ctx.beginPath();
-      ctx.arc(0, -h + 25, 22, 0, Math.PI * 2);
-      ctx.moveTo(0, -h + 47);
-      ctx.lineTo(0, -60);
-      ctx.lineTo(-25, 0);
-      ctx.moveTo(0, -60);
-      ctx.lineTo(25, 0);
-      ctx.stroke();
-    }
+    drawStick(ctx, pose, { ink, head: sprite?.head ?? null, cls, accent });
     ctx.restore();
 
     if (f.blocking) {

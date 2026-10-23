@@ -13,6 +13,9 @@ type Props = {
   players: [LobbyPlayer, LobbyPlayer];
   you: Slot;
   onInput: (input: Input) => void;
+  // Split-screen test: player 1 gets WASD + J/K/L, player 2 the arrows + 1/2/3.
+  keys?: "all" | "p1" | "p2";
+  controller?: boolean;
 };
 
 const SNAP_MS = (1000 / TICK_HZ) * 2;
@@ -39,6 +42,21 @@ const KEYS: Record<string, Control> = {
   KeyC: "special",
 };
 
+const P1_KEYS: Record<string, Control> = { KeyA: "left", KeyD: "right", KeyW: "jump", KeyS: "block", KeyJ: "attack", KeyK: "kick", KeyL: "special" };
+const P2_KEYS: Record<string, Control> = {
+  ArrowLeft: "left",
+  ArrowRight: "right",
+  ArrowUp: "jump",
+  ArrowDown: "block",
+  Digit1: "attack",
+  Numpad1: "attack",
+  Digit2: "kick",
+  Numpad2: "kick",
+  Digit3: "special",
+  Numpad3: "special",
+};
+const KEYMAPS = { all: KEYS, p1: P1_KEYS, p2: P2_KEYS };
+
 // Standard gamepad mapping (Xbox / PlayStation / most Bluetooth pads).
 const PAD_BUTTONS: [number, Control][] = [
   [0, "jump"], // A / Cross
@@ -54,7 +72,7 @@ const PAD_BUTTONS: [number, Control][] = [
   [15, "right"],
 ];
 
-export function GameCanvas({ snaps, players, you, onInput }: Props) {
+export function GameCanvas({ snaps, players, you, onInput, keys = "all", controller = true }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const input = useRef<Input>({ ...EMPTY_INPUT });
   // Server render (e.g. /demo) has no window: assume a mouse, then use the real value in the browser.
@@ -105,14 +123,15 @@ export function GameCanvas({ snaps, players, you, onInput }: Props) {
   });
 
   useEffect(() => {
+    const map = KEYMAPS[keys];
     const down = (e: KeyboardEvent) => {
-      const k = KEYS[e.code];
+      const k = map[e.code];
       if (!k || e.target instanceof HTMLInputElement) return;
       e.preventDefault();
       if (!e.repeat) press.current(k, true, `key:${e.code}`);
     };
     const up = (e: KeyboardEvent) => {
-      const k = KEYS[e.code];
+      const k = map[e.code];
       if (k) press.current(k, false, `key:${e.code}`);
     };
     // Releasing everything on blur avoids a "stuck walking" fighter after alt-tab.
@@ -139,7 +158,7 @@ export function GameCanvas({ snaps, players, you, onInput }: Props) {
       clearInterval(beat);
       clearInterval(meter);
     };
-  }, [snaps, you]);
+  }, [snaps, you, keys]);
 
   useEffect(() => {
     const canvas = canvasRef.current!;
@@ -149,6 +168,7 @@ export function GameCanvas({ snaps, players, you, onInput }: Props) {
     window.addEventListener("resize", onResize);
 
     let alive = true;
+    renderer.classes = [players[0].class, players[1].class];
     players.forEach((p, i) =>
       loadSprite(p.imageUrl, p.pose, p.rotation)
         .then((s) => alive && (renderer.sprites[i] = s))
@@ -164,6 +184,7 @@ export function GameCanvas({ snaps, players, you, onInput }: Props) {
     const padPrev = new Map<string, boolean>();
     let padName: string | null = null;
     const pollGamepad = () => {
+      if (keys === "p2") return; // one pad drives player 1 only
       const pads = typeof navigator.getGamepads === "function" ? navigator.getGamepads() : [];
       const pad = Array.from(pads).find((p) => p && p.connected) ?? null;
       const name = pad ? pad.id.replace(/\(.*?\)/g, "").trim().slice(0, 40) || "Gamepad" : null;
@@ -197,7 +218,7 @@ export function GameCanvas({ snaps, players, you, onInput }: Props) {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
     };
-  }, [players, snaps, you]);
+  }, [players, snaps, you, keys]);
 
   return (
     <div className="grid gap-3">
@@ -206,7 +227,7 @@ export function GameCanvas({ snaps, players, you, onInput }: Props) {
         <canvas ref={canvasRef} className="block w-full touch-none rounded-2xl bg-paper ring-1 ring-line" />
       </div>
       {touch && <p className="text-center text-xs text-muted portrait:block landscape:hidden">Tip: turn your phone sideways for a bigger arena.</p>}
-      <Controller press={(k, d) => press.current(k, d, "ui")} lit={lit} energy={energy} showKeys={!touch} gamepad={gamepad} />
+      {controller && <Controller press={(k, d) => press.current(k, d, "ui")} lit={lit} energy={energy} showKeys={!touch} gamepad={gamepad} />}
     </div>
   );
 }

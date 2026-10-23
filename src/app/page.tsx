@@ -1,5 +1,6 @@
 import { BookOpen, Camera, Gamepad2, Hand, PenLine, Shield, Sword, Target, WandSparkles, type LucideIcon } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 
@@ -25,6 +26,7 @@ export default async function Landing() {
     getSession(),
     db.character.findMany({ orderBy: { createdAt: "desc" }, take: 6 }),
   ]);
+  if (session) redirect("/home"); // logged-in players get their own page
   const start = session ? "/create" : "/signup?next=/create";
 
   return (

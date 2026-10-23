@@ -11,9 +11,11 @@ const TIPS = [
 ];
 
 export default async function CreatePage({ searchParams }: PageProps<"/create">) {
-  const { room } = await searchParams;
+  const { room, next } = await searchParams;
   const returnRoom = typeof room === "string" && ROOM_CODE.test(room) ? room : undefined;
-  const user = await requireUser(returnRoom ? `/create?room=${returnRoom}` : "/create");
+  // Only our own pages that take ?fighter= (no open redirects).
+  const returnTo = next === "/play/cpu" || next === "/play/test" ? next : undefined;
+  const user = await requireUser(returnRoom ? `/create?room=${returnRoom}` : returnTo ? `/create?next=${returnTo}` : "/create");
 
   return (
     <div className="grid gap-10 md:grid-cols-[1.3fr_1fr] md:items-start">
@@ -29,12 +31,12 @@ export default async function CreatePage({ searchParams }: PageProps<"/create">)
           </p>
         )}
         <div className="mt-6">
-          <UploadDropzone returnRoom={returnRoom} />
+          <UploadDropzone returnRoom={returnRoom} returnTo={returnTo} />
         </div>
         {!hasApiKey() && (
           <p className="mt-3 text-xs text-muted">
-            Running in offline mode — stats come from a deterministic generator. Add <code>ANTHROPIC_API_KEY</code> for real
-            drawing analysis.
+            Offline mode: stats come from measuring your drawing (size, stance, arms, colours, the item you confirm). The name
+            and special are generated. Add <code>ANTHROPIC_API_KEY</code> for Claude&apos;s full read of the art.
           </p>
         )}
       </section>

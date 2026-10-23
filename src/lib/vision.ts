@@ -10,9 +10,14 @@ import {
   ruleStats,
   type Adjustment,
   type CharacterClass,
+  featuresFromMeasurements,
   type Features,
+  type Measurements,
   type Stats,
 } from "./stats";
+
+// What the browser measured on the drawing, plus the item the user confirmed.
+export type DrawingFacts = Measurements & { colors: string[]; item: string };
 
 export const MODEL = "claude-opus-5-5";
 
@@ -156,16 +161,23 @@ function validPose(p: PoseKeypoints): PoseKeypoints | null {
   return inside ? p : null; // orientation is handled by head_points → rotation
 }
 
-// Deterministic stand-in used when there's no API key or the vision call fails twice.
-function offlineAnalysis(image: Buffer, note: string): Analysis {
+const itemList = (f: DrawingFacts) => (f.item === "nothing" ? [] : [f.item]);
+
+// Used when there's no API key or the vision call fails twice. Stats come from the
+// browser's measurements; the hash only picks a name and special.
+function offlineAnalysis(image: Buffer, note: string, facts: DrawingFacts | null): Analysis {
   const h = createHash("sha256").update(image).digest();
   const pick = <T,>(arr: readonly T[], i: number) => arr[h[i] % arr.length];
-  const items = pick([[], ["sword"], ["book"], [], ["shield"], ["staff"], ["bow"]], 0);
-  const features: Features = {
-    size: pick(["small", "medium", "large"] as const, 1),
-    pose: pick(["aggressive", "defensive", "neutral"] as const, 2),
-    dominant_colors: [pick(["black", "blue", "red", "green"], 3)],
-  };
+  // No measurements (an old client): fall back to guesses, and say so.
+  const items = facts ? itemList(facts) : pick([[], ["sword"], ["book"], [], ["shield"], ["staff"], ["bow"]], 0);
+  const features: Features = facts
+    ? featuresFromMeasurements(facts, facts.colors)
+    : {
+        size: pick(["small", "medium", "large"] as const, 1),
+        pose: pick(["aggressive", "defensive", "neutral"] as const, 2),
+        dominant_colors: [pick(["black", "blue", "red", "green"], 3)],
+      };
+  if (!facts) note += " No measurements were sent, so size and pose are guesses.";
   const first = pick(["Scribbles", "Inky", "Doodle", "Smudge", "Sketchy", "Pencil", "Crayon", "Margin"], 4);
   const last = pick(["McGee", "the Bold", "Von Stick", "Jr.", "Supreme", "the Unerasable"], 5);
   const moves = [
@@ -187,18 +199,20 @@ function offlineAnalysis(image: Buffer, note: string): Analysis {
   );
 }
 
-export async function analyzeDrawing(image: Buffer, mediaType: MediaType): Promise<Analysis> {
-  if (!hasApiKey()) return offlineAnalysis(image, "Offline mode: set ANTHROPIC_API_KEY for real drawing analysis.");
+export async function analyzeDrawing(image: Buffer, mediaType: MediaType, facts: DrawingFacts | null = null): Promise<Analysis> {
+  if (!hasApiKey()) return offlineAnalysis(image, "Offline mode: name and special are generated, stats come from your drawing's measurements.", facts);
 
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const v = await callClaude(image, mediaType);
+      const seen = v.detected_items.map((i) => i.toLowerCase());
       return build(
         "claude",
         v.name,
-        v.detected_items.map((i) => i.toLowerCase()),
-        v.detected_features,
+        // Claude's read of the item wins when it saw one; otherwise trust the user's pick.
+        seen.length || !facts ? seen : itemList(facts),
+        facts ? featuresFromMeasurements(facts, v.detected_features.dominant_colors) : v.detected_features,
         v.stats,
         v.special_move,
         v.flavor_text,
@@ -212,5 +226,5 @@ export async function analyzeDrawing(image: Buffer, mediaType: MediaType): Promi
     }
   }
   const reason = lastError instanceof Error ? lastError.message : "unknown error";
-  return offlineAnalysis(image, `Vision analysis failed twice (${reason}); used offline generator.`);
+  return offlineAnalysis(image, `Vision analysis failed twice (${reason}); used offline generator.`, facts);
 }

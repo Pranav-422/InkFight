@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { saveDrawing } from "@/lib/storage";
@@ -5,6 +6,27 @@ import { analyzeDrawing } from "@/lib/vision";
 
 const TYPES = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" } as const;
 const MAX_BYTES = 4 * 1024 * 1024; // Vercel functions cap request bodies at 4.5MB
+
+// Measurements from the browser. Untrusted: clamp every number, allow only known words.
+const ratio = (max: number) => z.number().finite().transform((v) => Math.min(max, Math.max(0, v)));
+const Facts = z.object({
+  fill: ratio(1),
+  aspect: ratio(5),
+  stance: ratio(3),
+  armSpread: ratio(3),
+  colors: z.array(z.enum(["red", "blue", "green", "yellow", "black"])).max(5),
+  item: z.enum(["sword", "book", "staff", "shield", "bow", "nothing"]),
+});
+
+function parseFacts(raw: FormDataEntryValue | null) {
+  if (typeof raw !== "string") return null;
+  try {
+    const r = Facts.safeParse(JSON.parse(raw));
+    return r.success ? r.data : null;
+  } catch {
+    return null;
+  }
+}
 
 export async function GET(request: Request) {
   const mine = new URL(request.url).searchParams.get("mine") === "1";
@@ -30,7 +52,7 @@ export async function POST(request: Request) {
   const bytes = Buffer.from(await file.arrayBuffer());
   const [imageUrl, a] = await Promise.all([
     saveDrawing(bytes, ext, file.type),
-    analyzeDrawing(bytes, file.type as keyof typeof TYPES),
+    analyzeDrawing(bytes, file.type as keyof typeof TYPES, parseFacts(form.get("features"))),
   ]);
   const character = await db.character.create({
     data: {

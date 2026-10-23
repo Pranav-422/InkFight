@@ -14,7 +14,7 @@ export default async function GalleryPage() {
           <h1 className="font-display text-3xl font-extrabold">Gallery</h1>
           <p className="text-sm text-muted">Every fighter ever scribbled into existence. Tap one to pick a fight.</p>
         </div>
-        <Link href="/" className="shrink-0 rounded-xl bg-hit px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110">
+        <Link href="/create" className="shrink-0 rounded-xl bg-hit px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110">
           New fighter
         </Link>
       </div>

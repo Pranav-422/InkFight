@@ -30,7 +30,8 @@ export type Lobby = {
 export type ClientMsg = { t: "input"; input: Input } | { t: "ready"; ready: boolean } | { t: "rematch" };
 
 // Host → guest.
-export type HostMsg = { t: "lobby"; lobby: Lobby } | { t: "snap"; s: Snapshot };
+// `n` counts snapshots within a match so the guest can drop late ones.
+export type HostMsg = { t: "lobby"; lobby: Lobby } | { t: "snap"; s: Snapshot; n: number };
 
 export const ROOM_CODE = /^[A-Z0-9]{4,8}$/;
 

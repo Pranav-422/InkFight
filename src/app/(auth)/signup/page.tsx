@@ -18,7 +18,7 @@ export default async function SignupPage({ searchParams }: PageProps<"/signup">)
           This browser is signed in as <span className="font-semibold text-ink">{session.name}</span> ({session.email}).
         </p>
         <div className="mt-6 grid gap-2">
-          <Link href={nextPath ?? "/create"} className="rounded-xl bg-hit px-5 py-3 text-center font-semibold text-white hover:brightness-110">
+          <Link href={nextPath ?? "/home"} className="rounded-xl bg-hit px-5 py-3 text-center font-semibold text-white hover:brightness-110">
             Continue as {session.name}
           </Link>
           <form action={logout}>
@@ -27,8 +27,12 @@ export default async function SignupPage({ searchParams }: PageProps<"/signup">)
           </form>
         </div>
         <p className="mt-5 rounded-xl bg-gold/20 p-3 text-sm">
-          Playing against yourself? Log the second account in from an <b>incognito window</b> or another browser. Tabs in the same
-          window share one login, so they can&apos;t be two different players.
+          Playing against yourself? Use a{" "}
+          <Link href="/play/test" className="font-semibold underline">
+            test match
+          </Link>{" "}
+          (both players on one screen), or log the second account in from an <b>incognito window</b>. Tabs in the same window
+          share one login, so they can&apos;t be two different players.
         </p>
       </div>
     );

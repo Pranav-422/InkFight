@@ -9,7 +9,7 @@ export type AuthState = { error?: string; email?: string; name?: string };
 // Only allow same-site relative redirects after login.
 function safeNext(v: FormDataEntryValue | null) {
   const s = typeof v === "string" ? v : "";
-  return s.startsWith("/") && !s.startsWith("//") ? s : "/create";
+  return s.startsWith("/") && !s.startsWith("//") ? s : "/home";
 }
 
 export async function login(_prev: AuthState, form: FormData): Promise<AuthState> {

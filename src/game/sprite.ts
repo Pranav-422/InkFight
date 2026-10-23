@@ -1,9 +1,11 @@
-// Turns a photo of a drawing into a game sprite: paper → transparent, ink kept,
-// cropped tight to the figure. Runs in the browser.
+// Turns a photo of a drawing into what the fighter wears in the arena: paper →
+// transparent, the figure found, and its head cut out (the body is drawn as a
+// clean stickman, see stickman.ts). Runs in the browser.
 
-import { buildRig, estimateJoints, jointsFromVision, type Joints, type Rig, type Vec } from "./skeleton";
+import { estimateJoints, jointsFromVision, type Joints, type Vec } from "./skeleton";
 
-export type Sprite = { normal: HTMLCanvasElement; hurt: HTMLCanvasElement; aspect: number; rig: Rig | null };
+// head: the drawing's head, cut out as a circle. ink: its average ink colour.
+export type Sprite = { head: HTMLCanvasElement | null; ink: string | null };
 
 const MAX_SIDE = 512;
 
@@ -134,18 +136,6 @@ function hasKeptNeighbour(label: Int32Array, keep: boolean[], p: number, w: numb
   return false;
 }
 
-function tinted(src: HTMLCanvasElement, color: string): HTMLCanvasElement {
-  const c = document.createElement("canvas");
-  c.width = src.width;
-  c.height = src.height;
-  const ctx = c.getContext("2d")!;
-  ctx.drawImage(src, 0, 0);
-  ctx.globalCompositeOperation = "source-atop";
-  ctx.fillStyle = color;
-  ctx.fillRect(0, 0, c.width, c.height);
-  return c;
-}
-
 // Stand a sideways photo upright: returns the rotated image and how to map
 // a point given as fractions of the *original* photo into it.
 function rotated(src: HTMLImageElement, deg: number) {
@@ -233,23 +223,171 @@ export async function loadSprite(url: string, poseJson?: string | null, rotation
   }
   nctx.putImageData(d2, 0, 0);
 
-  // Skeleton: AI keypoints when we have them (fractions of the photo), else read it off the ink.
-  let rig: Rig | null = null;
-  try {
-    const alpha = nctx.getImageData(0, 0, normal.width, normal.height).data;
-    let joints: Joints | null = null;
-    if (poseJson) {
-      try {
-        joints = jointsFromVision(JSON.parse(poseJson), (v) => {
-          const q = toRotated(v);
-          return { x: (q.x - ox) * s2, y: (q.y - oy) * s2 };
-        });
-      } catch {}
-    }
-    joints ??= estimateJoints(alpha, normal.width, normal.height);
-    rig = buildRig(alpha, normal.width, normal.height, joints);
-  } catch (err) {
-    console.warn("[sprite] couldn't rig drawing, it will move as one piece", err);
+  // Joints: AI keypoints when we have them (fractions of the photo), else read off the ink.
+  const W = normal.width, H = normal.height;
+  let joints: Joints | null = null;
+  if (poseJson) {
+    try {
+      joints = jointsFromVision(JSON.parse(poseJson), (v) => {
+        const q = toRotated(v);
+        return { x: (q.x - ox) * s2, y: (q.y - oy) * s2 };
+      });
+    } catch {}
   }
-  return { normal, hurt: tinted(normal, "rgba(229,72,45,.85)"), aspect: normal.width / normal.height, rig };
+  joints ??= estimateJoints(px2, W, H);
+  return { head: cutHead(normal, joints), ink: inkColor(px2) };
+}
+
+// The head as a circle around the head joint (head-to-shoulder is about two head radii),
+// so a sword drawn next to it stays out.
+function cutHead(src: HTMLCanvasElement, j: Joints): HTMLCanvasElement | null {
+  const r = Math.min(src.width / 2, Math.max(8, Math.hypot(j.head.x - j.shoulder.x, j.head.y - j.shoulder.y) * 0.58));
+  if (!Number.isFinite(r) || !Number.isFinite(j.head.x)) return null;
+  const c = document.createElement("canvas");
+  c.width = c.height = Math.max(8, Math.round(r * 2));
+  const g = c.getContext("2d")!;
+  g.beginPath();
+  g.arc(c.width / 2, c.height / 2, c.width / 2, 0, Math.PI * 2);
+  g.clip();
+  g.drawImage(src, j.head.x - r, j.head.y - r, r * 2, r * 2, 0, 0, c.width, c.height);
+  return c;
+}
+
+// Mean colour of solid ink, or null for faint/light ink (the renderer then uses black).
+function inkColor(px: Uint8ClampedArray): string | null {
+  let r = 0, g = 0, b = 0, n = 0;
+  for (let i = 0; i < px.length; i += 4) {
+    if (px[i + 3] < 160) continue;
+    r += px[i];
+    g += px[i + 1];
+    b += px[i + 2];
+    n++;
+  }
+  if (n < 30) return null;
+  r /= n; g /= n; b /= n;
+  if (r * 0.299 + g * 0.587 + b * 0.114 > 140) return null;
+  return `rgb(${r | 0},${g | 0},${b | 0})`;
+}
+
+// ---------------------------------------------------------------- measuring
+
+export const ITEMS = ["sword", "book", "staff", "shield", "bow", "nothing"] as const;
+export type Item = (typeof ITEMS)[number];
+export type Measured = {
+  fill: number; // ink pixels / figure box: bulk
+  aspect: number; // box width / height
+  stance: number; // foot spread / height
+  armSpread: number; // hand-to-hand span / height
+  colors: string[]; // ink hues with a real share of the ink
+  item: Item; // best guess at the held prop; the user can correct it
+};
+
+// Reads what's actually on the paper, before upload. Stats are built from these.
+export async function measureDrawing(file: Blob): Promise<Measured> {
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));
+  const w = Math.max(1, Math.round(bmp.width * scale)), h = Math.max(1, Math.round(bmp.height * scale));
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const g = c.getContext("2d", { willReadFrequently: true })!;
+  g.drawImage(bmp, 0, 0, w, h);
+  const px = g.getImageData(0, 0, w, h).data;
+  const alpha = inkAlpha(px, w, h);
+  return measureInk(px, alpha, w, h);
+}
+
+// Pure part, testable without a DOM. px = RGBA photo, alpha = ink per pixel (inkAlpha).
+export function measureInk(px: ArrayLike<number>, alpha: ArrayLike<number>, w: number, h: number): Measured {
+  let x0 = w, y0 = h, x1 = -1, y1 = -1, ink = 0;
+  const hues = { red: 0, blue: 0, green: 0, yellow: 0 };
+  for (let p = 0; p < w * h; p++) {
+    if (alpha[p] < 64) continue;
+    ink++;
+    const x = p % w, y = (p / w) | 0;
+    if (x < x0) x0 = x;
+    if (x > x1) x1 = x;
+    if (y < y0) y0 = y;
+    if (y > y1) y1 = y;
+    const r = px[p * 4], gg = px[p * 4 + 1], b = px[p * 4 + 2];
+    const mx = Math.max(r, gg, b), mn = Math.min(r, gg, b);
+    if (mx - mn < 28) continue; // greyish: pencil / black pen (dark navy pen still counts as blue)
+    const hue = mx === r ? ((gg - b) / (mx - mn) + 6) % 6 : mx === gg ? (b - r) / (mx - mn) + 2 : (r - gg) / (mx - mn) + 4;
+    if (hue < 0.5 || hue >= 5.5) hues.red++;
+    else if (hue < 1.3) hues.yellow++;
+    else if (hue < 3) hues.green++;
+    else if (hue < 4.6) hues.blue++;
+    else hues.red++; // magenta/pink reads as red
+  }
+  if (x1 < 0) return { fill: 0, aspect: 0.5, stance: 0, armSpread: 0, colors: ["black"], item: "nothing" };
+  const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+  const colors = Object.entries(hues).filter(([, n]) => n > ink * 0.12).map(([k]) => k);
+
+  const rgba = new Uint8ClampedArray(w * h * 4);
+  for (let p = 0; p < w * h; p++) rgba[p * 4 + 3] = alpha[p];
+  const j = estimateJoints(rgba, w, h);
+  return {
+    fill: ink / (bw * bh),
+    aspect: bw / bh,
+    stance: Math.abs(j.footF.x - j.footB.x) / bh,
+    armSpread: Math.abs(j.handF.x - j.handB.x) / bh,
+    colors: colors.length ? colors : ["black"],
+    item: guessItem(alpha, w, h, j, bh),
+  };
+}
+
+// The held prop: ink that isn't head, spine or legs, and is more than a stick arm's
+// worth. Its shape picks the item. A guess — the create page lets the user fix it.
+function guessItem(alpha: ArrayLike<number>, w: number, h: number, j: Joints, bh: number): Item {
+  const headR = Math.max(6, Math.hypot(j.head.x - j.shoulder.x, j.head.y - j.shoulder.y) * 0.7);
+  const band = bh * 0.07;
+  const pts: Vec[] = [];
+  for (let y = 0; y < h; y++) {
+    if (y > j.hip.y) continue; // legs
+    for (let x = 0; x < w; x++) {
+      if (alpha[y * w + x] < 64) continue;
+      if (Math.hypot(x - j.head.x, y - j.head.y) < headR) continue;
+      if (Math.abs(x - j.shoulder.x) < band && y > j.head.y) continue; // spine
+      if (Math.hypot(x - j.shoulder.x, y - j.shoulder.y) < bh * 0.22) continue; // upper arms
+      pts.push({ x, y });
+    }
+  }
+  // Stroke width from the legs (two strokes from hip to feet), so the threshold fits pen or marker.
+  let legInk = 0;
+  for (let y = Math.ceil(j.hip.y); y < h; y++) for (let x = 0; x < w; x++) if (alpha[y * w + x] >= 64) legInk++;
+  const legLen = Math.max(1, Math.max(j.footF.y, j.footB.y) - j.hip.y);
+  const stroke = Math.max(1.5, legInk / (2 * legLen * 1.1));
+  // A bare forearm is a short thin line; a side with far more ink than that holds a prop.
+  const left = pts.filter((p) => p.x < j.shoulder.x), right = pts.filter((p) => p.x >= j.shoulder.x);
+  const side = left.length > right.length ? left : right;
+  if (side.length < bh * 0.12 * stroke * 2) return "nothing";
+  return shapeOf(side, w, h, bh);
+}
+
+function shapeOf(pts: Vec[], w: number, h: number, bh: number): Item {
+  // Principal axes of the extra ink: a line (blade/staff), a curve (bow) or a blob (shield/book).
+  let mx = 0, my = 0;
+  for (const p of pts) {
+    mx += p.x;
+    my += p.y;
+  }
+  mx /= pts.length;
+  my /= pts.length;
+  let sxx = 0, syy = 0, sxy = 0, minX = w, maxX = 0, minY = h, maxY = 0;
+  for (const p of pts) {
+    sxx += (p.x - mx) ** 2;
+    syy += (p.y - my) ** 2;
+    sxy += (p.x - mx) * (p.y - my);
+    minX = Math.min(minX, p.x);
+    maxX = Math.max(maxX, p.x);
+    minY = Math.min(minY, p.y);
+    maxY = Math.max(maxY, p.y);
+  }
+  const tr = (sxx + syy) / pts.length, det = (sxx * syy - sxy * sxy) / pts.length ** 2;
+  const l1 = tr / 2 + Math.sqrt(Math.max(0, (tr * tr) / 4 - det)), l2 = Math.max(0, tr - l1);
+  const thin = Math.sqrt(l2 / (l1 || 1));
+  const span = Math.max(maxX - minX, maxY - minY) / bh;
+  if (thin < 0.18) return maxY - minY > (maxX - minX) * 1.5 && maxY - minY > bh * 0.5 ? "staff" : "sword";
+  if (thin < 0.45) return "bow";
+  return span > 0.3 ? "shield" : "book";
 }

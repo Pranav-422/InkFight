@@ -1,4 +1,4 @@
-# InkFight: project memory (chat 1 on 2026-10-02, chat 2 on 2026-10-11)
+# InkFight: project memory (chat 1 on 2026-10-02, chat 2 on 2026-10-11, chat 3 on 2026-10-23)
 
 Read this first in a new chat. It explains what was built, why it's built this way, and what's still open.
 
@@ -17,7 +17,7 @@ You draw a stick figure on paper, photograph it, and upload it. Your drawing bec
 | demo1@inkfight.app | inkfight123 | InkNinja | Sir Scribbles (Warrior) |
 | demo2@inkfight.app | inkfight123 | DoodleDon | Margin Mage (Mage) |
 
-To fight yourself, use **one normal window + one incognito window** (or two browsers). Tabs in the same browser share one login cookie.
+To fight yourself, use the **split-screen test match** at `/play/test` (chat 3), or one normal window + one incognito window. Tabs in the same browser share one login cookie.
 
 ## History (why things are the way they are)
 
@@ -58,6 +58,17 @@ To fight yourself, use **one normal window + one incognito window** (or two brow
 - **New migrations:** `character_pose` and `character_rotation`. They are applied on Vercel by `vercel-build`.
 - **Known limit:** busy or scribbly drawings, like the user's "Crayon Supreme" photo with a big shield, rig poorly without Claude keypoints and look messy when they move. Clean stick figures animate well.
 
+## Chat 3 additions (2026-10-23)
+
+- **Dashboard `/home`:** greeting, W/L + best rank, quick actions, my fighters. Login/signup default to `/home`, and `/` redirects there when logged in. Nav: logged in = Home/New fighter/Fight/Gallery/Leaderboard; logged out = Gallery/Leaderboard/Log in/Sign up.
+- **Invite fix:** a friend opening `/play/CODE` while logged out sees "Your friend challenged you → Sign up and scan my fighter" (→ `/create?room=CODE`), with **no demo accounts** shown. Before, they took a demo login and fought with the gallery starters. The room always shows the picker ("Scan a new fighter" first, last fighter only highlighted); `?fighter=` still skips it.
+- **Split-screen test match `/play/test`:** a real room + WebRTC with both players in one tab. `POST /api/test-session` returns a 3h JWT for the *other* demo account; `getSession` accepts `Authorization: Bearer` before the cookie. `useGameRoom(code, fighter, user, { token, sameTab, record })`. Keys: P1 WASD + J/K/L, P2 arrows + 1/2/3. Not recorded on the leaderboard.
+- **Clean stickman renderer (`src/game/stickman.ts`):** a fixed skeleton posed by `poses.ts`, drawn as strokes in the drawing's ink colour. The head is the drawing's head (circle crop, `sprite.ts` `cutHead`), plus a class item in the hand. Specials glow red with afterimages, armor glows blue. The photo-mesh puppet (`buildRig`/`drawRig` in `skeleton.ts`) is no longer used. `estimateJoints` now finds the head on the spine column, so a raised sword isn't the head.
+- **Real offline stats:** `measureDrawing`/`measureInk` (`sprite.ts`) measure fill, aspect, stance, arm spread, ink hues, and guess the item (sword/staff/bow/shield/book/nothing). The create page shows "Holding: [guess ▾]" for the user to confirm. Server validates with zod (`features` form field). `featuresFromMeasurements` + 2 new rules (Wide stance +DEF, Arms out +ATK). The hash now only picks name/special. "Why these stats" shows the measured numbers. With a Claude key, Claude's items win when it sees one.
+- **Fixes:** RoomClient memoizes `players` (the renderer was rebuilt on every lobby update). The guest drops late snapshots (`n` seq in `HostMsg`). `/create?next=/play/cpu|/play/test` returns there. Camera button on upload (`capture="environment"`).
+- **Self-check:** `npx tsx scripts/check-stats.ts` (stat mapping + synthetic drawings).
+- **Known limits:** item guess is a heuristic (user confirms). Sideways photos are measured before rotation, so their aspect/arm numbers are off.
+
 ## Architecture
 
 | Piece | File(s) |
@@ -67,7 +78,8 @@ To fight yourself, use **one normal window + one incognito window** (or two brow
 | Wire types, room codes | `src/game/protocol.ts` |
 | Signaling APIs (offer/answer in the `Room` table) | `src/app/api/rooms/[code]/route.ts`, `.../answer/route.ts` |
 | Match result (host reports, deduped by `matchKey`) | `src/app/api/battles/route.ts` |
-| Drawing → transparent sprite (removes paper, crops to ink) | `src/game/sprite.ts` |
+| Drawing → head crop + ink colour; drawing measurements (stats) | `src/game/sprite.ts` |
+| Stickman body (FK skeleton, class items) | `src/game/stickman.ts` |
 | Canvas renderer (interpolation, squash/stretch, FX, HUD) | `src/game/render.ts` |
 | Canvas + keyboard/touch controls | `src/components/GameCanvas.tsx` |
 | Room UI (picker, lobby, invite, result) | `src/app/play/[code]/RoomClient.tsx` |
@@ -75,7 +87,7 @@ To fight yourself, use **one normal window + one incognito window** (or two brow
 | Rule-based stats: item→class, caps, 70% rules / 30% AI blend | `src/lib/stats.ts` |
 | Auth: bcryptjs + jose JWT cookie `inkfight_session` | `src/lib/auth.ts`, `src/app/(auth)/*` |
 | Storage: Vercel Blob if `BLOB_READ_WRITE_TOKEN`, else `./uploads` | `src/lib/storage.ts` |
-| Pages | `/` landing, `/login`, `/signup`, `/create` (upload), `/play`, `/play/[code]`, `/character/[id]`, `/gallery`, `/leaderboard` |
+| Pages | `/` landing, `/home`, `/login`, `/signup`, `/create` (upload), `/play`, `/play/[code]`, `/play/cpu`, `/play/test`, `/demo`, `/character/[id]`, `/gallery`, `/leaderboard` |
 
 **How P2P works:**
 1. The room creator's browser is the **host**: it runs the sim and streams snapshots at 30/s.

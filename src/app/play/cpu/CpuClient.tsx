@@ -58,7 +58,7 @@ export function CpuClient({
       <div className="mx-auto max-w-md rounded-2xl bg-card p-6 text-center ring-1 ring-line">
         <p className="font-display text-xl font-extrabold">You need a fighter first</p>
         <p className="mt-1 text-sm text-muted">Scan a drawing, then come back to take on the computer.</p>
-        <Link href="/create" className="mt-4 inline-block rounded-xl bg-hit px-5 py-3 font-semibold text-white">
+        <Link href="/create?next=/play/cpu" className="mt-4 inline-block rounded-xl bg-hit px-5 py-3 font-semibold text-white">
           Scan a fighter
         </Link>
       </div>

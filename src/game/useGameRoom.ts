@@ -38,8 +38,10 @@ type RoomInfo = {
   error?: string;
 };
 
-async function api<T>(url: string, init?: RequestInit): Promise<T & { error?: string; status: number }> {
-  const res = await fetch(url, { ...init, headers: { "Content-Type": "application/json" }, cache: "no-store" });
+async function api<T>(url: string, init?: RequestInit, token?: string): Promise<T & { error?: string; status: number }> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(url, { ...init, headers, cache: "no-store" });
   const data = await res.json().catch(() => ({}));
   return { ...data, status: res.status };
 }
@@ -92,7 +94,13 @@ function claimRoomTab(code: string): () => void {
   return () => ch.close();
 }
 
-export function useGameRoom(code: string, fighterId: string | null, userId?: string) {
+// `token`: act as another account (the split-screen test's second player).
+// `sameTab`: skip the one-tab-per-room guard, since both players live in this tab.
+// `record`: report the result to the leaderboard (off for test matches).
+export type RoomOptions = { token?: string; sameTab?: boolean; record?: boolean };
+
+export function useGameRoom(code: string, fighterId: string | null, userId?: string, opts: RoomOptions = {}) {
+  const { token, sameTab = false, record = true } = opts;
   const snaps = useRef<SnapBuffer>({ prev: null, cur: null, at: 0 });
   const [lobby, setLobby] = useState<Lobby | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -106,6 +114,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
     if (!fighterId) return;
     let cancelled = false;
     const cleanups: (() => void)[] = [];
+    const call = <T,>(url: string, init?: RequestInit) => api<T>(url, init, token);
     const pushSnap = (s: Snapshot) => {
       const b = snaps.current;
       snaps.current = { prev: b.cur, cur: s, at: performance.now() };
@@ -113,10 +122,12 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
     };
 
     async function run() {
-      if (await roomOpenInAnotherTab(code)) return setError(OTHER_TAB);
-      if (cancelled) return;
-      cleanups.push(claimRoomTab(code));
-      const info = await api<RoomInfo>(`/api/rooms/${code}`);
+      if (!sameTab) {
+        if (await roomOpenInAnotherTab(code)) return setError(OTHER_TAB);
+        if (cancelled) return;
+        cleanups.push(claimRoomTab(code));
+      }
+      const info = await call<RoomInfo>(`/api/rooms/${code}`);
       if (cancelled) return;
       if (info.status === 401) return setError("You're logged out. Log in again to play.");
       if (userId && info.you && info.you !== userId) return setError(SWITCHED);
@@ -127,7 +138,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
       for (let i = 0; fresh.answer && i < 40 && !cancelled; i++) {
         setStatus("Reconnecting to the host…");
         await sleep(POLL_MS);
-        fresh = await api<RoomInfo>(`/api/rooms/${code}`);
+        fresh = await call<RoomInfo>(`/api/rooms/${code}`);
       }
       if (cancelled) return;
       if (fresh.answer) return setError("The host hasn't reopened the room yet. Try again in a moment.");
@@ -137,7 +148,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
 
     // ---------------------------------------------------------------- host
     async function host() {
-      const me = await api<{ fighters?: never } & PublicFighter>(`/api/characters/${fighterId}`);
+      const me = await call<{ fighters?: never } & PublicFighter>(`/api/characters/${fighterId}`);
       if (cancelled) return;
       if (me.status !== 200) return setError("That fighter doesn't exist. Draw a new one?");
       const myFighter: PublicFighter = {
@@ -178,6 +189,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
         let last = performance.now();
         let acc = 0;
         let tick = 0;
+        let seq = 0;
         stopLoop();
         loop = setInterval(() => {
           const now = performance.now();
@@ -193,16 +205,17 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
             if (tick % SNAPSHOT_EVERY === 0 || m.phase === "matchEnd") {
               const s = snapshot(m);
               pushSnap(s);
-              if (game?.readyState === "open") game.send(JSON.stringify({ t: "snap", s } satisfies HostMsg));
+              seq++;
+              if (game?.readyState === "open") game.send(JSON.stringify({ t: "snap", s, n: seq } satisfies HostMsg));
               // The final frame also goes over the reliable channel so the guest surely sees the result.
-              if (m.phase === "matchEnd" && ctl?.readyState === "open") ctl.send(JSON.stringify({ t: "snap", s } satisfies HostMsg));
+              if (m.phase === "matchEnd" && ctl?.readyState === "open") ctl.send(JSON.stringify({ t: "snap", s, n: seq } satisfies HostMsg));
             }
             if (m.phase === "matchEnd") {
               stopLoop();
               status = "over";
               seats.forEach((p) => p && (p.ready = false));
               broadcast();
-              api(`/api/battles`, {
+              if (record) call(`/api/battles`, {
                 method: "POST",
                 body: JSON.stringify({ roomCode: code, matchId, winnerSlot: m.matchWinner, wins: m.wins, damage: m.damage, rounds: m.round }),
               }).catch(() => {});
@@ -284,7 +297,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
         await thisPc.setLocalDescription(await thisPc.createOffer());
         await gatherIce(thisPc);
         if (cancelled || gen !== generation) return;
-        const res = await api(`/api/rooms/${code}`, {
+        const res = await call(`/api/rooms/${code}`, {
           method: "POST",
           body: JSON.stringify({ fighterId, offer: thisPc.localDescription!.sdp }),
         });
@@ -292,7 +305,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
           // Lost a race for this code: someone else is hosting, so join them instead.
           generation++;
           thisPc.close();
-          const info = await api<RoomInfo>(`/api/rooms/${code}`);
+          const info = await call<RoomInfo>(`/api/rooms/${code}`);
           if (!cancelled) await guest(info);
           return;
         }
@@ -302,7 +315,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
         // Poll for the guest's answer.
         while (!cancelled && gen === generation && thisPc.signalingState === "have-local-offer") {
           await sleep(POLL_MS);
-          const info = await api<RoomInfo>(`/api/rooms/${code}`);
+          const info = await call<RoomInfo>(`/api/rooms/${code}`);
           if (cancelled || gen !== generation) return;
           if (userId && info.you && info.you !== userId) {
             generation++;
@@ -338,13 +351,21 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
       let ctl: RTCDataChannel | null = null;
       let game: RTCDataChannel | null = null;
       cleanups.push(() => pc.close());
+      let lastSeq = 0;
 
       const onHostMessage = (raw: string) => {
         const msg = JSON.parse(raw) as HostMsg;
-        if (msg.t === "snap") pushSnap(msg.s);
-        else if (msg.t === "lobby") {
+        if (msg.t === "snap") {
+          // The game channel is unordered: a late, older snapshot would make the view jump back.
+          if (msg.n <= lastSeq) return;
+          lastSeq = msg.n;
+          pushSnap(msg.s);
+        } else if (msg.t === "lobby") {
           setLobby(msg.lobby);
-          if (msg.lobby.status === "playing") setMatchOver(null);
+          if (msg.lobby.status === "playing") {
+            setMatchOver(null);
+            lastSeq = 0;
+          }
           if (msg.lobby.status === "lobby") snaps.current = { prev: null, cur: null, at: 0 };
         }
       };
@@ -371,7 +392,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
       await pc.setLocalDescription(await pc.createAnswer());
       await gatherIce(pc);
       if (cancelled) return;
-      const res = await api<{ retry?: boolean }>(`/api/rooms/${code}/answer`, {
+      const res = await call<{ retry?: boolean }>(`/api/rooms/${code}/answer`, {
         method: "POST",
         body: JSON.stringify({ fighterId, answer: pc.localDescription!.sdp, version: info.version }),
       });
@@ -399,7 +420,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
       cleanups.forEach((f) => f());
       sendRef.current = () => {};
     };
-  }, [code, fighterId, attempt, userId]);
+  }, [code, fighterId, attempt, userId, token, sameTab, record]);
 
   const send = useCallback((msg: ClientMsg) => sendRef.current(msg), []);
   const sendInput = useCallback((input: Input) => sendRef.current({ t: "input", input }), []);

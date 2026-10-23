@@ -14,10 +14,16 @@ export const metadata: Metadata = {
   description: "Draw a stick figure. Scan it. Make it fight.",
 };
 
-const NAV = [
+type NavItem = { href: string; label: string; short?: string; desktopOnly?: boolean };
+const NAV_IN: NavItem[] = [
+  { href: "/home", label: "Home" },
   { href: "/create", label: "New fighter", desktopOnly: true },
   { href: "/play", label: "Fight a friend", short: "Fight" },
   { href: "/gallery", label: "Gallery", desktopOnly: true },
+  { href: "/leaderboard", label: "Leaderboard", short: "Ranks" },
+];
+const NAV_OUT: NavItem[] = [
+  { href: "/gallery", label: "Gallery" },
   { href: "/leaderboard", label: "Leaderboard", short: "Ranks" },
 ];
 
@@ -30,11 +36,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col font-sans">
         <header className="border-b border-line bg-paper/90 backdrop-blur sticky top-0 z-20">
           <nav className="mx-auto flex max-w-5xl items-center gap-4 px-4 py-3">
-            <Link href="/" className="font-display text-2xl font-extrabold tracking-tight">
+            <Link href={session ? "/home" : "/"} className="font-display text-2xl font-extrabold tracking-tight">
               ink<span className="text-hit">fight</span>
             </Link>
             <div className="ml-auto flex items-center text-sm sm:gap-1">
-              {NAV.map((n) => (
+              {(session ? NAV_IN : NAV_OUT).map((n) => (
                 <Link key={n.href} href={n.href} className={`${linkCls} ${n.desktopOnly ? "hidden md:block" : ""}`}>
                   {n.short ? (
                     <>
@@ -61,9 +67,14 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                   </button>
                 </form>
               ) : (
-                <Link href="/login" className="ml-1 rounded-full bg-ink px-3.5 py-1.5 font-semibold whitespace-nowrap text-white hover:bg-ink/85">
-                  Log in
-                </Link>
+                <>
+                  <Link href="/login" className={linkCls}>
+                    Log in
+                  </Link>
+                  <Link href="/signup" className="ml-1 rounded-full bg-ink px-3.5 py-1.5 font-semibold whitespace-nowrap text-white hover:bg-ink/85">
+                    Sign up
+                  </Link>
+                </>
               )}
             </div>
           </nav>

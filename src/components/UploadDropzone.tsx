@@ -1,8 +1,18 @@
 "use client";
 
-import { ImageUp, Loader2, RotateCcw } from "lucide-react";
+import { Camera, ImageUp, Loader2, RotateCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { ITEMS, measureDrawing, type Item, type Measured } from "@/game/sprite";
+
+const ITEM_LABEL: Record<Item, string> = {
+  sword: "A sword / blade (Warrior)",
+  book: "A book (Mage)",
+  staff: "A staff / wand (Caster)",
+  shield: "A shield (Tank)",
+  bow: "A bow (Ranger)",
+  nothing: "Nothing, bare fists (Brawler)",
+};
 
 const LOADING_LINES = [
   "Squinting at your linework…",
@@ -31,15 +41,18 @@ async function downscale(file: File): Promise<Blob> {
   );
 }
 
-export function UploadDropzone({ returnRoom }: { returnRoom?: string }) {
+export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; returnTo?: string }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const [line, setLine] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [facts, setFacts] = useState<Measured | null>(null);
+  const [measuring, setMeasuring] = useState(false);
 
   useEffect(() => {
     if (!busy) return;
@@ -58,6 +71,13 @@ export function UploadDropzone({ returnRoom }: { returnRoom?: string }) {
     setError(null);
     setFile(f);
     setPreview(URL.createObjectURL(f));
+    setFacts(null);
+    setMeasuring(true);
+    // Measure the drawing right away so the user can check the item guess before upload.
+    measureDrawing(f)
+      .then(setFacts)
+      .catch((err) => console.warn("[measure]", err))
+      .finally(() => setMeasuring(false));
   }
 
   async function submit() {
@@ -68,10 +88,13 @@ export function UploadDropzone({ returnRoom }: { returnRoom?: string }) {
     try {
       const body = new FormData();
       body.append("image", await downscale(file), "drawing.jpg");
+      if (facts) body.append("features", JSON.stringify(facts));
       const res = await fetch("/api/characters", { method: "POST", body });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Something went sideways.");
-      router.push(returnRoom ? `/play/${returnRoom}?fighter=${data.id}` : `/character/${data.id}?new=1`);
+      router.push(
+        returnRoom ? `/play/${returnRoom}?fighter=${data.id}` : returnTo ? `${returnTo}?fighter=${data.id}` : `/character/${data.id}?new=1`,
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went sideways.");
       setBusy(false);
@@ -119,6 +142,7 @@ export function UploadDropzone({ returnRoom }: { returnRoom?: string }) {
               onClick={() => {
                 setFile(null);
                 setPreview(null);
+                setFacts(null);
               }}
               className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-3 py-1.5 text-sm ring-1 ring-line hover:bg-white"
             >
@@ -135,11 +159,55 @@ export function UploadDropzone({ returnRoom }: { returnRoom?: string }) {
         className="hidden"
         onChange={(e) => choose(e.target.files?.[0])}
       />
+      {/* Opens the back camera directly on phones; desktops fall back to a file pick. */}
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => choose(e.target.files?.[0])}
+      />
+      {!preview && (
+        <button
+          type="button"
+          onClick={() => cameraRef.current?.click()}
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-ink px-6 py-3 font-semibold text-white hover:bg-ink/85"
+        >
+          <Camera className="size-4" /> Take a photo
+        </button>
+      )}
+
+      {preview && !busy && (
+        <label className="flex flex-wrap items-center gap-2 rounded-xl bg-card px-4 py-3 text-sm ring-1 ring-line">
+          <span className="font-semibold">Holding:</span>
+          {facts ? (
+            <select
+              value={facts.item}
+              onChange={(e) => setFacts({ ...facts, item: e.target.value as Item })}
+              className="min-w-0 flex-1 rounded-lg bg-paper px-2 py-1.5 ring-1 ring-line"
+            >
+              {ITEMS.map((i) => (
+                <option key={i} value={i}>
+                  {ITEM_LABEL[i]}
+                </option>
+              ))}
+            </select>
+          ) : measuring ? (
+            <span className="flex items-center gap-1.5 text-muted">
+              <Loader2 className="size-3.5 animate-spin" /> reading your drawing…
+            </span>
+          ) : (
+            <span className="text-muted">couldn&apos;t read it, we&apos;ll guess</span>
+          )}
+          <span className="w-full text-xs text-muted">Our best guess from the ink. Wrong? Fix it: the item decides the class.</span>
+        </label>
+      )}
 
       <div className="flex">
         <button
           onClick={submit}
-          disabled={!file || busy}
+          disabled={!file || busy || measuring}
           className="w-full rounded-xl bg-hit px-6 py-3 font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {busy ? "Analyzing…" : "Bring it to life"}

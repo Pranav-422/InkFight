@@ -44,7 +44,18 @@ export type Features = {
   size: "small" | "medium" | "large";
   pose: "aggressive" | "defensive" | "neutral";
   dominant_colors: string[];
+  // Numbers read off the drawing in the browser (see measureInk in src/game/sprite.ts).
+  measured?: Measurements;
 };
+
+export type Measurements = { fill: number; aspect: number; stance: number; armSpread: number };
+
+// Turn measured shape numbers into the size/pose words the rules use.
+export function featuresFromMeasurements(m: Measurements, colors: string[]): Features {
+  const size = m.fill > 0.16 || m.aspect > 0.9 ? "large" : m.fill < 0.07 && m.aspect < 0.45 ? "small" : "medium";
+  const pose = m.armSpread - m.stance > 0.25 ? "aggressive" : m.stance - m.armSpread > 0.15 ? "defensive" : "neutral";
+  return { size, pose, dominant_colors: colors, measured: m };
+}
 
 export type Adjustment = { reason: string; stat: StatKey; delta: number };
 
@@ -64,6 +75,9 @@ export function ruleAdjustments(features: Features): Adjustment[] {
   if (colors.some((c) => /red|orange/.test(c))) adj.push({ reason: "Fiery colors", stat: "atk", delta: 4 });
   if (colors.some((c) => /blue|cyan/.test(c))) adj.push({ reason: "Cool colors", stat: "def", delta: 4 });
   if (colors.some((c) => /green|yellow/.test(c))) adj.push({ reason: "Lively colors", stat: "spd", delta: 4 });
+  const m = features.measured;
+  if (m && m.stance > 0.45) adj.push({ reason: "Wide stance", stat: "def", delta: 5 });
+  if (m && m.armSpread > 0.65) adj.push({ reason: "Arms out", stat: "atk", delta: 5 });
   return adj;
 }
 

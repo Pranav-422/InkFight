@@ -1,7 +1,7 @@
 "use client";
 
 import type { Character } from "@prisma/client";
-import { Check, Copy, Loader2, Swords, Trophy } from "lucide-react";
+import { Camera, Check, Copy, Loader2, Swords, Trophy } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ClassBadge } from "@/components/ClassBadge";
@@ -13,7 +13,10 @@ export function RoomClient({ code, initialFighter, userId }: { code: string; ini
   // Remembered per account, so two demo logins in one browser don't swap fighters.
   const FIGHTER_KEY = `inkfight-fighter:${userId}`;
   const [fighterId, setFighterId] = useState<string | null>(initialFighter);
-  const [picking, setPicking] = useState(false);
+  // Without ?fighter= (the host's flow from a character page), always ask: silently
+  // reusing the last fighter is how invited friends ended up with someone else's.
+  const [picking, setPicking] = useState(!initialFighter);
+  const [preferred, setPreferred] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialFighter) {
@@ -27,7 +30,7 @@ export function RoomClient({ code, initialFighter, userId }: { code: string; ini
       saved = localStorage.getItem(FIGHTER_KEY);
     } catch {}
     // Deferred so the effect doesn't set state synchronously.
-    const t = setTimeout(() => (saved ? setFighterId(saved) : setPicking(true)), 0);
+    const t = setTimeout(() => setPreferred(saved), 0);
     return () => clearTimeout(t);
   }, [initialFighter, FIGHTER_KEY]);
 
@@ -35,6 +38,7 @@ export function RoomClient({ code, initialFighter, userId }: { code: string; ini
     return (
       <FighterPicker
         code={code}
+        preferred={preferred}
         onPick={(id) => {
           try {
             localStorage.setItem(FIGHTER_KEY, id);
@@ -51,6 +55,9 @@ export function RoomClient({ code, initialFighter, userId }: { code: string; ini
 
 function Room({ code, fighterId, userId, onChangeFighter }: { code: string; fighterId: string; userId: string; onChangeFighter: () => void }) {
   const { lobby, error, status, snaps, matchOver, send, sendInput, retry } = useGameRoom(code, fighterId, userId);
+  const [q0, q1] = lobby?.players ?? [null, null];
+  // A fresh array every lobby update would rebuild the renderer: sprites reload, old hit FX replay.
+  const players = useMemo(() => (q0 && q1 ? ([q0, q1] as [LobbyPlayer, LobbyPlayer]) : null), [q0?.id, q1?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (error) {
     return (
@@ -81,12 +88,12 @@ function Room({ code, fighterId, userId, onChangeFighter }: { code: string; figh
   const [p0, p1] = lobby.players;
   const both = p0 && p1;
 
-  if (both && lobby.status !== "lobby") {
+  if (both && players && lobby.status !== "lobby") {
     const winner = matchOver?.matchWinner ?? null;
     const me = lobby.players[lobby.you]!;
     return (
       <div className="relative grid gap-4">
-        <GameCanvas snaps={snaps} players={[p0, p1]} you={lobby.you} onInput={sendInput} />
+        <GameCanvas snaps={snaps} players={players} you={lobby.you} onInput={sendInput} />
         {lobby.status === "over" && winner !== null && (
           <div className="pop-in absolute inset-x-0 top-[12%] mx-auto w-[min(92%,26rem)] rounded-2xl bg-ink p-6 text-center text-white shadow-2xl">
             <Trophy className="mx-auto size-8 text-gold" />
@@ -221,7 +228,7 @@ function InvitePanel({ code }: { code: string }) {
   );
 }
 
-function FighterPicker({ code, onPick }: { code: string; onPick: (id: string) => void }) {
+function FighterPicker({ code, preferred, onPick }: { code: string; preferred: string | null; onPick: (id: string) => void }) {
   const [list, setList] = useState<Character[] | null>(null);
   useEffect(() => {
     fetch("/api/characters?mine=1")
@@ -230,28 +237,37 @@ function FighterPicker({ code, onPick }: { code: string; onPick: (id: string) =>
       .catch(() => setList([]));
   }, []);
 
+  const last = list?.find((c) => c.id === preferred);
   return (
     <div>
       <p className="text-xs font-semibold uppercase tracking-widest text-muted">Room {code}</p>
-      <h1 className="font-display text-3xl font-extrabold">Pick one of your fighters</h1>
-      <p className="mb-5 text-sm text-muted">
-        Choose one you drew, or{" "}
-        <Link href={`/create?room=${code}`} className="font-semibold text-hit underline-offset-2 hover:underline">
-          draw a new fighter
-        </Link>{" "}
-        and come straight back.
-      </p>
+      <h1 className="font-display text-3xl font-extrabold">Who fights for you?</h1>
+      <p className="mb-5 text-sm text-muted">Scan a fresh drawing (you&apos;ll come straight back), or pick one you made before.</p>
+      {last && (
+        <button onClick={() => onPick(last.id)} className="mb-4 rounded-xl bg-ink px-5 py-3 font-semibold text-white hover:bg-ink/85">
+          Fight with {last.name} again
+        </button>
+      )}
       {list === null ? (
         <Loader2 className="size-5 animate-spin text-muted" />
-      ) : list.length === 0 ? (
-        <Link href={`/create?room=${code}`} className="inline-block rounded-xl bg-hit px-5 py-3 font-semibold text-white">
-          Draw your first fighter
-        </Link>
       ) : (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <li>
+            <Link
+              href={`/create?room=${code}`}
+              className="flex aspect-[4/5] h-full w-full flex-col items-center justify-center gap-2 rounded-2xl bg-hit p-3 text-center text-white hover:brightness-110"
+            >
+              <Camera className="size-9" />
+              <span className="font-display text-lg font-extrabold leading-tight">Scan a new fighter</span>
+              <span className="text-xs text-white/80">Draw it, snap it, fight</span>
+            </Link>
+          </li>
           {list.map((c) => (
             <li key={c.id}>
-              <button onClick={() => onPick(c.id)} className="w-full rounded-2xl bg-card p-3 text-left ring-1 ring-line transition hover:ring-ink">
+              <button
+                onClick={() => onPick(c.id)}
+                className={`w-full rounded-2xl bg-card p-3 text-left transition ${c.id === preferred ? "ring-2 ring-ink" : "ring-1 ring-line hover:ring-ink"}`}
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element -- user uploads */}
                 <img src={c.imageUrl} alt="" className="aspect-square w-full rounded-xl bg-white object-contain" />
                 <p className="mt-2 truncate font-display font-extrabold">{c.name}</p>

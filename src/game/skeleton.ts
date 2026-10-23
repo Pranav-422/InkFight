@@ -66,7 +66,7 @@ export function estimateJoints(alpha: Uint8ClampedArray, W: number, H: number): 
   let top = 0, bottom = H - 1;
   outerTop: for (; top < H; top++) for (let x = 0; x < W; x++) if (ink(x, top)) break outerTop;
   outerBottom: for (; bottom > top; bottom--) for (let x = 0; x < W; x++) if (ink(x, bottom)) break outerBottom;
-  const hh = Math.max(10, bottom - top);
+  let hh = Math.max(10, bottom - top);
   const yAt = (f: number) => Math.round(top + hh * f);
 
   const xsInBand = (y0: number, y1: number, nearX?: number, within = W) => {
@@ -77,9 +77,24 @@ export function estimateJoints(alpha: Uint8ClampedArray, W: number, H: number): 
   };
   const median = (xs: number[], fallback: number) => (xs.length ? xs.sort((a, b) => a - b)[xs.length >> 1] : fallback);
 
-  // Head: the top fifth of the figure. Median, so a sword poking up doesn't drag it.
-  const headXs = xsInBand(top, yAt(0.2));
-  const head: Vec = { x: median(headXs, W / 2), y: yAt(0.1) };
+  // Head: the top of the ink *on the spine's column*, so a sword held above the head
+  // (often the highest ink) doesn't get mistaken for it.
+  const spineX = median(xsInBand(yAt(0.45), yAt(0.6)), W / 2);
+  const near = hh * 0.12;
+  let headTop = top;
+  findTop: for (let y = top; y < yAt(0.5); y++) {
+    for (let x = Math.max(0, Math.round(spineX - near)); x <= Math.min(W - 1, spineX + near); x++) {
+      if (ink(x, y)) {
+        headTop = y;
+        break findTop;
+      }
+    }
+  }
+  const headXs = xsInBand(headTop, headTop + Math.round(hh * 0.15), spineX, hh * 0.15);
+  const headW = headXs.length ? Math.max(...headXs) - Math.min(...headXs) : hh * 0.15;
+  const head: Vec = { x: median(headXs, spineX), y: headTop + Math.max(4, headW / 2) };
+  top = headTop; // the body's proportions run from the head down, not from a raised sword
+  hh = Math.max(10, bottom - top);
   const spine = (f0: number, f1: number) => median(xsInBand(yAt(f0), yAt(f1), head.x, W * 0.18), head.x);
   const shoulder: Vec = { x: spine(0.27, 0.33), y: yAt(0.3) };
 
@@ -233,7 +248,7 @@ export type PoseTargets = Partial<Record<BoneName, Target>>;
 const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 
 // Turn targets into local rotation deltas (parents first, so children aim in world space).
-export function resolvePose(rig: Rig, pose: PoseTargets): Record<BoneName, number> {
+export function resolvePose(rig: Pick<Rig, "rest">, pose: PoseTargets): Record<BoneName, number> {
   const local = {} as Record<BoneName, number>;
   const world = {} as Record<BoneName, number>; // accumulated rotation from ancestors + self
   for (const b of BONES) {
