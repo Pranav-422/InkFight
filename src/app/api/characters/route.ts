@@ -64,6 +64,8 @@ export async function POST(request: Request) {
       ...a.stats,
       specialMove: a.specialMove.name,
       specialDesc: a.specialMove.description,
+      specialKind: a.specialKind,
+      style: a.style,
       flavorText: a.flavorText,
       detectedItems: JSON.stringify(a.breakdown),
       pose: a.pose ? JSON.stringify(a.pose) : null,

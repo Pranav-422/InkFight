@@ -48,3 +48,30 @@ const shield = figure((l) => {
 });
 assert.ok(["shield", "book"].includes(shield.item), `shield drew as ${shield.item}`);
 console.log("check-stats: all good", { bare: figure(), shield: shield.item });
+
+// Gemini path, with a canned API reply (no network, no key needed).
+async function checkGemini() {
+  process.env.GEMINI_API_KEY = "test-key";
+  const reply = {
+    name: "Inky Supreme", class: "Mage", detected_items: ["book"],
+    detected_features: { size: "medium", pose: "neutral", dominant_colors: ["blue"] },
+    stats: { hp: 90, atk: 70, def: 50, spd: 70 },
+    special_move: { kind: "beam", name: "Ink-ame-hameha", description: "A beam the width of the page" },
+    fighting_style: "Systema", flavor_text: "Reads the rules, then ignores them.", head_points: "up",
+    pose: Object.fromEntries(["head", "shoulder", "hip", "left_elbow", "left_hand", "right_elbow", "right_hand", "left_knee", "left_foot", "right_knee", "right_foot"].map((k) => [k, { x: 0.5, y: 0.5 }])),
+  };
+  let sent: { url: string; body: { generationConfig: { responseMimeType: string } } } | null = null;
+  globalThis.fetch = (async (url: string, init: RequestInit) => {
+    sent = { url, body: JSON.parse(String(init.body)) };
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "```json\n" + JSON.stringify(reply) + "\n```" }] } }] }));
+  }) as typeof fetch;
+  const { analyzeDrawing } = await import("../src/lib/vision");
+  const a = await analyzeDrawing(Buffer.from("img"), "image/png", null);
+  assert.equal(a.breakdown.source, "gemini");
+  assert.equal(a.specialKind, "beam");
+  assert.equal(a.style, "Systema");
+  assert.equal(a.class, "Mage"); // class still comes from the item rule
+  assert.ok(sent!.url.includes(":generateContent") && sent!.body.generationConfig.responseMimeType === "application/json");
+  console.log("check-gemini: all good", a.specialMove.name);
+}
+checkGemini();

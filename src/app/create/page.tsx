@@ -36,7 +36,7 @@ export default async function CreatePage({ searchParams }: PageProps<"/create">)
         {!hasApiKey() && (
           <p className="mt-3 text-xs text-muted">
             Offline mode: stats come from measuring your drawing (size, stance, arms, colours, the item you confirm). The name
-            and special are generated. Add <code>ANTHROPIC_API_KEY</code> for Claude&apos;s full read of the art.
+            and special are generated. Add <code>GEMINI_API_KEY</code> (or <code>ANTHROPIC_API_KEY</code>) to let AI read the art and pick the moves.
           </p>
         )}
       </section>
