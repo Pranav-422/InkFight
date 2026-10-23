@@ -27,12 +27,8 @@ export default async function SignupPage({ searchParams }: PageProps<"/signup">)
           </form>
         </div>
         <p className="mt-5 rounded-xl bg-gold/20 p-3 text-sm">
-          Playing against yourself? Use a{" "}
-          <Link href="/play/test" className="font-semibold underline">
-            test match
-          </Link>{" "}
-          (both players on one screen), or log the second account in from an <b>incognito window</b>. Tabs in the same window
-          share one login, so they can&apos;t be two different players.
+          Playing against yourself? Log the second account in from an <b>incognito window</b> or another browser. Tabs in the same
+          window share one login, so they can&apos;t be two different players.
         </p>
       </div>
     );

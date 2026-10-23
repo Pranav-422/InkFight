@@ -1,4 +1,4 @@
-import { Bot, FlaskConical, PenLine, Swords, type LucideIcon } from "lucide-react";
+import { Bot, PenLine, Swords, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { CharacterCard } from "@/components/CharacterCard";
 import { requireUser } from "@/lib/auth";
@@ -9,7 +9,6 @@ export const dynamic = "force-dynamic";
 const ACTIONS: [string, string, string, LucideIcon, boolean][] = [
   ["/play", "Fight a friend", "Create a room or join with a code", Swords, true],
   ["/play/cpu", "Vs computer", "Any gallery drawing, three levels", Bot, false],
-  ["/play/test", "Test match", "Both players on one screen", FlaskConical, false],
   ["/create", "New fighter", "Scan another drawing", PenLine, false],
 ];
 
@@ -42,7 +41,7 @@ export default async function HomePage() {
         </dl>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-3">
         {ACTIONS.map(([href, title, sub, Icon, primary]) => (
           <Link
             key={href}

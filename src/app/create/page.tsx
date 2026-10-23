@@ -14,7 +14,7 @@ export default async function CreatePage({ searchParams }: PageProps<"/create">)
   const { room, next } = await searchParams;
   const returnRoom = typeof room === "string" && ROOM_CODE.test(room) ? room : undefined;
   // Only our own pages that take ?fighter= (no open redirects).
-  const returnTo = next === "/play/cpu" || next === "/play/test" ? next : undefined;
+  const returnTo = next === "/play/cpu" ? next : undefined;
   const user = await requireUser(returnRoom ? `/create?room=${returnRoom}` : returnTo ? `/create?next=${returnTo}` : "/create");
 
   return (
