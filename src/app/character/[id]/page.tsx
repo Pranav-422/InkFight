@@ -46,6 +46,11 @@ export default async function CharacterPage({ params, searchParams }: PageProps<
       <div>
         {isNew && <p className="mb-3 font-display text-lg font-extrabold">A challenger appears!</p>}
         <CharacterCard character={me} />
+        {me.ownerId && (
+          <Link href={`/player/${me.ownerId}`} className="mt-2 inline-block text-sm font-semibold text-muted hover:text-ink hover:underline">
+            See @{me.ownerHandle}&apos;s player stats →
+          </Link>
+        )}
         {canEdit && <OwnerActions id={me.id} name={me.name} afterDelete="/home" />}
         {owns && <RotateControl id={me.id} rotation={me.rotation} />}
       </div>

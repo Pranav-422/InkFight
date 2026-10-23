@@ -55,7 +55,9 @@ export default async function LeaderboardPage() {
                     <span className="w-6 text-right text-sm tabular-nums text-muted">{i + 4}</span>
                     {/* eslint-disable-next-line @next/next/no-img-element -- user uploads */}
                     <img src={e.imageUrl} alt="" className="size-10 rounded-lg bg-white object-contain ring-1 ring-line" />
-                    <span className="min-w-0 flex-1 truncate font-semibold">{e.name}</span>
+                    <span className="min-w-0 flex-1 truncate font-semibold">
+                      {e.name} <span className="font-normal text-muted">@{e.ownerHandle}</span>
+                    </span>
                     <ClassBadge cls={e.class} />
                     <WinLoss e={e} />
                   </Link>

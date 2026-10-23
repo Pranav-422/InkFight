@@ -34,6 +34,11 @@ export default async function GalleryPage() {
               <Link href={`/character/${c.id}`} className="block transition hover:-translate-y-0.5">
                 <CharacterCard character={c} variant="compact" />
               </Link>
+              {c.ownerId && (
+                <Link href={`/player/${c.ownerId}`} className="mt-1 block text-center text-xs text-muted hover:text-ink hover:underline">
+                  @{c.ownerHandle}&apos;s stats
+                </Link>
+              )}
               {(admin || (c.ownerId === session?.userId && !c.imageUrl.startsWith("/samples/"))) && <OwnerActions id={c.id} name={c.name} />}
             </li>
           ))}
