@@ -1,5 +1,5 @@
 import { ROOM_CODE } from "@/game/protocol";
-import { getSession } from "@/lib/auth";
+import { getSession, isAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isStale, publicFighter } from "@/lib/rooms";
 
@@ -38,7 +38,8 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]">)
   const { fighterId, offer } = (await req.json().catch(() => ({}))) as { fighterId?: string; offer?: string };
   if (!fighterId || !offer || offer.length > 20000) return Response.json({ error: "Bad offer." }, { status: 400 });
   const fighter = await db.character.findUnique({ where: { id: fighterId } });
-  if (!fighter || fighter.ownerId !== s.userId) return Response.json({ error: "Pick one of your own fighters." }, { status: 403 });
+  // Admins may fight with any design.
+  if (!fighter || (fighter.ownerId !== s.userId && !isAdmin(s))) return Response.json({ error: "Pick one of your own fighters." }, { status: 403 });
 
   const existing = await db.room.findUnique({ where: { code } });
   if (existing && !isStale(existing) && existing.hostUserId !== s.userId) {

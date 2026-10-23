@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
 export default async function GalleryPage() {
-  const [characters, session] = await Promise.all([db.character.findMany({ orderBy: { createdAt: "desc" } }), getSession()]);
+  const [characters, session] = await Promise.all([db.character.findMany({ where: { hidden: false }, orderBy: { createdAt: "desc" } }), getSession()]);
   const admin = isAdmin(session);
 
   return (

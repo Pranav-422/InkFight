@@ -1,4 +1,4 @@
-import { getSession } from "@/lib/auth";
+import { getSession, isAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isStale } from "@/lib/rooms";
 
@@ -10,7 +10,8 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/an
   if (!fighterId || !answer || answer.length > 20000) return Response.json({ error: "Bad answer." }, { status: 400 });
 
   const fighter = await db.character.findUnique({ where: { id: fighterId } });
-  if (!fighter || fighter.ownerId !== s.userId) return Response.json({ error: "Pick one of your own fighters." }, { status: 403 });
+  // Admins may fight with any design.
+  if (!fighter || (fighter.ownerId !== s.userId && !isAdmin(s))) return Response.json({ error: "Pick one of your own fighters." }, { status: 403 });
 
   const room = await db.room.findUnique({ where: { code } });
   if (!room || isStale(room)) return Response.json({ error: "That room has closed." }, { status: 404 });

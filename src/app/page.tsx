@@ -25,7 +25,7 @@ const CLASSES: [LucideIcon, string, string, string][] = [
 export default async function Landing() {
   const [session, recent] = await Promise.all([
     getSession(),
-    db.character.findMany({ orderBy: { createdAt: "desc" }, take: 6 }),
+    db.character.findMany({ where: { hidden: false }, orderBy: { createdAt: "desc" }, take: 6 }),
   ]);
   if (session) redirect("/home"); // logged-in players get their own page
   const start = session ? "/create" : "/signup?next=/create";

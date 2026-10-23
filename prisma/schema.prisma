@@ -37,6 +37,8 @@ model Character {
   rotation      Int      @default(0) // degrees clockwise (0/90/180/270) to stand a sideways drawing upright
   specialKind   String?  // special-move building block (src/game/moves.ts); null → class default
   style         String?  // fighting style (Boxing, Taekwondo, ...); null → class default
+  cpu           Boolean  @default(true)  // admin: the computer may play this design
+  hidden        Boolean  @default(false) // admin: kept off gallery, leaderboard and CPU lists
   createdAt     DateTime @default(now())
 
   battlesAsA Battle[] @relation("CharacterA")

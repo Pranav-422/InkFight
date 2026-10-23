@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getSession } from "@/lib/auth";
+import { getSession, isAdmin } from "@/lib/auth";
 import { cleanName } from "@/lib/names";
 import { db } from "@/lib/db";
 import { saveDrawing } from "@/lib/storage";
@@ -34,9 +34,10 @@ export async function GET(request: Request) {
   if (mine) {
     const s = await getSession();
     if (!s) return Response.json({ error: "Log in first." }, { status: 401 });
-    return Response.json(await db.character.findMany({ where: { ownerId: s.userId }, orderBy: { createdAt: "desc" } }));
+    // Admins may fight with any design, so their "mine" is everything.
+    return Response.json(await db.character.findMany({ where: isAdmin(s) ? {} : { ownerId: s.userId }, orderBy: { createdAt: "desc" } }));
   }
-  return Response.json(await db.character.findMany({ orderBy: { createdAt: "desc" } }));
+  return Response.json(await db.character.findMany({ where: { hidden: false }, orderBy: { createdAt: "desc" } }));
 }
 
 export async function POST(request: Request) {

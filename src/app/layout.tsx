@@ -4,7 +4,7 @@ import { Bricolage_Grotesque, Inter } from "next/font/google";
 import Link from "next/link";
 import { BackButton } from "@/components/BackButton";
 import { InstallButton } from "@/components/InstallButton";
-import { getSession } from "@/lib/auth";
+import { getSession, isAdmin } from "@/lib/auth";
 import { logout } from "./(auth)/actions";
 import "./globals.css";
 
@@ -61,6 +61,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                   )}
                 </Link>
               ))}
+              {isAdmin(session) && (
+                <Link href="/admin" className={`${linkCls} font-semibold text-hit`}>
+                  Admin
+                </Link>
+              )}
               {session ? (
                 <form action={logout} className="ml-1 flex items-center gap-2">
                   <span

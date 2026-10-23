@@ -5,7 +5,7 @@ export type LeaderboardEntry = Character & { wins: number; losses: number; winRa
 
 export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
   const [characters, battles] = await Promise.all([
-    db.character.findMany(),
+    db.character.findMany({ where: { hidden: false } }),
     db.battle.findMany({ select: { characterAId: true, characterBId: true, winnerId: true } }),
   ]);
   const record = new Map<string, { wins: number; losses: number }>();
