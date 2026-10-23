@@ -9,6 +9,7 @@ import { FighterAvatar } from "@/components/FighterAvatar";
 import { GameCanvas } from "@/components/GameCanvas";
 import type { LobbyPlayer } from "@/game/protocol";
 import { useGameRoom } from "@/game/useGameRoom";
+import { useLeaveGuard } from "@/components/useLeaveGuard";
 
 export function RoomClient({ code, initialFighter, userId }: { code: string; initialFighter: string | null; userId: string }) {
   // Remembered per account, so two demo logins in one browser don't swap fighters.
@@ -56,6 +57,7 @@ export function RoomClient({ code, initialFighter, userId }: { code: string; ini
 
 function Room({ code, fighterId, userId, onChangeFighter }: { code: string; fighterId: string; userId: string; onChangeFighter: () => void }) {
   const { lobby, error, status, snaps, matchOver, send, sendInput, retry } = useGameRoom(code, fighterId, userId);
+  useLeaveGuard(lobby?.status === "playing", "The fight is still on. Leave in the middle of it?");
   const [q0, q1] = lobby?.players ?? [null, null];
   // A fresh array every lobby update would rebuild the renderer: sprites reload, old hit FX replay.
   const players = useMemo(() => (q0 && q1 ? ([q0, q1] as [LobbyPlayer, LobbyPlayer]) : null), [q0?.id, q1?.id]); // eslint-disable-line react-hooks/exhaustive-deps

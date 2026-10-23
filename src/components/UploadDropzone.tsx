@@ -4,6 +4,7 @@ import { Camera, ImageUp, Loader2, RotateCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ITEMS, measureDrawing, type Item, type Measured } from "@/game/sprite";
+import { useLeaveGuard } from "./useLeaveGuard";
 
 const ITEM_LABEL: Record<Item, string> = {
   sword: "A sword / blade (Warrior)",
@@ -49,6 +50,7 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
   const [preview, setPreview] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
+  useLeaveGuard(!!file && !busy, "Your new fighter isn't finished yet. Leave it incomplete?");
   const [line, setLine] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [facts, setFacts] = useState<Measured | null>(null);

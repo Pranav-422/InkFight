@@ -9,6 +9,7 @@ import { GameCanvas } from "@/components/GameCanvas";
 import type { Level } from "@/game/cpu";
 import type { PublicFighter } from "@/game/protocol";
 import { useCpuMatch } from "@/game/useCpuMatch";
+import { useLeaveGuard } from "@/components/useLeaveGuard";
 
 type GalleryFighter = PublicFighter & { ownerHandle: string };
 
@@ -174,6 +175,7 @@ export function CpuFight({
   exitLabel?: string;
 }) {
   const { lobby, snaps, matchOver, sendInput, rematch } = useCpuMatch(me, cpu, level);
+  useLeaveGuard(!matchOver, "The fight isn't over. Leave in the middle of it?");
   const [p0, p1] = lobby.players;
   const players = useMemo(() => [p0!, p1!] as [NonNullable<typeof p0>, NonNullable<typeof p1>], [p0?.id, p1?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -183,7 +185,7 @@ export function CpuFight({
         <span className="flex items-center gap-1.5 font-semibold text-muted">
           <Bot className="size-4" /> Vs computer · {level}
         </span>
-        <button onClick={onExit} className="text-muted underline-offset-2 hover:text-ink hover:underline">
+        <button data-leave onClick={onExit} className="text-muted underline-offset-2 hover:text-ink hover:underline">
           {exitLabel}
         </button>
       </div>
