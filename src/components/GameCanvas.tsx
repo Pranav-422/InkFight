@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type RefObject } fro
 import type { LobbyPlayer } from "@/game/protocol";
 import { Renderer } from "@/game/render";
 import { ARENA, EMPTY_INPUT, TICK_HZ, type Input, type Slot } from "@/game/sim";
-import { loadSprite } from "@/game/sprite";
+import { loadSpriteCached } from "@/game/sprite";
 import type { SnapBuffer } from "@/game/useGameRoom";
 import { Controller, type Control } from "./Controller";
 
@@ -18,7 +18,7 @@ type Props = {
   controller?: boolean;
 };
 
-const SNAP_MS = (1000 / TICK_HZ) * 2;
+const SNAP_MS = 1000 / TICK_HZ; // one snapshot per sim tick
 const subscribeNoop = () => () => {};
 const isTouchDevice = () => window.matchMedia("(pointer: coarse)").matches;
 const TAPS = new Set<Control>(["jump", "attack", "kick", "special"]); // sent as press counters
@@ -160,6 +160,14 @@ export function GameCanvas({ snaps, players, you, onInput, keys = "all", control
     };
   }, [snaps, you, keys]);
 
+  // Installed app on a phone: fights are landscape. (Browsers only allow this full-screen.)
+  useEffect(() => {
+    if (!touch) return;
+    const o = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
+    o.lock?.("landscape").catch(() => {});
+    return () => o.unlock?.();
+  }, [touch]);
+
   useEffect(() => {
     const canvas = canvasRef.current!;
     const renderer = new Renderer(canvas);
@@ -170,7 +178,7 @@ export function GameCanvas({ snaps, players, you, onInput, keys = "all", control
     let alive = true;
     renderer.classes = [players[0].class, players[1].class];
     players.forEach((p, i) =>
-      loadSprite(p.imageUrl, p.pose, p.rotation)
+      loadSpriteCached(p.imageUrl, p.pose, p.rotation)
         .then((s) => alive && (renderer.sprites[i] = s))
         .catch((err) => console.warn("[sprite]", err)),
     );

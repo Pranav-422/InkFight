@@ -12,7 +12,7 @@ import { createMatch, EMPTY_INPUT, snapshot, step, TICK_HZ, type Input, type Mat
 export type { Lobby };
 export type SnapBuffer = { prev: Snapshot | null; cur: Snapshot | null; at: number };
 
-const SNAPSHOT_EVERY = 2; // 30/s
+const SNAPSHOT_EVERY = 1; // 60/s: every tick, so motion is smooth on the guest too
 const TICK_MS = 1000 / TICK_HZ;
 const POLL_MS = 1200;
 const CONNECT_TIMEOUT_MS = 20000;
@@ -153,7 +153,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
       if (me.status !== 200) return setError("That fighter doesn't exist. Draw a new one?");
       const myFighter: PublicFighter = {
         id: me.id, name: me.name, class: me.class, imageUrl: me.imageUrl, specialMove: me.specialMove,
-        hp: me.hp, atk: me.atk, def: me.def, spd: me.spd, pose: me.pose, rotation: me.rotation,
+        hp: me.hp, atk: me.atk, def: me.def, spd: me.spd, pose: me.pose, rotation: me.rotation, specialKind: me.specialKind, style: me.style,
       };
 
       type Seat = { fighter: PublicFighter; input: Input; ready: boolean; rematch: boolean };

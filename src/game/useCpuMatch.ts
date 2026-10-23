@@ -24,7 +24,6 @@ export function useCpuMatch(me: PublicFighter, cpu: PublicFighter, level: Level)
     snaps.current = { prev: null, cur: null, at: 0 };
     let last = performance.now();
     let acc = 0;
-    let tick = 0;
     const loop = setInterval(() => {
       const now = performance.now();
       acc = Math.min(acc + now - last, 250);
@@ -33,15 +32,12 @@ export function useCpuMatch(me: PublicFighter, cpu: PublicFighter, level: Level)
         acc -= TICK_MS;
         cpuThink(m, 1, brain, cpuInput);
         step(m, [myInput.current, cpuInput]);
-        tick++;
-        if (tick % 2 === 0 || m.phase === "matchEnd") {
-          const s = snapshot(m);
-          snaps.current = { prev: snaps.current.cur, cur: s, at: performance.now() };
-          if (m.phase === "matchEnd") {
-            clearInterval(loop);
-            setOver(s);
-            return;
-          }
+        const s = snapshot(m);
+        snaps.current = { prev: snaps.current.cur, cur: s, at: performance.now() };
+        if (m.phase === "matchEnd") {
+          clearInterval(loop);
+          setOver(s);
+          return;
         }
       }
     }, 4);
