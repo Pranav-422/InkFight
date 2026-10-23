@@ -1,0 +1,618 @@
+{
+ "anime": [
+  {
+   "title": "My Hero Academia",
+   "characters": [
+    {
+     "name": "Izuku Midoriya (Deku)",
+     "fighting_style": "Shoot Style (Kick-based Kickboxing)",
+     "moves": [
+      {
+       "official_name": "Detroit Smash",
+       "translation": "Detroit Smash",
+       "what_it_does": "A massive upward-swinging punch that creates a localized wind pressure column.",
+       "visual_sequence": [
+        "Crouches low with green lightning sparks (Full Cowl)",
+        "Lunges forward with a leading fist",
+        "Swings a massive uppercut that generates a vertical air spiral"
+       ],
+       "colors": [
+        "#00FFCC",
+        "#FFFFFF"
+       ],
+       "sound_feel": "High-pitched electric crackle followed by a heavy boom",
+       "maps_to_block": "uppercut",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.4
+          },
+          "upperF": {
+           "abs": 2.5
+          },
+          "thighF": {
+           "rel": -1
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 10,
+         "pose": {
+          "torso": {
+           "rel": -0.2
+          },
+          "upperF": {
+           "abs": -1.5
+          }
+         },
+         "lunge": 40
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "glow",
+         "detail": "green lightning"
+        },
+        {
+         "t": 10,
+         "effect": "speedlines",
+         "detail": "radial"
+        },
+        {
+         "t": 12,
+         "effect": "zoom",
+         "detail": "1.2x"
+        }
+       ],
+       "parody_name_ideas": [
+        "Michigan Punch",
+        "Motor City Strike"
+       ]
+      },
+      {
+       "official_name": "Delaware Smash Air Force",
+       "translation": "Delaware Smash Air Force",
+       "what_it_does": "Flicks a finger to fire a high-pressure compressed air bullet.",
+       "visual_sequence": [
+        "Braces arm with the other hand",
+        "Flicks middle finger forward",
+        "A conical shockwave travels across the screen"
+       ],
+       "colors": [
+        "#FFFFFF",
+        "#88FFFF"
+       ],
+       "sound_feel": "Sharp 'thwip' like a pressurized air release",
+       "maps_to_block": "bolt",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          },
+          "foreF": {
+           "rel": 1.5
+          }
+         }
+        },
+        {
+         "t": 8,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          },
+          "foreF": {
+           "rel": 0
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 8,
+         "effect": "ring",
+         "detail": "white shockwave"
+        },
+        {
+         "t": 8,
+         "effect": "particles",
+         "detail": "wind dust"
+        }
+       ],
+       "parody_name_ideas": [
+        "Finger Flick",
+        "Pressure Bullet"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Katsuki Bakugo",
+     "fighting_style": "Explosive Street Fighting",
+     "moves": [
+      {
+       "official_name": "AP Shot",
+       "translation": "Armor-Piercing Shot",
+       "what_it_does": "Concentrates explosions into a narrow beam through a circle made by his hands.",
+       "visual_sequence": [
+        "Places one hand in front of the other forming a ring with fingers",
+        "Charges orange light in the palm",
+        "Fires a thin, high-velocity beam of fire and heat"
+       ],
+       "colors": [
+        "#FF4400",
+        "#FFFF00"
+       ],
+       "sound_feel": "High-frequency screeching explosion",
+       "maps_to_block": "beam",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 0.1
+          },
+          "upperB": {
+           "abs": -0.1
+          }
+         }
+        },
+        {
+         "t": 20,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          },
+          "upperB": {
+           "abs": 0
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "glow",
+         "detail": "orange sphere"
+        },
+        {
+         "t": 20,
+         "effect": "flash",
+         "detail": "white screen"
+        }
+       ],
+       "parody_name_ideas": [
+        "Point Blank Blast",
+        "Needle Boom"
+       ]
+      },
+      {
+       "official_name": "Howitzer Impact",
+       "translation": "Howitzer Impact",
+       "what_it_does": "Leaps into the air, spins rapidly to create a tornado, and slams into the ground with a massive explosion.",
+       "visual_sequence": [
+        "Propels self into air with back-blasts",
+        "Spins like a drill while descending",
+        "Impacts ground creating a screen-filling explosion"
+       ],
+       "colors": [
+        "#FFCC00",
+        "#666666"
+       ],
+       "sound_feel": "Whirring wind followed by a deafening blast",
+       "maps_to_block": "meteor",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0
+          }
+         },
+         "hop": -15
+        },
+        {
+         "t": 15,
+         "pose": {
+          "torso": {
+           "rel": 6.28
+          }
+         },
+         "lunge": 20
+        },
+        {
+         "t": 30,
+         "pose": {
+          "torso": {
+           "rel": 12.56
+          }
+         },
+         "lunge": 40
+        }
+       ],
+       "vfx": [
+        {
+         "t": 5,
+         "effect": "afterimage",
+         "detail": "spinning"
+        },
+        {
+         "t": 35,
+         "effect": "shake",
+         "detail": "heavy"
+        },
+        {
+         "t": 35,
+         "effect": "particles",
+         "detail": "smoke and fire"
+        }
+       ],
+       "parody_name_ideas": [
+        "Explosive Drill",
+        "Nitro Dive"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Hunter x Hunter",
+   "characters": [
+    {
+     "name": "Gon Freecss",
+     "fighting_style": "Wilderness Brawling / Nen",
+     "moves": [
+      {
+       "official_name": "Jajanken: Rock",
+       "translation": "Rock-Paper-Scissors: Rock",
+       "what_it_does": "A heavily charged, short-range Nen-enhanced punch.",
+       "visual_sequence": [
+        "Crouches and chants 'First comes Rock...'",
+        "Right fist glows with intense golden aura",
+        "Steps forward with a massive, slow-motion haymaker"
+       ],
+       "colors": [
+        "#FFD700",
+        "#FFA500"
+       ],
+       "sound_feel": "Low hum building to a thunderous crack",
+       "maps_to_block": "charge",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.5
+          },
+          "upperF": {
+           "abs": 2
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 45,
+         "pose": {
+          "torso": {
+           "rel": -0.5
+          },
+          "upperF": {
+           "abs": 0
+          }
+         },
+         "lunge": 60
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "glow",
+         "detail": "golden aura"
+        },
+        {
+         "t": 45,
+         "effect": "slowmo",
+         "detail": "hit impact"
+        },
+        {
+         "t": 45,
+         "effect": "ring",
+         "detail": "gold"
+        }
+       ],
+       "parody_name_ideas": [
+        "Roshambo Punch",
+        "Jan-Ken-Gu"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Killua Zoldyck",
+     "fighting_style": "Assassination Arts / Electricity",
+     "moves": [
+      {
+       "official_name": "Godspeed (Kanmuru)",
+       "translation": "Godspeed",
+       "what_it_does": "Surrounds the body with electricity, allowing for near-instant movement and counter-attacks.",
+       "visual_sequence": [
+        "Hair stands up and glows blue-white",
+        "Body flickers with electricity",
+        "Dashes behind the opponent in a blur"
+       ],
+       "colors": [
+        "#88CCFF",
+        "#FFFFFF"
+       ],
+       "sound_feel": "Constant high-voltage buzzing",
+       "maps_to_block": "teleport",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.2
+          }
+         }
+        },
+        {
+         "t": 5,
+         "pose": {
+          "torso": {
+           "rel": 0.2
+          }
+         },
+         "flip": true
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "afterimage",
+         "detail": "blue trails"
+        },
+        {
+         "t": 0,
+         "effect": "particles",
+         "detail": "sparks"
+        },
+        {
+         "t": 5,
+         "effect": "flash",
+         "detail": "blue"
+        }
+       ],
+       "parody_name_ideas": [
+        "Volt Step",
+        "Lightning Reflex"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Fullmetal Alchemist: Brotherhood",
+   "characters": [
+    {
+     "name": "Edward Elric",
+     "fighting_style": "Alchemy-Enhanced Martial Arts",
+     "moves": [
+      {
+       "official_name": "Alchemy Spike",
+       "translation": "Transmutation Spike",
+       "what_it_does": "Claps hands and touches the ground to create a line of stone spikes.",
+       "visual_sequence": [
+        "Claps hands together (blue sparks)",
+        "Slams palm onto the floor",
+        "Jagged stone pillars erupt sequentially toward the enemy"
+       ],
+       "colors": [
+        "#00AAFF",
+        "#888888"
+       ],
+       "sound_feel": "Metallic clap followed by grinding stone",
+       "maps_to_block": "wave",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 0.5
+          },
+          "upperB": {
+           "abs": -0.5
+          }
+         }
+        },
+        {
+         "t": 10,
+         "pose": {
+          "torso": {
+           "rel": 0.8
+          },
+          "upperF": {
+           "abs": 1.5
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "flash",
+         "detail": "blue alchemy circle"
+        },
+        {
+         "t": 12,
+         "effect": "particles",
+         "detail": "rock debris"
+        }
+       ],
+       "parody_name_ideas": [
+        "Floor Thorn",
+        "Geology Strike"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Roy Mustang",
+     "fighting_style": "Flame Alchemy",
+     "moves": [
+      {
+       "official_name": "Flame Ignition",
+       "translation": "Flame Snap",
+       "what_it_does": "Snaps fingers to create a pinpoint explosion at the target's location.",
+       "visual_sequence": [
+        "Adjusts ignition glove",
+        "Snaps fingers with a sharp motion",
+        "A massive explosion erupts directly on the opponent"
+       ],
+       "colors": [
+        "#FF3300",
+        "#FFFFBB"
+       ],
+       "sound_feel": "Sharp finger snap then a 'WHUMP' of air burning",
+       "maps_to_block": "NEW",
+       "new_block": {
+        "id": "remote_detonation",
+        "gameplay": "Creates a hitbox at the opponent's current X/Y coordinates after a delay.",
+        "timing_ticks": {
+         "startup": 20,
+         "active": 5,
+         "recovery": 25
+        },
+        "damage_mult": 2.5,
+        "range": "infinite",
+        "special_rules": "Unblockable if the opponent is not moving."
+       },
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": -0.5
+          },
+          "foreF": {
+           "rel": 0.5
+          }
+         }
+        },
+        {
+         "t": 20,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          },
+          "foreF": {
+           "rel": 0
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 20,
+         "effect": "flash",
+         "detail": "orange"
+        },
+        {
+         "t": 20,
+         "effect": "shake",
+         "detail": "medium"
+        }
+       ],
+       "parody_name_ideas": [
+        "Snap Blast",
+        "Colonel's Spark"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Scar",
+     "fighting_style": "Destruction Alchemy / Brawling",
+     "moves": [
+      {
+       "official_name": "Deconstruction",
+       "translation": "Deconstruction",
+       "what_it_does": "Grabs the opponent and uses alchemy to break down their physical structure.",
+       "visual_sequence": [
+        "Lunges with right hand outstretched",
+        "Blue alchemy lightning arcs from the hand upon contact",
+        "Opponent is blasted back by internal pressure"
+       ],
+       "colors": [
+        "#4444FF",
+        "#FF0000"
+       ],
+       "sound_feel": "Sizzling electricity and a wet crunch",
+       "maps_to_block": "NEW",
+       "new_block": {
+        "id": "shatter",
+        "gameplay": "Short range grab that ignores DEF stats for damage calculation.",
+        "timing_ticks": {
+         "startup": 12,
+         "active": 4,
+         "recovery": 30
+        },
+        "damage_mult": 3,
+        "range": "75",
+        "special_rules": "Reduces opponent SPD for 120 ticks."
+       },
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          },
+          "foreF": {
+           "rel": -0.5
+          }
+         },
+         "lunge": 20
+        },
+        {
+         "t": 12,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          },
+          "foreF": {
+           "rel": 0
+          }
+         },
+         "lunge": 10
+        }
+       ],
+       "vfx": [
+        {
+         "t": 12,
+         "effect": "glow",
+         "detail": "blue lightning"
+        },
+        {
+         "t": 12,
+         "effect": "slowmo",
+         "detail": "impact"
+        }
+       ],
+       "parody_name_ideas": [
+        "Matter Break",
+        "Tattoo Touch"
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

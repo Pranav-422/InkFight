@@ -1,0 +1,2270 @@
+{
+ "styles": [
+  {
+   "name": "Boxing",
+   "origin": "Ancient Greece / England",
+   "stance": "Orthodox: hands high near chin, elbows tucked, lead shoulder forward.",
+   "philosophy_in_one_line": "Hit and don't get hit using footwork and head movement.",
+   "drawing_cues": "Large circles for hands (gloves), slightly hunched torso.",
+   "techniques": [
+    {
+     "name": "Jab",
+     "kind": "punch",
+     "real_description": "A quick, straight lead-hand punch used to gauge distance and disrupt the opponent.",
+     "move": {
+      "dur": 14,
+      "from": 4,
+      "to": 7,
+      "reach": 75,
+      "mult": 0.7,
+      "knock": 10,
+      "top": 0.85,
+      "bot": 0.7,
+      "lunge": 15,
+      "tip": "hand"
+     },
+     "keyframes": [
+      {
+       "t": 4,
+       "pose": {
+        "upperF": {
+         "abs": -0.1
+        },
+        "foreF": {
+         "abs": 0
+        },
+        "torso": {
+         "rel": 0.1
+        }
+       },
+       "lunge": 15
+      },
+      {
+       "t": 14,
+       "pose": {
+        "upperF": {
+         "abs": 1.2
+        },
+        "foreF": {
+         "abs": 1.2
+        }
+       }
+      }
+     ]
+    },
+    {
+     "name": "Cross",
+     "kind": "punch",
+     "real_description": "A powerful straight punch thrown from the rear hand with full hip rotation.",
+     "move": {
+      "dur": 22,
+      "from": 9,
+      "to": 13,
+      "reach": 85,
+      "mult": 1.3,
+      "knock": 45,
+      "top": 0.8,
+      "bot": 0.65,
+      "lunge": 25,
+      "tip": "handB"
+     },
+     "keyframes": [
+      {
+       "t": 9,
+       "pose": {
+        "upperB": {
+         "abs": 0
+        },
+        "foreB": {
+         "abs": 0
+        },
+        "torso": {
+         "rel": -0.4
+        }
+       },
+       "lunge": 25
+      },
+      {
+       "t": 22,
+       "pose": {
+        "upperB": {
+         "abs": 1.2
+        },
+        "foreB": {
+         "abs": 1.2
+        }
+       }
+      }
+     ]
+    },
+    {
+     "name": "Lead Hook",
+     "kind": "punch",
+     "real_description": "A semi-circular punch thrown with the lead hand, elbow bent at 90 degrees.",
+     "move": {
+      "dur": 24,
+      "from": 8,
+      "to": 12,
+      "reach": 60,
+      "mult": 1.2,
+      "knock": 60,
+      "top": 0.85,
+      "bot": 0.75,
+      "lunge": 10,
+      "tip": "hand"
+     },
+     "keyframes": [
+      {
+       "t": 8,
+       "pose": {
+        "upperF": {
+         "abs": 0.2
+        },
+        "foreF": {
+         "abs": 1.57
+        },
+        "torso": {
+         "rel": 0.5
+        }
+       }
+      },
+      {
+       "t": 24,
+       "pose": {
+        "upperF": {
+         "abs": 1.2
+        },
+        "foreF": {
+         "abs": 1.2
+        }
+       }
+      }
+     ]
+    },
+    {
+     "name": "Uppercut",
+     "kind": "punch",
+     "real_description": "An upward-traveling punch aimed at the chin or solar plexus.",
+     "move": {
+      "dur": 20,
+      "from": 6,
+      "to": 10,
+      "reach": 55,
+      "mult": 1.1,
+      "knock": 10,
+      "launch": 12,
+      "top": 0.9,
+      "bot": 0.6,
+      "tip": "handB"
+     },
+     "keyframes": [
+      {
+       "t": 6,
+       "pose": {
+        "upperB": {
+         "abs": 0.5
+        },
+        "foreB": {
+         "abs": -1.2
+        },
+        "torso": {
+         "rel": -0.2
+        }
+       }
+      },
+      {
+       "t": 20,
+       "pose": {
+        "upperB": {
+         "abs": -0.8
+        },
+        "foreB": {
+         "abs": -1
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Jab",
+    "Jab",
+    "Cross",
+    "Lead Hook"
+   ],
+   "kick_chain": []
+  },
+  {
+   "name": "Muay Thai",
+   "origin": "Thailand",
+   "stance": "Square stance, weight on back leg, lead foot tapping, hands high and open.",
+   "philosophy_in_one_line": "The Art of Eight Limbs: using fists, elbows, knees, and shins.",
+   "drawing_cues": "Mongkhon headband, armbands (pra jiad), upright posture.",
+   "techniques": [
+    {
+     "name": "Thai Roundhouse",
+     "kind": "kick",
+     "real_description": "A powerful kick using the shin as a baseball bat, rotating the entire body.",
+     "move": {
+      "dur": 32,
+      "from": 12,
+      "to": 18,
+      "reach": 95,
+      "mult": 1.6,
+      "knock": 50,
+      "top": 0.6,
+      "bot": 0.3,
+      "lunge": 20,
+      "tip": "footB"
+     },
+     "keyframes": [
+      {
+       "t": 12,
+       "pose": {
+        "thighB": {
+         "abs": -0.5
+        },
+        "shinB": {
+         "abs": 0
+        },
+        "torso": {
+         "rel": 0.3
+        }
+       },
+       "lunge": 20
+      },
+      {
+       "t": 32,
+       "pose": {
+        "thighB": {
+         "abs": 1.57
+        },
+        "shinB": {
+         "abs": 1.57
+        }
+       }
+      }
+     ]
+    },
+    {
+     "name": "Teep",
+     "kind": "kick",
+     "real_description": "A lead leg push-kick used to control distance and knock opponents back.",
+     "move": {
+      "dur": 26,
+      "from": 8,
+      "to": 13,
+      "reach": 105,
+      "mult": 0.8,
+      "knock": 80,
+      "top": 0.7,
+      "bot": 0.4,
+      "tip": "foot"
+     },
+     "keyframes": [
+      {
+       "t": 8,
+       "pose": {
+        "thighF": {
+         "abs": -1.2
+        },
+        "shinF": {
+         "abs": -1.2
+        }
+       }
+      },
+      {
+       "t": 13,
+       "pose": {
+        "thighF": {
+         "abs": -0.2
+        },
+        "shinF": {
+         "abs": 0
+        }
+       }
+      }
+     ]
+    },
+    {
+     "name": "Horizontal Elbow",
+     "kind": "elbow",
+     "real_description": "A short-range slashing strike with the tip of the elbow.",
+     "move": {
+      "dur": 18,
+      "from": 6,
+      "to": 9,
+      "reach": 45,
+      "mult": 1.4,
+      "knock": 20,
+      "top": 0.85,
+      "bot": 0.75,
+      "tip": "hand"
+     },
+     "keyframes": [
+      {
+       "t": 6,
+       "pose": {
+        "upperF": {
+         "abs": 0
+        },
+        "foreF": {
+         "abs": 2.5
+        }
+       }
+      },
+      {
+       "t": 18,
+       "pose": {
+        "upperF": {
+         "abs": 1.2
+        },
+        "foreF": {
+         "abs": 1.2
+        }
+       }
+      }
+     ]
+    },
+    {
+     "name": "Clinch Knee",
+     "kind": "knee",
+     "real_description": "A driving knee strike delivered while controlling the opponent's neck.",
+     "move": {
+      "dur": 24,
+      "from": 10,
+      "to": 14,
+      "reach": 50,
+      "mult": 1.8,
+      "knock": 15,
+      "launch": 5,
+      "top": 0.7,
+      "bot": 0.4,
+      "lunge": 15,
+      "tip": "knee"
+     },
+     "keyframes": [
+      {
+       "t": 10,
+       "pose": {
+        "thighB": {
+         "abs": -0.8
+        },
+        "shinB": {
+         "abs": 2
+        },
+        "upperF": {
+         "abs": 0.5
+        },
+        "upperB": {
+         "abs": 0.5
+        }
+       },
+       "lunge": 15
+      },
+      {
+       "t": 24,
+       "pose": {
+        "thighB": {
+         "abs": 1.57
+        },
+        "shinB": {
+         "abs": 1.57
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Jab",
+    "Horizontal Elbow"
+   ],
+   "kick_chain": [
+    "Teep",
+    "Thai Roundhouse"
+   ]
+  },
+  {
+   "name": "Taekwondo",
+   "origin": "Korea",
+   "stance": "Side-on stance, light on feet, hands low for balance.",
+   "philosophy_in_one_line": "The way of the hand and foot, emphasizing high, fast, spinning kicks.",
+   "drawing_cues": "Dobok uniform, high-reaching leg lines.",
+   "techniques": [
+    {
+     "name": "Fast Kick",
+     "kind": "kick",
+     "real_description": "A rapid lead-leg roundhouse kick with a small hop forward.",
+     "move": {
+      "dur": 20,
+      "from": 6,
+      "to": 10,
+      "reach": 90,
+      "mult": 0.9,
+      "knock": 25,
+      "top": 0.8,
+      "bot": 0.5,
+      "lunge": 30,
+      "tip": "foot"
+     },
+     "keyframes": [
+      {
+       "t": 6,
+       "pose": {
+        "thighF": {
+         "abs": -0.5
+        },
+        "shinF": {
+         "abs": 0
+        }
+       },
+       "lunge": 30
+      },
+      {
+       "t": 20,
+       "pose": {
+        "thighF": {
+         "abs": 1.57
+        },
+        "shinF": {
+         "abs": 1.57
+        }
+       }
+      }
+     ]
+    },
+    {
+     "name": "Spinning Hook Kick",
+     "kind": "kick",
+     "real_description": "A 360-degree spin delivering a heel strike across the opponent's head.",
+     "move": {
+      "dur": 38,
+      "from": 18,
+      "to": 24,
+      "reach": 100,
+      "mult": 2,
+      "knock": 70,
+      "top": 0.95,
+      "bot": 0.75,
+      "tip": "footB"
+     },
+     "keyframes": [
+      {
+       "t": 10,
+       "pose": {
+        "torso": {
+         "rel": 3.14
+        }
+       },
+       "flip": true
+      },
+      {
+       "t": 18,
+       "pose": {
+        "thighB": {
+         "abs": -1.2
+        },
+        "shinB": {
+         "abs": 0
+        }
+       }
+      },
+      {
+       "t": 38,
+       "pose": {
+        "thighB": {
+         "abs": 1.57
+        },
+        "shinB": {
+         "abs": 1.57
+        }
+       }
+      }
+     ]
+    },
+    {
+     "name": "Side Kick",
+     "kind": "kick",
+     "real_description": "A linear kick using the heel, chambered by pulling the knee to the chest.",
+     "move": {
+      "dur": 28,
+      "from": 10,
+      "to": 15,
+      "reach": 110,
+      "mult": 1.4,
+      "knock": 90,
+      "top": 0.7,
+      "bot": 0.5,
+      "tip": "foot"
+     },
+     "keyframes": [
+      {
+       "t": 6,
+       "pose": {
+        "thighF": {
+         "abs": -1.57
+        },
+        "shinF": {
+         "abs": 1.57
+        }
+       }
+      },
+      {
+       "t": 10,
+       "pose": {
+        "thighF": {
+         "abs": -0.2
+        },
+        "shinF": {
+         "abs": 0
+        }
+       }
+      }
+     ]
+    },
+    {
+     "name": "Axe Kick",
+     "kind": "kick",
+     "real_description": "A high kick that drops the heel vertically onto the opponent.",
+     "move": {
+      "dur": 34,
+      "from": 16,
+      "to": 22,
+      "reach": 70,
+      "mult": 1.7,
+      "knock": 10,
+      "launch": -15,
+      "top": 1,
+      "bot": 0.6,
+      "tip": "foot"
+     },
+     "keyframes": [
+      {
+       "t": 10,
+       "pose": {
+        "thighF": {
+         "abs": -2
+        },
+        "shinF": {
+         "abs": 0
+        }
+       }
+      },
+      {
+       "t": 16,
+       "pose": {
+        "thighF": {
+         "abs": -0.5
+        },
+        "shinF": {
+         "abs": 0
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Jab"
+   ],
+   "kick_chain": [
+    "Fast Kick",
+    "Side Kick",
+    "Spinning Hook Kick"
+   ]
+  },
+  {
+   "name": "Capoeira",
+   "origin": "Brazil",
+   "stance": "Ginga: a rhythmic, dancing movement shifting weight between front and back.",
+   "philosophy_in_one_line": "Fluidity, acrobatics, and deception through constant motion.",
+   "drawing_cues": "Low-crouched poses, one hand often touching the ground.",
+   "techniques": [
+    {
+     "name": "Meia Lua de Compasso",
+     "kind": "kick",
+     "real_description": "A spinning heel kick performed with both hands on the ground for balance.",
+     "move": {
+      "dur": 42,
+      "from": 20,
+      "to": 28,
+      "reach": 115,
+      "mult": 2.2,
+      "knock": 85,
+      "top": 0.5,
+      "bot": 0.1,
+      "tip": "footB"
+     },
+     "keyframes": [
+      {
+       "t": 10,
+       "pose": {
+        "torso": {
+         "abs": 1.57
+        },
+        "upperF": {
+         "abs": 1.57
+        },
+        "upperB": {
+         "abs": 1.57
+        }
+       }
+      },
+      {
+       "t": 20,
+       "pose": {
+        "thighB": {
+         "abs": -0.2
+        },
+        "shinB": {
+         "abs": 0
+        }
+       }
+      },
+      {
+       "t": 42,
+       "pose": {
+        "torso": {
+         "abs": 0
+        }
+       }
+      }
+     ]
+    },
+    {
+     "name": "Martelo",
+     "kind": "kick",
+     "real_description": "A 'hammer' roundhouse kick delivered from a low stance.",
+     "move": {
+      "dur": 28,
+      "from": 10,
+      "to": 16,
+      "reach": 90,
+      "mult": 1.3,
+      "knock": 40,
+      "top": 0.7,
+      "bot": 0.4,
+      "tip": "foot"
+     },
+     "keyframes": [
+      {
+       "t": 10,
+       "pose": {
+        "thighF": {
+         "abs": -0.8
+        },
+        "shinF": {
+         "abs": 0
+        }
+       }
+      },
+      {
+       "t": 28,
+       "pose": {
+        "thighF": {
+         "abs": 1.57
+        }
+       }
+      }
+     ]
+    },
+    {
+     "name": "Armada",
+     "kind": "kick",
+     "real_description": "A standing spinning crescent kick.",
+     "move": {
+      "dur": 36,
+      "from": 15,
+      "to": 22,
+      "reach": 95,
+      "mult": 1.5,
+      "knock": 60,
+      "top": 0.8,
+      "bot": 0.5,
+      "tip": "footB"
+     },
+     "keyframes": [
+      {
+       "t": 15,
+       "pose": {
+        "thighB": {
+         "abs": -1
+        },
+        "shinB": {
+         "abs": 0
+        }
+       },
+       "flip": true
+      },
+      {
+       "t": 36,
+       "pose": {
+        "thighB": {
+         "abs": 1.57
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Jab"
+   ],
+   "kick_chain": [
+    "Martelo",
+    "Armada",
+    "Meia Lua de Compasso"
+   ]
+  },
+  {
+   "name": "Kyokushin Karate",
+   "origin": "Japan",
+   "stance": "Sanchin or Fudo-dachi: rooted, heavy, hands mid-height.",
+   "philosophy_in_one_line": "The ultimate truth: conditioning and power to withstand and deliver heavy blows.",
+   "drawing_cues": "Bare knuckles, wide-legged stance, heavy torso.",
+   "techniques": [
+    {
+     "name": "Seiken Chudan Tsuki",
+     "kind": "punch",
+     "real_description": "A powerful mid-level straight punch focused on the solar plexus.",
+     "move": {
+      "dur": 18,
+      "from": 6,
+      "to": 10,
+      "reach": 70,
+      "mult": 1.1,
+      "knock": 30,
+      "top": 0.65,
+      "bot": 0.5,
+      "lunge": 10,
+      "tip": "handB"
+     },
+     "keyframes": [
+      {
+       "t": 6,
+       "pose": {
+        "upperB": {
+         "abs": 0.2
+        },
+        "foreB": {
+         "abs": 0
+        }
+       },
+       "lunge": 10
+      },
+      {
+       "t": 18,
+       "pose": {
+        "upperB": {
+         "abs": 1.2
+        }
+       }
+      }
+     ]
+    },
+    {
+     "name": "Brazilian Kick",
+     "kind": "kick",
+     "real_description": "A question-mark kick that starts low and arcs over the guard into the head.",
+     "move": {
+      "dur": 38,
+      "from": 18,
+      "to": 25,
+      "reach": 85,
+      "mult": 1.9,
+      "knock": 55,
+      "top": 0.95,
+      "bot": 0.7,
+      "tip": "foot"
+     },
+     "keyframes": [
+      {
+       "t": 10,
+       "pose": {
+        "thighF": {
+         "abs": -0.8
+        },
+        "shinF": {
+         "abs": 1.57
+        }
+       }
+      },
+      {
+       "t": 18,
+       "pose": {
+        "thighF": {
+         "abs": -1.4
+        },
+        "shinF": {
+         "abs": -0.5
+        }
+       }
+      }
+     ]
+    },
+    {
+     "name": "Shita Tsuki",
+     "kind": "punch",
+     "real_description": "A short, inverted hook/uppercut to the liver.",
+     "move": {
+      "dur": 16,
+      "from": 5,
+      "to": 9,
+      "reach": 45,
+      "mult": 1.2,
+      "knock": 15,
+      "top": 0.55,
+      "bot": 0.4,
+      "tip": "hand"
+     },
+     "keyframes": [
+      {
+       "t": 5,
+       "pose": {
+        "upperF": {
+         "abs": 0.8
+        },
+        "foreF": {
+         "abs": 0
+        }
+       }
+      },
+      {
+       "t": 16,
+       "pose": {
+        "upperF": {
+         "abs": 1.2
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Seiken Chudan Tsuki",
+    "Shita Tsuki"
+   ],
+   "kick_chain": [
+    "Low Kick",
+    "Brazilian Kick"
+   ]
+  },
+  {
+   "name": "Wing Chun",
+   "origin": "China",
+   "stance": "Kim Yeung Ma: toes pointed inward, knees close, hands on centerline.",
+   "philosophy_in_one_line": "Simultaneous attack and defense using the shortest path.",
+   "drawing_cues": "Vertical fists, elbows close to the body center.",
+   "techniques": [
+    {
+     "name": "Chain Punch",
+     "kind": "punch",
+     "real_description": "A rapid succession of vertical punches along the centerline.",
+     "move": {
+      "dur": 12,
+      "from": 3,
+      "to": 6,
+      "reach": 65,
+      "mult": 0.4,
+      "knock": 5,
+      "top": 0.75,
+      "bot": 0.6,
+      "tip": "hand"
+     },
+     "keyframes": [
+      {
+       "t": 3,
+       "pose": {
+        "upperF": {
+         "abs": 0
+        },
+        "foreF": {
+         "abs": 0
+        }
+       }
+      },
+      {
+       "t": 12,
+       "pose": {
+        "upperF": {
+         "abs": 1.2
+        }
+       }
+      }
+     ]
+    },
+    {
+     "name": "Pak Sau Strike",
+     "kind": "punch",
+     "real_description": "A slapping block that transitions instantly into a palm strike.",
+     "move": {
+      "dur": 16,
+      "from": 5,
+      "to": 9,
+      "reach": 60,
+      "mult": 0.9,
+      "knock": 20,
+      "top": 0.8,
+      "bot": 0.65,
+      "tip": "handB"
+     },
+     "keyframes": [
+      {
+       "t": 5,
+       "pose": {
+        "upperB": {
+         "abs": 0
+        },
+        "foreB": {
+         "abs": 0
+        }
+       }
+      },
+      {
+       "t": 16,
+       "pose": {
+        "upperB": {
+         "abs": 1.2
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Chain Punch",
+    "Chain Punch",
+    "Chain Punch",
+    "Pak Sau Strike"
+   ],
+   "kick_chain": [
+    "Low Side Kick"
+   ]
+  },
+  {
+   "name": "Lethwei",
+   "origin": "Myanmar",
+   "stance": "Similar to Muay Thai but more aggressive, hands often lower.",
+   "philosophy_in_one_line": "The Art of Nine Limbs: including the headbutt.",
+   "drawing_cues": "Gauze-wrapped hands, aggressive forward lean.",
+   "techniques": [
+    {
+     "name": "Headbutt",
+     "kind": "other",
+     "real_description": "A violent forward strike using the hard part of the cranium.",
+     "move": {
+      "dur": 22,
+      "from": 8,
+      "to": 12,
+      "reach": 40,
+      "mult": 2,
+      "knock": 40,
+      "top": 0.95,
+      "bot": 0.8,
+      "lunge": 20,
+      "tip": "head"
+     },
+     "keyframes": [
+      {
+       "t": 8,
+       "pose": {
+        "head": {
+         "rel": 0.5
+        },
+        "torso": {
+         "rel": 0.4
+        }
+       },
+       "lunge": 20
+      },
+      {
+       "t": 12,
+       "pose": {
+        "head": {
+         "rel": -0.3
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Jab",
+    "Cross",
+    "Headbutt"
+   ],
+   "kick_chain": [
+    "Thai Roundhouse"
+   ]
+  },
+  {
+   "name": "Savate",
+   "origin": "France",
+   "stance": "High, mobile stance, hands held open and forward.",
+   "philosophy_in_one_line": "Elegant and precise kicking using the shoes as weapons.",
+   "drawing_cues": "Pointed toes (shoes), slim profile.",
+   "techniques": [
+    {
+     "name": "Chassé Lateral",
+     "kind": "kick",
+     "real_description": "A piston-like side kick using the heel of the shoe.",
+     "move": {
+      "dur": 26,
+      "from": 9,
+      "to": 14,
+      "reach": 110,
+      "mult": 1.3,
+      "knock": 75,
+      "top": 0.7,
+      "bot": 0.4,
+      "tip": "foot"
+     },
+     "keyframes": [
+      {
+       "t": 9,
+       "pose": {
+        "thighF": {
+         "abs": -0.2
+        },
+        "shinF": {
+         "abs": 0
+        }
+       }
+      },
+      {
+       "t": 26,
+       "pose": {
+        "thighF": {
+         "abs": 1.57
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Jab",
+    "Cross"
+   ],
+   "kick_chain": [
+    "Fouetté",
+    "Chassé Lateral"
+   ]
+  },
+  {
+   "name": "Judo",
+   "origin": "Japan",
+   "stance": "Upright, looking for grips on the opponent's jacket.",
+   "philosophy_in_one_line": "Maximum efficiency, minimum effort: using the opponent's weight against them.",
+   "drawing_cues": "Wide sleeves, thick belt, grabbing hands.",
+   "techniques": [
+    {
+     "name": "Seoi Nage",
+     "kind": "throw",
+     "real_description": "A shoulder throw where the opponent is pulled over the back.",
+     "move": {
+      "dur": 45,
+      "from": 12,
+      "to": 20,
+      "reach": 45,
+      "mult": 2.5,
+      "knock": 20,
+      "launch": 25,
+      "top": 0.8,
+      "bot": 0,
+      "tip": "hand"
+     },
+     "keyframes": [
+      {
+       "t": 12,
+       "pose": {
+        "torso": {
+         "abs": 3.14
+        },
+        "upperF": {
+         "abs": -1
+        }
+       }
+      },
+      {
+       "t": 20,
+       "pose": {
+        "torso": {
+         "abs": 0.5
+        },
+        "upperF": {
+         "abs": 1.57
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Jab"
+   ],
+   "kick_chain": [
+    "Osoto Gari"
+   ]
+  },
+  {
+   "name": "Sumo",
+   "origin": "Japan",
+   "stance": "Low squat (shiko), hands touching the ground before the charge.",
+   "philosophy_in_one_line": "Push the opponent out of the ring or down to the floor instantly.",
+   "drawing_cues": "Large belly, thick legs, topknot hair.",
+   "techniques": [
+    {
+     "name": "Tsuppari",
+     "kind": "punch",
+     "real_description": "Rapid, powerful open-palm thrusts to the chest and chin.",
+     "move": {
+      "dur": 15,
+      "from": 4,
+      "to": 8,
+      "reach": 70,
+      "mult": 0.6,
+      "knock": 40,
+      "top": 0.8,
+      "bot": 0.6,
+      "lunge": 10,
+      "tip": "hand"
+     },
+     "keyframes": [
+      {
+       "t": 4,
+       "pose": {
+        "upperF": {
+         "abs": 0
+        },
+        "foreF": {
+         "abs": 0
+        }
+       },
+       "lunge": 10
+      },
+      {
+       "t": 15,
+       "pose": {
+        "upperF": {
+         "abs": 1.2
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Tsuppari",
+    "Tsuppari",
+    "Tsuppari"
+   ],
+   "kick_chain": [
+    "Shiko Stomp"
+   ]
+  },
+  {
+   "name": "Jeet Kune Do",
+   "origin": "USA / Hong Kong",
+   "stance": "Lead hand and foot forward (strong side forward), constant rhythmic movement.",
+   "philosophy_in_one_line": "Be like water; have no way as way, no limitation as limitation.",
+   "drawing_cues": "Relaxed but ready, fingers often extended.",
+   "techniques": [
+    {
+     "name": "Lead Straight",
+     "kind": "punch",
+     "real_description": "The 'longest' punch, thrown from the lead hand with a small step.",
+     "move": {
+      "dur": 16,
+      "from": 4,
+      "to": 8,
+      "reach": 90,
+      "mult": 0.8,
+      "knock": 20,
+      "top": 0.85,
+      "bot": 0.7,
+      "lunge": 20,
+      "tip": "hand"
+     },
+     "keyframes": [
+      {
+       "t": 4,
+       "pose": {
+        "upperF": {
+         "abs": -0.1
+        },
+        "foreF": {
+         "abs": 0
+        }
+       },
+       "lunge": 20
+      },
+      {
+       "t": 16,
+       "pose": {
+        "upperF": {
+         "abs": 1.2
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Lead Straight",
+    "Finger Jab",
+    "Hook"
+   ],
+   "kick_chain": [
+    "Oblique Kick",
+    "Hook Kick"
+   ]
+  },
+  {
+   "name": "Systema",
+   "origin": "Russia",
+   "stance": "Completely relaxed, upright, natural walking posture.",
+   "philosophy_in_one_line": "Non-resistance and breathing to dissipate impact and return energy.",
+   "drawing_cues": "Loose limbs, very vertical torso, 'heavy' appearance.",
+   "techniques": [
+    {
+     "name": "Heavy Body Shot",
+     "kind": "punch",
+     "real_description": "A relaxed, whip-like punch that sinks deep into the opponent's organs.",
+     "move": {
+      "dur": 24,
+      "from": 10,
+      "to": 15,
+      "reach": 60,
+      "mult": 1.5,
+      "knock": 10,
+      "top": 0.6,
+      "bot": 0.4,
+      "tip": "hand"
+     },
+     "keyframes": [
+      {
+       "t": 10,
+       "pose": {
+        "upperF": {
+         "abs": 0.5
+        },
+        "foreF": {
+         "abs": 0.2
+        }
+       }
+      },
+      {
+       "t": 24,
+       "pose": {
+        "upperF": {
+         "abs": 1.2
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Heavy Body Shot",
+    "Short Lead"
+   ],
+   "kick_chain": [
+    "Low Whip Kick"
+   ]
+  },
+  {
+   "name": "Krav Maga",
+   "origin": "Israel",
+   "stance": "Neutral or semi-passive stance, transitioning instantly to aggression.",
+   "philosophy_in_one_line": "Neutralize the threat as quickly as possible by any means necessary.",
+   "drawing_cues": "Tactical posture, hands open and near face.",
+   "techniques": [
+    {
+     "name": "Groin Kick",
+     "kind": "kick",
+     "real_description": "An upward snapping kick to the groin using the shin or instep.",
+     "move": {
+      "dur": 20,
+      "from": 6,
+      "to": 10,
+      "reach": 65,
+      "mult": 1.2,
+      "knock": 10,
+      "launch": 5,
+      "top": 0.4,
+      "bot": 0.1,
+      "tip": "foot"
+     },
+     "keyframes": [
+      {
+       "t": 6,
+       "pose": {
+        "thighF": {
+         "abs": -0.5
+        },
+        "shinF": {
+         "abs": 0
+        }
+       }
+      },
+      {
+       "t": 20,
+       "pose": {
+        "thighF": {
+         "abs": 1.57
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Palm Strike",
+    "Hammerfist",
+    "Eye Gouge"
+   ],
+   "kick_chain": [
+    "Groin Kick",
+    "Knee Strike"
+   ]
+  },
+  {
+   "name": "Sambo",
+   "origin": "Russia",
+   "stance": "Wrestling-based stance, slightly hunched, ready to shoot or strike.",
+   "philosophy_in_one_line": "Self-defense without weapons: combining striking with devastating grappling.",
+   "drawing_cues": "Kurtka jacket, short shorts, wrestling shoes.",
+   "techniques": [
+    {
+     "name": "Casting Punch",
+     "kind": "punch",
+     "real_description": "A long, looping overhand punch that looks like casting a fishing line.",
+     "move": {
+      "dur": 28,
+      "from": 12,
+      "to": 18,
+      "reach": 90,
+      "mult": 1.4,
+      "knock": 50,
+      "top": 0.9,
+      "bot": 0.6,
+      "lunge": 15,
+      "tip": "handB"
+     },
+     "keyframes": [
+      {
+       "t": 12,
+       "pose": {
+        "upperB": {
+         "abs": -0.5
+        },
+        "foreB": {
+         "abs": -0.5
+        }
+       },
+       "lunge": 15
+      },
+      {
+       "t": 28,
+       "pose": {
+        "upperB": {
+         "abs": 1.2
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Jab",
+    "Casting Punch"
+   ],
+   "kick_chain": [
+    "Leg Trip",
+    "Low Kick"
+   ]
+  },
+  {
+   "name": "Silat",
+   "origin": "Indonesia / Malaysia",
+   "stance": "Low, wide, animal-like stances (Harimau), hands in intricate patterns.",
+   "philosophy_in_one_line": "Deceptive movement and ruthless finishing strikes to vital points.",
+   "drawing_cues": "Very low center of gravity, blades (keris) often implied.",
+   "techniques": [
+    {
+     "name": "Elbow Spike",
+     "kind": "elbow",
+     "real_description": "A downward elbow strike aimed at the opponent's collarbone or spine.",
+     "move": {
+      "dur": 22,
+      "from": 8,
+      "to": 12,
+      "reach": 45,
+      "mult": 1.6,
+      "knock": 5,
+      "launch": -10,
+      "top": 0.9,
+      "bot": 0.7,
+      "tip": "hand"
+     },
+     "keyframes": [
+      {
+       "t": 8,
+       "pose": {
+        "upperF": {
+         "abs": -1.2
+        },
+        "foreF": {
+         "abs": 1.57
+        }
+       }
+      },
+      {
+       "t": 12,
+       "pose": {
+        "upperF": {
+         "abs": 0.5
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Palm Strike",
+    "Elbow Spike"
+   ],
+   "kick_chain": [
+    "Low Sweep",
+    "Knee"
+   ]
+  },
+  {
+   "name": "Bajiquan",
+   "origin": "China",
+   "stance": "Ma Bu (Horse Stance), explosive and rooted.",
+   "philosophy_in_one_line": "Explosive, short-range power using the whole body as a battering ram.",
+   "drawing_cues": "Sudden stomps, shoulder-first lunges.",
+   "techniques": [
+    {
+     "name": "Shoulder Ram",
+     "kind": "other",
+     "real_description": "A powerful forward lunge striking with the shoulder.",
+     "move": {
+      "dur": 30,
+      "from": 10,
+      "to": 16,
+      "reach": 55,
+      "mult": 1.8,
+      "knock": 100,
+      "top": 0.8,
+      "bot": 0.4,
+      "lunge": 40,
+      "tip": "torso"
+     },
+     "keyframes": [
+      {
+       "t": 10,
+       "pose": {
+        "torso": {
+         "rel": 0.5
+        }
+       },
+       "lunge": 40
+      },
+      {
+       "t": 30,
+       "pose": {
+        "torso": {
+         "rel": 0
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Stomp Punch",
+    "Elbow Strike"
+   ],
+   "kick_chain": [
+    "Low Kick"
+   ]
+  },
+  {
+   "name": "Kenjutsu",
+   "origin": "Japan",
+   "stance": "Chudan-no-kamae: sword held with both hands pointing at opponent's throat.",
+   "philosophy_in_one_line": "One cut, one life: precision and timing with the blade.",
+   "drawing_cues": "Holding a long thin object (katana), Hakama pants.",
+   "techniques": [
+    {
+     "name": "Overhead Slash",
+     "kind": "weapon",
+     "real_description": "A vertical downward cut from above the head.",
+     "move": {
+      "dur": 32,
+      "from": 14,
+      "to": 20,
+      "reach": 130,
+      "mult": 2.2,
+      "knock": 30,
+      "top": 1,
+      "bot": 0.2,
+      "tip": "hand"
+     },
+     "keyframes": [
+      {
+       "t": 10,
+       "pose": {
+        "upperF": {
+         "abs": -2
+        },
+        "upperB": {
+         "abs": -2
+        }
+       }
+      },
+      {
+       "t": 14,
+       "pose": {
+        "upperF": {
+         "abs": 0.5
+        },
+        "upperB": {
+         "abs": 0.5
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Thrust",
+    "Overhead Slash"
+   ],
+   "kick_chain": [
+    "Front Kick"
+   ]
+  },
+  {
+   "name": "Wrestling",
+   "origin": "Ancient Greece / Global",
+   "stance": "Low crouch, arms out, ready to shoot for the legs.",
+   "philosophy_in_one_line": "Control the opponent's body and force them to the ground.",
+   "drawing_cues": "Singlet, bent knees, reaching arms.",
+   "techniques": [
+    {
+     "name": "Double Leg Takedown",
+     "kind": "throw",
+     "real_description": "Diving at the opponent's legs and driving forward to tackle them.",
+     "move": {
+      "dur": 35,
+      "from": 12,
+      "to": 18,
+      "reach": 80,
+      "mult": 1.2,
+      "knock": 60,
+      "top": 0.4,
+      "bot": 0,
+      "lunge": 50,
+      "tip": "torso"
+     },
+     "keyframes": [
+      {
+       "t": 12,
+       "pose": {
+        "torso": {
+         "abs": 1
+        },
+        "thighF": {
+         "abs": 0
+        }
+       },
+       "lunge": 50
+      },
+      {
+       "t": 35,
+       "pose": {
+        "torso": {
+         "abs": 0
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Clubbing Blow"
+   ],
+   "kick_chain": [
+    "Double Leg Takedown",
+    "Suplex"
+   ]
+  },
+  {
+   "name": "BJJ",
+   "origin": "Brazil",
+   "stance": "Low, hands out, often ready to pull guard or sit down.",
+   "philosophy_in_one_line": "Ground fighting and submission through leverage and technique.",
+   "drawing_cues": "Gi uniform, often shown in a seated or ground position.",
+   "techniques": [
+    {
+     "name": "Flying Armbar",
+     "kind": "throw",
+     "real_description": "Leaping onto the opponent to transition into an armlock.",
+     "move": {
+      "dur": 50,
+      "from": 15,
+      "to": 25,
+      "reach": 60,
+      "mult": 2.5,
+      "knock": 10,
+      "launch": -20,
+      "top": 0.9,
+      "bot": 0.5,
+      "hop": 10,
+      "tip": "hand"
+     },
+     "keyframes": [
+      {
+       "t": 15,
+       "pose": {
+        "thighF": {
+         "abs": -1.57
+        },
+        "thighB": {
+         "abs": -1.57
+        }
+       },
+       "hop": 10
+      },
+      {
+       "t": 50,
+       "pose": {
+        "torso": {
+         "abs": 1.57
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Palm Strike"
+   ],
+   "kick_chain": [
+    "Guard Pull",
+    "Flying Armbar"
+   ]
+  },
+  {
+   "name": "Street Fighting",
+   "origin": "Global",
+   "stance": "Unrefined, aggressive, hands often balled into fists at chest height.",
+   "philosophy_in_one_line": "Win by any means, usually through overwhelming aggression and dirty tactics.",
+   "drawing_cues": "Wild swings, asymmetrical posture.",
+   "techniques": [
+    {
+     "name": "Haymaker",
+     "kind": "punch",
+     "real_description": "A wild, wide, swinging punch with maximum effort and no technique.",
+     "move": {
+      "dur": 35,
+      "from": 18,
+      "to": 24,
+      "reach": 80,
+      "mult": 1.8,
+      "knock": 110,
+      "top": 0.9,
+      "bot": 0.6,
+      "lunge": 30,
+      "tip": "handB"
+     },
+     "keyframes": [
+      {
+       "t": 10,
+       "pose": {
+        "upperB": {
+         "abs": 3.14
+        },
+        "torso": {
+         "rel": -0.8
+        }
+       }
+      },
+      {
+       "t": 18,
+       "pose": {
+        "upperB": {
+         "abs": 0
+        },
+        "torso": {
+         "rel": 0.8
+        }
+       },
+       "lunge": 30
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Sucker Punch",
+    "Haymaker",
+    "Headbutt"
+   ],
+   "kick_chain": [
+    "Big Boot",
+    "Groin Kick"
+   ]
+  },
+  {
+   "name": "Aikido",
+   "origin": "Japan",
+   "stance": "Hanmi: relaxed, triangular stance, hands open and circular.",
+   "philosophy_in_one_line": "Harmonizing with the opponent's energy to redirect and neutralize.",
+   "drawing_cues": "Flowing Hakama, circular hand motions.",
+   "techniques": [
+    {
+     "name": "Iriminage",
+     "kind": "throw",
+     "real_description": "Entering strike and throw that leads the opponent's head in a circle.",
+     "move": {
+      "dur": 40,
+      "from": 10,
+      "to": 18,
+      "reach": 50,
+      "mult": 1.5,
+      "knock": 80,
+      "launch": 15,
+      "top": 0.9,
+      "bot": 0.5,
+      "lunge": 20,
+      "tip": "hand"
+     },
+     "keyframes": [
+      {
+       "t": 10,
+       "pose": {
+        "upperF": {
+         "abs": -0.5
+        },
+        "torso": {
+         "rel": 0.3
+        }
+       },
+       "lunge": 20
+      },
+      {
+       "t": 40,
+       "pose": {
+        "upperF": {
+         "abs": 1.2
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Atemi Strike"
+   ],
+   "kick_chain": [
+    "Iriminage",
+    "Kotegaeshi"
+   ]
+  },
+  {
+   "name": "Tai Chi",
+   "origin": "China",
+   "stance": "Slow, balanced, weight shifting between 'empty' and 'full' legs.",
+   "philosophy_in_one_line": "Softness overcomes hardness; internal power through slow, mindful movement.",
+   "drawing_cues": "Rounded arms, one leg often slightly bent.",
+   "techniques": [
+    {
+     "name": "Single Whip",
+     "kind": "punch",
+     "real_description": "A wide, spreading motion of the arms ending in a hook-hand strike.",
+     "move": {
+      "dur": 45,
+      "from": 20,
+      "to": 30,
+      "reach": 90,
+      "mult": 1.2,
+      "knock": 70,
+      "top": 0.8,
+      "bot": 0.6,
+      "tip": "hand"
+     },
+     "keyframes": [
+      {
+       "t": 20,
+       "pose": {
+        "upperF": {
+         "abs": 0
+        },
+        "upperB": {
+         "abs": 3.14
+        }
+       }
+      },
+      {
+       "t": 45,
+       "pose": {
+        "upperF": {
+         "abs": 1.2
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Push Hands",
+    "Single Whip"
+   ],
+   "kick_chain": [
+    "Separation Kick"
+   ]
+  },
+  {
+   "name": "Shaolin Kung Fu",
+   "origin": "China",
+   "stance": "Low, dramatic stances like the Dragon or Tiger.",
+   "philosophy_in_one_line": "Channeling the spirit and movements of animals for combat and enlightenment.",
+   "drawing_cues": "Claw-like hands, deep lunges, shaved head.",
+   "techniques": [
+    {
+     "name": "Tiger Claw",
+     "kind": "punch",
+     "real_description": "A tearing strike with the fingers curved like a tiger's talons.",
+     "move": {
+      "dur": 24,
+      "from": 8,
+      "to": 12,
+      "reach": 70,
+      "mult": 1.3,
+      "knock": 30,
+      "top": 0.85,
+      "bot": 0.6,
+      "tip": "hand"
+     },
+     "keyframes": [
+      {
+       "t": 8,
+       "pose": {
+        "upperF": {
+         "abs": 0
+        },
+        "foreF": {
+         "abs": 0.2
+        }
+       }
+      },
+      {
+       "t": 24,
+       "pose": {
+        "upperF": {
+         "abs": 1.2
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Tiger Claw",
+    "Crane Wing",
+    "Mantis Strike"
+   ],
+   "kick_chain": [
+    "Shaolin Side Kick"
+   ]
+  },
+  {
+   "name": "Pankration",
+   "origin": "Ancient Greece",
+   "stance": "Upright, hands extended, ready for both boxing and wrestling.",
+   "philosophy_in_one_line": "All powers: the original mixed martial art of the Olympic games.",
+   "drawing_cues": "Naked or minimal clothing, athletic build.",
+   "techniques": [
+    {
+     "name": "Overhand Smash",
+     "kind": "punch",
+     "real_description": "A heavy, downward-looping punch from the rear hand.",
+     "move": {
+      "dur": 30,
+      "from": 14,
+      "to": 20,
+      "reach": 85,
+      "mult": 1.6,
+      "knock": 60,
+      "top": 0.9,
+      "bot": 0.6,
+      "tip": "handB"
+     },
+     "keyframes": [
+      {
+       "t": 14,
+       "pose": {
+        "upperB": {
+         "abs": -1
+        },
+        "foreB": {
+         "abs": -0.5
+        }
+       }
+      },
+      {
+       "t": 30,
+       "pose": {
+        "upperB": {
+         "abs": 1.2
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Jab",
+    "Overhand Smash"
+   ],
+   "kick_chain": [
+    "Low Kick",
+    "Takedown"
+   ]
+  },
+  {
+   "name": "Escrima",
+   "origin": "Philippines",
+   "stance": "Mobile, lead hand forward, often holding a stick or blade.",
+   "philosophy_in_one_line": "Flowing weapon strikes and empty-hand translations.",
+   "drawing_cues": "Holding a short stick, rapid hand movements.",
+   "techniques": [
+    {
+     "name": "Sinawali",
+     "kind": "weapon",
+     "real_description": "A rapid, weaving double-strike pattern.",
+     "move": {
+      "dur": 18,
+      "from": 4,
+      "to": 10,
+      "reach": 95,
+      "mult": 0.6,
+      "knock": 15,
+      "top": 0.9,
+      "bot": 0.4,
+      "tip": "hand"
+     },
+     "keyframes": [
+      {
+       "t": 4,
+       "pose": {
+        "upperF": {
+         "abs": -0.5
+        }
+       }
+      },
+      {
+       "t": 10,
+       "pose": {
+        "upperF": {
+         "abs": 0.5
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Sinawali",
+    "Abanico",
+    "Thrust"
+   ],
+   "kick_chain": [
+    "Low Kick"
+   ]
+  },
+  {
+   "name": "Hapkido",
+   "origin": "Korea",
+   "stance": "Similar to Taekwondo but more grounded and ready to grab.",
+   "philosophy_in_one_line": "Circular motion and joint locks combined with powerful kicking.",
+   "drawing_cues": "Dobok, high kicks, wrist-grabbing poses.",
+   "techniques": [
+    {
+     "name": "Joint Lock Throw",
+     "kind": "throw",
+     "real_description": "Grabbing the wrist and twisting to force the opponent down.",
+     "move": {
+      "dur": 40,
+      "from": 10,
+      "to": 16,
+      "reach": 50,
+      "mult": 1.8,
+      "knock": 10,
+      "launch": -20,
+      "top": 0.7,
+      "bot": 0,
+      "tip": "hand"
+     },
+     "keyframes": [
+      {
+       "t": 10,
+       "pose": {
+        "upperF": {
+         "abs": 0.2
+        },
+        "foreF": {
+         "abs": 1
+        }
+       }
+      },
+      {
+       "t": 40,
+       "pose": {
+        "upperF": {
+         "abs": 1.57
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Jab",
+    "Joint Lock Throw"
+   ],
+   "kick_chain": [
+    "Side Kick",
+    "High Kick"
+   ]
+  },
+  {
+   "name": "Bokator",
+   "origin": "Cambodia",
+   "stance": "Animal-based, very low and grounded, hands often mimicking claws.",
+   "philosophy_in_one_line": "Ancient battlefield combat using every part of the body.",
+   "drawing_cues": "Krama scarf around waist/head, tattoos.",
+   "techniques": [
+    {
+     "name": "Crocodile Tail Kick",
+     "kind": "kick",
+     "real_description": "A low, spinning sweep that takes out the opponent's legs.",
+     "move": {
+      "dur": 34,
+      "from": 14,
+      "to": 20,
+      "reach": 100,
+      "mult": 1.4,
+      "knock": 90,
+      "top": 0.3,
+      "bot": 0,
+      "tip": "footB"
+     },
+     "keyframes": [
+      {
+       "t": 14,
+       "pose": {
+        "thighB": {
+         "abs": 0.2
+        },
+        "torso": {
+         "abs": 1.57
+        }
+       },
+       "flip": true
+      },
+      {
+       "t": 34,
+       "pose": {
+        "torso": {
+         "abs": 0
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Elephant Strike",
+    "Palm Strike"
+   ],
+   "kick_chain": [
+    "Crocodile Tail Kick"
+   ]
+  },
+  {
+   "name": "Kalaripayattu",
+   "origin": "India",
+   "stance": "Extremely low, wide stances (Lion, Elephant), high jumps.",
+   "philosophy_in_one_line": "The mother of all martial arts: fluid, athletic, and lethal.",
+   "drawing_cues": "Bare chest, dhoti cloth, high-flying leaps.",
+   "techniques": [
+    {
+     "name": "Jumping Strike",
+     "kind": "other",
+     "real_description": "A high, flying leap ending in a downward strike.",
+     "move": {
+      "dur": 40,
+      "from": 15,
+      "to": 22,
+      "reach": 70,
+      "mult": 1.9,
+      "knock": 40,
+      "launch": -10,
+      "hop": 12,
+      "top": 1,
+      "bot": 0.6,
+      "tip": "hand"
+     },
+     "keyframes": [
+      {
+       "t": 15,
+       "pose": {
+        "thighF": {
+         "abs": -1.57
+        },
+        "upperF": {
+         "abs": -1.57
+        }
+       },
+       "hop": 12
+      },
+      {
+       "t": 40,
+       "pose": {
+        "upperF": {
+         "abs": 0.5
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Palm Strike",
+    "Jumping Strike"
+   ],
+   "kick_chain": [
+    "High Kick",
+    "Lion Stance Sweep"
+   ]
+  },
+  {
+   "name": "MMA",
+   "origin": "Global",
+   "stance": "Hybrid: mid-height, mobile, hands ready for strikes or takedown defense.",
+   "philosophy_in_one_line": "The integration of all effective combat disciplines.",
+   "drawing_cues": "4oz gloves, board shorts, versatile posture.",
+   "techniques": [
+    {
+     "name": "Superman Punch",
+     "kind": "punch",
+     "real_description": "Faking a kick to launch into a flying long-range punch.",
+     "move": {
+      "dur": 32,
+      "from": 14,
+      "to": 19,
+      "reach": 120,
+      "mult": 1.4,
+      "knock": 60,
+      "top": 0.9,
+      "bot": 0.7,
+      "lunge": 45,
+      "tip": "handB"
+     },
+     "keyframes": [
+      {
+       "t": 8,
+       "pose": {
+        "thighB": {
+         "abs": -0.8
+        }
+       }
+      },
+      {
+       "t": 14,
+       "pose": {
+        "thighB": {
+         "abs": 2
+        },
+        "upperB": {
+         "abs": 0
+        }
+       },
+       "lunge": 45
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Jab",
+    "Cross",
+    "Superman Punch"
+   ],
+   "kick_chain": [
+    "Leg Kick",
+    "Double Leg Takedown"
+   ]
+  },
+  {
+   "name": "Kickboxing",
+   "origin": "Japan / Netherlands",
+   "stance": "High guard, square shoulders, ready to check kicks.",
+   "philosophy_in_one_line": "High-volume combinations of boxing and heavy low kicks.",
+   "drawing_cues": "Boxing gloves, kickboxing shorts, rhythmic bouncing.",
+   "techniques": [
+    {
+     "name": "Low Kick",
+     "kind": "kick",
+     "real_description": "A heavy roundhouse kick to the opponent's thigh.",
+     "move": {
+      "dur": 26,
+      "from": 10,
+      "to": 15,
+      "reach": 85,
+      "mult": 1.3,
+      "knock": 30,
+      "top": 0.4,
+      "bot": 0.1,
+      "tip": "footB"
+     },
+     "keyframes": [
+      {
+       "t": 10,
+       "pose": {
+        "thighB": {
+         "abs": 0.5
+        },
+        "shinB": {
+         "abs": 0
+        }
+       }
+      },
+      {
+       "t": 26,
+       "pose": {
+        "thighB": {
+         "abs": 1.57
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "punch_chain": [
+    "Jab",
+    "Cross",
+    "Hook"
+   ],
+   "kick_chain": [
+    "Low Kick",
+    "Roundhouse Kick"
+   ]
+  }
+ ]
+}

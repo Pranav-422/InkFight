@@ -1,0 +1,532 @@
+{
+ "anime": [
+  {
+   "title": "Solo Leveling",
+   "characters": [
+    {
+     "name": "Sung Jinwoo",
+     "fighting_style": "Dagger Arts / Shadow Monarch",
+     "moves": [
+      {
+       "official_name": "Mutilate",
+       "translation": "Nanseo",
+       "what_it_does": "A high-speed flurry of dagger slashes that shreds the opponent.",
+       "visual_sequence": [
+        "Jinwoo leans forward, eyes glowing purple.",
+        "He disappears into a blur of afterimages.",
+        "Multiple purple slash trails appear on the opponent simultaneously.",
+        "He reappears behind the opponent, sheathing his daggers."
+       ],
+       "colors": [
+        "#4B0082",
+        "#000000",
+        "#BA55D3"
+       ],
+       "sound_feel": "Rapid metallic 'shing-shing-shing' followed by a heavy bass boom.",
+       "maps_to_block": "barrage",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.4
+          },
+          "upperF": {
+           "abs": 1.2
+          },
+          "upperB": {
+           "abs": 1.2
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 5,
+         "pose": {
+          "torso": {
+           "rel": 0.8
+          },
+          "upperF": {
+           "abs": -0.5
+          },
+          "upperB": {
+           "abs": 2.5
+          }
+         },
+         "lunge": 50
+        },
+        {
+         "t": 30,
+         "pose": {
+          "torso": {
+           "rel": 0.2
+          },
+          "upperF": {
+           "abs": 1.5
+          },
+          "upperB": {
+           "abs": 1.5
+          }
+         },
+         "lunge": 10
+        }
+       ],
+       "vfx": [
+        {
+         "t": 5,
+         "effect": "afterimage",
+         "detail": "Purple shadow trails"
+        },
+        {
+         "t": 5,
+         "effect": "speedlines",
+         "detail": "Dark purple background"
+        },
+        {
+         "t": 10,
+         "effect": "slash",
+         "detail": "Criss-cross purple energy"
+        }
+       ],
+       "parody_name_ideas": [
+        "Shadow Shredder",
+        "Level Up Laceration",
+        "Monarch's Malice"
+       ]
+      },
+      {
+       "official_name": "Dominator's Touch",
+       "translation": "Shi-ja-ui Songil",
+       "what_it_does": "An invisible telekinetic force that pulls the enemy toward the user or slams them down.",
+       "visual_sequence": [
+        "Jinwoo reaches out with an open palm.",
+        "A ripple in the air travels toward the opponent.",
+        "The opponent is yanked violently toward Jinwoo's position."
+       ],
+       "colors": [
+        "#00FFFF",
+        "#FFFFFF"
+       ],
+       "sound_feel": "A vacuum-like 'whoomp' followed by a psychic hum.",
+       "maps_to_block": "NEW",
+       "new_block": {
+        "id": "pull",
+        "gameplay": "A non-damaging projectile that, on hit, resets opponent velocity and pulls them to a fixed distance (100 units) in front of the user.",
+        "timing_ticks": {
+         "startup": 12,
+         "active": 18,
+         "recovery": 15
+        },
+        "damage_mult": 0.2,
+        "range": "400 units",
+        "special_rules": "Ignores block if the opponent is in the air."
+       },
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 1.5
+          }
+         }
+        },
+        {
+         "t": 12,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          }
+         },
+         "lunge": -10
+        }
+       ],
+       "vfx": [
+        {
+         "t": 12,
+         "effect": "ring",
+         "detail": "Distortion wave"
+        },
+        {
+         "t": 15,
+         "effect": "shake",
+         "detail": "Screen jitter"
+        }
+       ],
+       "parody_name_ideas": [
+        "Ruler's Reach",
+        "Ghost Grip",
+        "Invisible Yank"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Cha Hae-In",
+     "fighting_style": "Fencing / Dancer of Sword",
+     "moves": [
+      {
+       "official_name": "Sword of Light",
+       "translation": "Bit-ui Geom",
+       "what_it_does": "A blindingly fast dash followed by a vertical pillar of light on impact.",
+       "visual_sequence": [
+        "She holds her sword vertically in front of her face.",
+        "She dashes forward as a streak of yellow light.",
+        "Upon hitting, a massive beam of light erupts from the ground."
+       ],
+       "colors": [
+        "#FFFF00",
+        "#FFFFFF"
+       ],
+       "sound_feel": "High-pitched 'ping' followed by a holy explosion.",
+       "maps_to_block": "charge",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": -1.57
+          },
+          "foreF": {
+           "rel": 0
+          }
+         }
+        },
+        {
+         "t": 10,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          }
+         },
+         "lunge": 120
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "glow",
+         "detail": "Golden aura"
+        },
+        {
+         "t": 10,
+         "effect": "beam",
+         "detail": "Vertical pillar on hit"
+        },
+        {
+         "t": 10,
+         "effect": "flash",
+         "detail": "White screen"
+        }
+       ],
+       "parody_name_ideas": [
+        "Scented Saber",
+        "Radiant Rush",
+        "Golden Glint"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Kaiju No. 8",
+   "characters": [
+    {
+     "name": "Kafka Hibino",
+     "fighting_style": "Kaiju Brawling",
+     "moves": [
+      {
+       "official_name": "Concentrated Strike",
+       "translation": "Shuchu Dageki",
+       "what_it_does": "Kafka concentrates all his Kaiju energy into a single, devastating straight punch.",
+       "visual_sequence": [
+        "Kafka's arm muscles expand and blue lightning crackles.",
+        "He takes a deep stance, the ground cracking beneath him.",
+        "He throws a punch that creates a massive sonic boom and blue energy cone."
+       ],
+       "colors": [
+        "#00CED1",
+        "#FFFFFF",
+        "#000000"
+       ],
+       "sound_feel": "Electrical crackle followed by a thunderous 'KABOOM'.",
+       "maps_to_block": "spiral",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.5
+          },
+          "upperF": {
+           "abs": 2.5
+          },
+          "thighF": {
+           "rel": -0.5
+          }
+         },
+         "lunge": -20
+        },
+        {
+         "t": 20,
+         "pose": {
+          "torso": {
+           "rel": -0.3
+          },
+          "upperF": {
+           "abs": 0
+          },
+          "foreF": {
+           "rel": 0
+          }
+         },
+         "lunge": 80
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "particles",
+         "detail": "Blue lightning"
+        },
+        {
+         "t": 20,
+         "effect": "sphere",
+         "detail": "Blue energy impact"
+        },
+        {
+         "t": 20,
+         "effect": "zoom",
+         "detail": "Focus on fist"
+        }
+       ],
+       "parody_name_ideas": [
+        "Monster Mash",
+        "Core Buster",
+        "100% Punch"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Soshiro Hoshina",
+     "fighting_style": "Hoshina-style Saber Arts",
+     "moves": [
+      {
+       "official_name": "1st Form: Empty Strike",
+       "translation": "Ichi-no-kata: Kugeki",
+       "what_it_does": "A cross-shaped dual slash delivered at blinding speed.",
+       "visual_sequence": [
+        "Hoshina crouches extremely low, swords crossed.",
+        "He flashes forward, appearing behind the enemy.",
+        "An 'X' shaped blue slash mark appears on the enemy."
+       ],
+       "colors": [
+        "#87CEEB",
+        "#FFFFFF"
+       ],
+       "sound_feel": "Two sharp 'shink' sounds in rapid succession.",
+       "maps_to_block": "slash",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 1.2
+          },
+          "thighF": {
+           "rel": -1.2
+          },
+          "thighB": {
+           "rel": 1.2
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 8,
+         "pose": {
+          "torso": {
+           "rel": 0.2
+          },
+          "upperF": {
+           "abs": 0.5
+          },
+          "upperB": {
+           "abs": -0.5
+          }
+         },
+         "lunge": 150
+        }
+       ],
+       "vfx": [
+        {
+         "t": 8,
+         "effect": "afterimage",
+         "detail": "Teal blur"
+        },
+        {
+         "t": 10,
+         "effect": "slash",
+         "detail": "X-shape"
+        }
+       ],
+       "parody_name_ideas": [
+        "Vice-Captain's Verdict",
+        "Twin Tooth",
+        "Empty Edge"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Sakamoto Days",
+   "characters": [
+    {
+     "name": "Taro Sakamoto",
+     "fighting_style": "Improvised Weaponry / MMA",
+     "moves": [
+      {
+       "official_name": "Slim Form Rush",
+       "translation": "Yase-tai Ransha",
+       "what_it_does": "Sakamoto burns calories to enter his slim form, delivering a flurry of strikes using nearby objects.",
+       "visual_sequence": [
+        "Sakamoto's body visibly deflates/slims down in a puff of steam.",
+        "He unleashes a barrage of punches and kicks with extreme speed.",
+        "The final hit is a heavy strike with a random object (e.g., a tray or a pen)."
+       ],
+       "colors": [
+        "#FF4500",
+        "#FFFFFF"
+       ],
+       "sound_feel": "Rapid 'thud-thud-thud' ending with a metallic 'clack'.",
+       "maps_to_block": "barrage",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "head": {
+           "rel": 0.2
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 5,
+         "pose": {
+          "torso": {
+           "rel": 0
+          }
+         },
+         "lunge": 20
+        },
+        {
+         "t": 40,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          }
+         },
+         "lunge": 10
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "particles",
+         "detail": "White steam puff"
+        },
+        {
+         "t": 5,
+         "effect": "speedlines",
+         "detail": "Action focus"
+        },
+        {
+         "t": 40,
+         "effect": "slowmo",
+         "detail": "Impact freeze"
+        }
+       ],
+       "parody_name_ideas": [
+        "Diet Destroyer",
+        "Retail Rage",
+        "Ex-Legend Combo"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Shin Asakura",
+     "fighting_style": "Clairvoyant Brawling",
+     "moves": [
+      {
+       "official_name": "Future Sight Counter",
+       "translation": "Saki-yomi Counter",
+       "what_it_does": "Shin reads the opponent's mind to perfectly dodge and deliver a counter-punch to the chin.",
+       "visual_sequence": [
+        "Shin touches his temple, eyes widening.",
+        "A ghostly outline of the opponent's next move appears.",
+        "Shin leans back slightly as the attack passes, then strikes the opponent's jaw."
+       ],
+       "colors": [
+        "#00FF00",
+        "#FFFFFF"
+       ],
+       "sound_feel": "A 'ringing' sound followed by a crisp 'crack'.",
+       "maps_to_block": "NEW",
+       "new_block": {
+        "id": "counter",
+        "gameplay": "User enters a parry state for 30 ticks. If hit by a physical move, the user takes 0 damage and automatically performs a 1.5x damage uppercut.",
+        "timing_ticks": {
+         "startup": 2,
+         "active": 30,
+         "recovery": 20
+        },
+        "damage_mult": 1.5,
+        "range": "60 units",
+        "special_rules": "Only triggers on 'hand', 'foot', or 'knee' tips."
+       },
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperB": {
+           "abs": -1.5
+          }
+         }
+        },
+        {
+         "t": 5,
+         "pose": {
+          "torso": {
+           "rel": 0.3
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "glow",
+         "detail": "Green eye glint"
+        },
+        {
+         "t": 2,
+         "effect": "afterimage",
+         "detail": "Ghostly opponent frame"
+        }
+       ],
+       "parody_name_ideas": [
+        "Mind Reader's Right",
+        "Spoiler Alert",
+        "Thought Tracer"
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

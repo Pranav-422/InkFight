@@ -1,0 +1,205 @@
+{
+ "concepts": [
+  {
+   "stat": "Health (HP)",
+   "what_it_does": "The total volume of damage a fighter can sustain before a knockout. It acts as the primary 'mistake buffer'.",
+   "how_games_use_it": "Street Fighter uses variable HP (Akuma 900 vs Zangief 1100) to balance high-mobility or high-damage kits. Smash Bros uses a 'Percent' system where higher HP/Percent increases knockback distance.",
+   "numbers_seen_in_games": "Street Fighter: 900–1100. Tekken: 170–180. Pokémon: 10–714."
+  },
+  {
+   "stat": "Durability / Defense",
+   "what_it_does": "A multiplier that reduces incoming damage. It determines 'Effective HP' (EHP).",
+   "how_games_use_it": "Guilty Gear uses a 'Defense Multiplier' (Guts system) where characters take less damage as their HP drops. RPGs use flat reduction (Damage - Defense) or percentage scaling.",
+   "numbers_seen_in_games": "Guilty Gear: 0.96x to 1.3x damage taken. MOBAs: 100 Armor = 50% damage reduction."
+  },
+  {
+   "stat": "Attack / Damage",
+   "what_it_does": "The raw value subtracted from the opponent's HP per successful hit.",
+   "how_games_use_it": "Fighting games usually have fixed damage per move (e.g., Ryu's Jab = 30), but use 'Guts' or 'Scaling' to reduce damage during long combos to prevent one-touch kills.",
+   "numbers_seen_in_games": "Light attacks: 2–5% of total HP. Heavy attacks: 10–15% of total HP."
+  },
+  {
+   "stat": "Speed (Movement & Frame Data)",
+   "what_it_does": "Controls walk speed, dash distance, and the speed of move execution (startup/recovery).",
+   "how_games_use_it": "Speed determines the 'Neutral' game—who can dictate the distance. Fast characters can 'whiff punish' (hit an opponent during their recovery) more easily.",
+   "numbers_seen_in_games": "Walk speeds: 3.0 to 7.0 units/frame. Jump startup: 3–6 frames."
+  },
+  {
+   "stat": "Range",
+   "what_it_does": "The physical reach of hitboxes. It defines the 'threat zone' around a character.",
+   "how_games_use_it": "Zoners (Dhalsim) have massive range but poor close-up speed. Grapplers have tiny range but massive damage if they get inside.",
+   "numbers_seen_in_games": "Standard Jab: 60–80 units. Long Poke: 150–250 units."
+  }
+ ],
+ "frame_data": {
+  "explanation": "Frame data defines the timeline of an action. Startup is the 'wind-up' before the hit. Active is when the hit can land. Recovery is the 'cooldown' where the fighter is vulnerable. 'Advantage' is the difference in recovery time between the attacker and the blocker.",
+  "light_medium_heavy_examples": [
+   {
+    "kind": "Light (Jab)",
+    "startup": 4,
+    "active": 3,
+    "recovery": 7,
+    "ticks_at_60hz": "14 ticks"
+   },
+   {
+    "kind": "Medium (Kick)",
+    "startup": 8,
+    "active": 4,
+    "recovery": 14,
+    "ticks_at_60hz": "26 ticks"
+   },
+   {
+    "kind": "Heavy (Roundhouse)",
+    "startup": 14,
+    "active": 6,
+    "recovery": 22,
+    "ticks_at_60hz": "42 ticks"
+   }
+  ]
+ },
+ "archetypes": [
+  {
+   "name": "Rushdown",
+   "strengths": "High speed, fast startup frames, great pressure.",
+   "weaknesses": "Low durability, low range, requires many hits to kill.",
+   "stat_shape": "High SPD, Low DUR, Mid ATK."
+  },
+  {
+   "name": "Zoner",
+   "strengths": "Extreme range, projectiles, keeps opponents away.",
+   "weaknesses": "Slow movement, vulnerable if cornered, slow recovery.",
+   "stat_shape": "Mid ATK, Low SPD, Mid DUR, High Range."
+  },
+  {
+   "name": "Grappler",
+   "strengths": "High durability, massive single-hit damage, unblockable throws.",
+   "weaknesses": "Very slow, poor range, easily poked out.",
+   "stat_shape": "High DUR, High ATK, Low SPD."
+  },
+  {
+   "name": "Tank",
+   "strengths": "Highest durability, high knockback resistance, 'armor' on moves.",
+   "weaknesses": "Large hitbox (easy to hit), slow walk speed.",
+   "stat_shape": "Max DUR, Mid ATK, Low SPD."
+  },
+  {
+   "name": "All-Rounder",
+   "strengths": "Versatile, no major weaknesses, balanced tools.",
+   "weaknesses": "No extreme strengths to exploit.",
+   "stat_shape": "Mid DUR, Mid ATK, Mid SPD."
+  }
+ ],
+ "balance_methods": [
+  {
+   "method": "Stat Budgeting",
+   "how": "Assigning a fixed pool of points. If a character is faster, they must be more fragile or weaker.",
+   "example": "Smash Bros: Bowser is heavy and strong but slow; Sheik is fast but light."
+  },
+  {
+   "method": "Risk vs Reward (Frame Advantage)",
+   "how": "High-damage moves are made 'unsafe' on block (long recovery), meaning they can be punished if they don't hit.",
+   "example": "Street Fighter: Shoryuken does massive damage but leaves the user helpless for 40+ frames if blocked."
+  },
+  {
+   "method": "Hit-Stun vs Block-Stun",
+   "how": "Adjusting how long an opponent is frozen after being hit. This controls combo potential.",
+   "example": "Tekken: Certain moves 'launch' for a full combo, but are -15 frames on block (guaranteed punish)."
+  }
+ ],
+ "inkfight_proposal": {
+  "hp": 200,
+  "budget": 210,
+  "stats": [
+   {
+    "name": "Durability (DUR)",
+    "min": 40,
+    "max": 100,
+    "formula": "Damage Taken Multiplier = 1.0 - (DUR - 70) / 100",
+    "meaning": "At 100 DUR, you take 0.7x damage. At 40 DUR, you take 1.3x damage."
+   },
+   {
+    "name": "Attack (ATK)",
+    "min": 40,
+    "max": 100,
+    "formula": "Damage Dealt Multiplier = ATK / 70",
+    "meaning": "At 100 ATK, you deal 1.42x base damage. At 40 ATK, you deal 0.57x base damage."
+   },
+   {
+    "name": "Speed (SPD)",
+    "min": 40,
+    "max": 100,
+    "formula": "Walk Speed = 3.0 + (SPD / 20); Combo Cooldown Multiplier = 1.0 - (SPD - 70) / 200",
+    "meaning": "High SPD increases movement and reduces the gap between combo hits by up to 15%."
+   }
+  ],
+  "drawing_to_stats": [
+   {
+    "drawing_trait": "Bulky torso, thick limbs, or heavy solid-color fills",
+    "effect": "Increases Durability (DUR)."
+   },
+   {
+    "drawing_trait": "Large hands/feet, weapons (swords/clubs), or sharp/spiky edges",
+    "effect": "Increases Attack (ATK)."
+   },
+   {
+    "drawing_trait": "Thin lines, small overall size, or dynamic 'leaning' poses",
+    "effect": "Increases Speed (SPD)."
+   },
+   {
+    "drawing_trait": "Wide leg stance or low center of gravity",
+    "effect": "Increases Knockback Resistance (hidden DUR sub-stat)."
+   }
+  ],
+  "example_builds": [
+   {
+    "name": "The Average Joe (All-Rounder)",
+    "durability": 70,
+    "attack": 70,
+    "speed": 70,
+    "time_to_kill_seconds": 8,
+    "notes": "The baseline. Takes 1.0x damage, deals 1.0x damage."
+   },
+   {
+    "name": "Iron Giant (Tank)",
+    "durability": 100,
+    "attack": 70,
+    "speed": 40,
+    "time_to_kill_seconds": 9.2,
+    "notes": "Takes 0.7x damage. Very hard to kill (11.4s survival), but slow to land hits."
+   },
+   {
+    "name": "Paper Blade (Glass Cannon)",
+    "durability": 40,
+    "attack": 100,
+    "speed": 70,
+    "time_to_kill_seconds": 5.6,
+    "notes": "Deals 1.42x damage. Can end fights instantly but dies in 6.1s if caught."
+   },
+   {
+    "name": "Turbo (Speedster)",
+    "durability": 50,
+    "attack": 60,
+    "speed": 100,
+    "time_to_kill_seconds": 8,
+    "notes": "Low damage per hit, but 15% faster combos and high walk speed allow for constant pressure."
+   },
+   {
+    "name": "The Juggernaut (Heavy Brawler)",
+    "durability": 80,
+    "attack": 90,
+    "speed": 40,
+    "time_to_kill_seconds": 7.2,
+    "notes": "Strong and sturdy, but struggles to close the distance against zoners."
+   },
+   {
+    "name": "The Mosquito (Harasser)",
+    "durability": 40,
+    "attack": 70,
+    "speed": 100,
+    "time_to_kill_seconds": 6.8,
+    "notes": "Extremely fast and decent damage, but one mistake leads to a quick knockout."
+   }
+  ],
+  "notes": "Base DPS for TTK calculations is assumed at 25 damage/sec for a 70/70/70 fighter. Time-to-kill is calculated against an 'Average Joe' opponent."
+ }
+}

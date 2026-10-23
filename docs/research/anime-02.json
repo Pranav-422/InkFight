@@ -1,0 +1,554 @@
+{
+ "anime": [
+  {
+   "title": "Bleach",
+   "characters": [
+    {
+     "name": "Ichigo Kurosaki",
+     "fighting_style": "Zanjutsu (Kendo-style heavy swordplay)",
+     "moves": [
+      {
+       "official_name": "Getsuga Tensho",
+       "translation": "Moon Fang Heaven-Piercer",
+       "what_it_does": "A massive crescent of spiritual energy fired from the sword tip.",
+       "visual_sequence": [
+        "Ichigo raises Zangetsu over his shoulder with both hands.",
+        "Energy swirls around the blade in a blue/black spiral.",
+        "A violent downward swing releases a traveling crescent wave."
+       ],
+       "colors": [
+        "#00aaff",
+        "#000000"
+       ],
+       "sound_feel": "High-pitched energy hum followed by a thunderous boom.",
+       "maps_to_block": "slash",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "abs": -0.2
+          },
+          "upperF": {
+           "abs": -2.5
+          },
+          "foreF": {
+           "abs": -1
+          },
+          "upperB": {
+           "abs": -2.5
+          },
+          "foreB": {
+           "abs": -1
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 15,
+         "pose": {
+          "torso": {
+           "abs": 0.4
+          },
+          "upperF": {
+           "abs": 0.8
+          },
+          "foreF": {
+           "abs": 0.2
+          },
+          "upperB": {
+           "abs": 0.8
+          },
+          "foreB": {
+           "abs": 0.2
+          }
+         },
+         "lunge": 40
+        }
+       ],
+       "vfx": [
+        {
+         "t": 10,
+         "effect": "glow",
+         "detail": "Sword blade glows bright blue"
+        },
+        {
+         "t": 15,
+         "effect": "slash",
+         "detail": "Large blue crescent projectile"
+        },
+        {
+         "t": 15,
+         "effect": "shake",
+         "detail": "Heavy screen shake on release"
+        }
+       ],
+       "parody_name_ideas": [
+        "Moon-Fang Blast",
+        "Crescent Slicer"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Byakuya Kuchiki",
+     "fighting_style": "Elegant Kenjutsu / Senka (Flash Step)",
+     "moves": [
+      {
+       "official_name": "Senbonzakura Kageyoshi",
+       "translation": "Vibrant Display of a Thousand Cherry Blossoms",
+       "what_it_does": "The sword dissolves into thousands of tiny blade fragments that swarm the opponent.",
+       "visual_sequence": [
+        "Byakuya drops his sword vertically into the ground.",
+        "Two rows of giant swords rise from the floor.",
+        "The blades scatter into a pink petal storm that shreds the target."
+       ],
+       "colors": [
+        "#ffb7c5",
+        "#ffffff"
+       ],
+       "sound_feel": "Soft metallic rustling like wind through chimes.",
+       "maps_to_block": "barrage",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "abs": 0
+          },
+          "upperF": {
+           "abs": 1.57
+          },
+          "foreF": {
+           "abs": 1.57
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 30,
+         "pose": {
+          "upperF": {
+           "abs": 0.5
+          },
+          "foreF": {
+           "abs": 0
+          }
+         },
+         "lunge": 0
+        }
+       ],
+       "vfx": [
+        {
+         "t": 10,
+         "effect": "particles",
+         "detail": "Pink petal shards rising from floor"
+        },
+        {
+         "t": 30,
+         "effect": "afterimage",
+         "detail": "Petals swirling in a vortex"
+        }
+       ],
+       "parody_name_ideas": [
+        "Petal Storm",
+        "Thousand Blade Rose"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Jujutsu Kaisen",
+   "characters": [
+    {
+     "name": "Yuji Itadori",
+     "fighting_style": "Mixed Martial Arts with Cursed Energy",
+     "moves": [
+      {
+       "official_name": "Kokusen",
+       "translation": "Black Flash",
+       "what_it_does": "A spatial distortion that occurs when cursed energy is applied within 0.000001 seconds of a physical hit.",
+       "visual_sequence": [
+        "Yuji winds up a heavy straight punch.",
+        "Black lightning sparks around his fist.",
+        "On impact, the screen flashes black and red with massive hit-stop."
+       ],
+       "colors": [
+        "#ff0000",
+        "#000000"
+       ],
+       "sound_feel": "A distorted, heavy 'CRACK' like glass shattering.",
+       "maps_to_block": "charge",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "abs": 0.5
+          },
+          "upperF": {
+           "abs": -1.2
+          },
+          "foreF": {
+           "abs": -1.5
+          }
+         },
+         "lunge": -20
+        },
+        {
+         "t": 12,
+         "pose": {
+          "torso": {
+           "abs": -0.2
+          },
+          "upperF": {
+           "abs": 0.2
+          },
+          "foreF": {
+           "abs": 0
+          }
+         },
+         "lunge": 120
+        }
+       ],
+       "vfx": [
+        {
+         "t": 12,
+         "effect": "flash",
+         "detail": "Inverse screen colors for 2 ticks"
+        },
+        {
+         "t": 12,
+         "effect": "slowmo",
+         "detail": "Hit-stop for 10 ticks"
+        },
+        {
+         "t": 12,
+         "effect": "particles",
+         "detail": "Black lightning streaks"
+        }
+       ],
+       "parody_name_ideas": [
+        "Dark Spark",
+        "Void Impact"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Satoru Gojo",
+     "fighting_style": "Limitless (Space Manipulation)",
+     "moves": [
+      {
+       "official_name": "Kyoshiki: Murasaki",
+       "translation": "Hollow Technique: Purple",
+       "what_it_does": "Merges Blue (attraction) and Red (repulsion) into a singularity that erases everything in its path.",
+       "visual_sequence": [
+        "Gojo snaps his fingers, creating a red orb and a blue orb.",
+        "The orbs merge into a glowing purple sphere.",
+        "A massive, wide beam of purple energy deletes the horizontal plane."
+       ],
+       "colors": [
+        "#800080",
+        "#ffffff"
+       ],
+       "sound_feel": "Eerie silence followed by a deep, vibrating bass roar.",
+       "maps_to_block": "beam",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": -1.5
+          },
+          "upperB": {
+           "abs": -1.5
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 40,
+         "pose": {
+          "foreF": {
+           "abs": -1.5
+          },
+          "foreB": {
+           "abs": -1.5
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 60,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          },
+          "upperB": {
+           "abs": 0
+          }
+         },
+         "lunge": -30
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "sphere",
+         "detail": "Small red and blue spheres"
+        },
+        {
+         "t": 40,
+         "effect": "sphere",
+         "detail": "Large pulsing purple sphere"
+        },
+        {
+         "t": 60,
+         "effect": "beam",
+         "detail": "Screen-filling purple beam"
+        },
+        {
+         "t": 60,
+         "effect": "zoom",
+         "detail": "Camera pull back"
+        }
+       ],
+       "parody_name_ideas": [
+        "Void Grape",
+        "Infinite Purple"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Demon Slayer",
+   "characters": [
+    {
+     "name": "Tanjiro Kamado",
+     "fighting_style": "Sun Breathing (Hinokami Kagura)",
+     "moves": [
+      {
+       "official_name": "Hinokami Kagura: Enbu",
+       "translation": "Dance of the Fire God: Waltz",
+       "what_it_does": "A high-powered circular slash shrouded in solar flames.",
+       "visual_sequence": [
+        "Tanjiro takes a deep breath, steam coming from his mouth.",
+        "He performs a wide, circular overhead swing.",
+        "A trail of realistic orange/red fire follows the blade arc."
+       ],
+       "colors": [
+        "#ff4500",
+        "#ffff00"
+       ],
+       "sound_feel": "The roar of a furnace blast.",
+       "maps_to_block": "slash",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "thighF": {
+           "abs": 1
+          },
+          "thighB": {
+           "abs": 2
+          },
+          "torso": {
+           "abs": 0.5
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 15,
+         "pose": {
+          "upperF": {
+           "abs": -2.5
+          },
+          "foreF": {
+           "abs": -1
+          }
+         },
+         "lunge": 50
+        },
+        {
+         "t": 25,
+         "pose": {
+          "upperF": {
+           "abs": 1
+          },
+          "foreF": {
+           "abs": 0.5
+          }
+         },
+         "lunge": 30
+        }
+       ],
+       "vfx": [
+        {
+         "t": 15,
+         "effect": "ring",
+         "detail": "Circular fire trail"
+        },
+        {
+         "t": 15,
+         "effect": "particles",
+         "detail": "Burning embers"
+        }
+       ],
+       "parody_name_ideas": [
+        "Sun Dance",
+        "Solar Slasher"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Zenitsu Agatsuma",
+     "fighting_style": "Thunder Breathing (Iaijutsu/Quick-draw)",
+     "moves": [
+      {
+       "official_name": "Hekireki Itten: Rokuren",
+       "translation": "Thunderclap and Flash: Sixfold",
+       "what_it_does": "An instantaneous dash and slash performed at god-like speed.",
+       "visual_sequence": [
+        "Zenitsu enters a low, trembling crouch with hand on hilt.",
+        "Lightning sparks explode around his feet.",
+        "He vanishes, appearing behind the opponent as a zig-zag of light."
+       ],
+       "colors": [
+        "#ffff00",
+        "#ffffff"
+       ],
+       "sound_feel": "A single, sharp thunderbolt crack.",
+       "maps_to_block": "teleport",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "abs": 1.2
+          },
+          "thighF": {
+           "abs": 0.6
+          },
+          "thighB": {
+           "abs": 2.5
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 20,
+         "pose": {
+          "torso": {
+           "abs": 1
+          },
+          "upperF": {
+           "abs": 0
+          }
+         },
+         "lunge": 600
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "speedlines",
+         "detail": "Yellow radial lines"
+        },
+        {
+         "t": 20,
+         "effect": "afterimage",
+         "detail": "Yellow silhouette trail"
+        },
+        {
+         "t": 20,
+         "effect": "flash",
+         "detail": "Bright yellow screen flash"
+        }
+       ],
+       "parody_name_ideas": [
+        "Static Dash",
+        "Thunder Bolt"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Kyojuro Rengoku",
+     "fighting_style": "Flame Breathing (Aggressive Kenjutsu)",
+     "moves": [
+      {
+       "official_name": "Ku no Kata: Rengoku",
+       "translation": "Ninth Form: Purgatory",
+       "what_it_does": "A devastating charging slash that takes the form of a flaming dragon.",
+       "visual_sequence": [
+        "Rengoku holds his sword back, wreathed in intense fire.",
+        "He launches forward like a missile.",
+        "The fire shapes into a dragon head as he strikes."
+       ],
+       "colors": [
+        "#ff0000",
+        "#ff8c00"
+       ],
+       "sound_feel": "A jet engine roar mixed with a dragon's growl.",
+       "maps_to_block": "charge",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": -2.2
+          },
+          "torso": {
+           "abs": 0.6
+          }
+         },
+         "lunge": -40
+        },
+        {
+         "t": 25,
+         "pose": {
+          "upperF": {
+           "abs": 0.5
+          },
+          "torso": {
+           "abs": -0.2
+          }
+         },
+         "lunge": 450
+        }
+       ],
+       "vfx": [
+        {
+         "t": 5,
+         "effect": "glow",
+         "detail": "Intense orange aura"
+        },
+        {
+         "t": 25,
+         "effect": "sphere",
+         "detail": "Fire dragon head at front of lunge"
+        },
+        {
+         "t": 25,
+         "effect": "shake",
+         "detail": "Continuous screen rumble"
+        }
+       ],
+       "parody_name_ideas": [
+        "Blazing Dragon",
+        "Inferno Rush"
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

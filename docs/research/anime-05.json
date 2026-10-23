@@ -1,0 +1,824 @@
+{
+ "anime": [
+  {
+   "title": "Yu Yu Hakusho",
+   "characters": [
+    {
+     "name": "Yusuke Urameshi",
+     "fighting_style": "Street Fighting / Spirit Wave",
+     "moves": [
+      {
+       "official_name": "Reigun",
+       "translation": "Spirit Gun",
+       "what_it_does": "Concentrates spirit energy into the index finger and fires it as a projectile.",
+       "visual_sequence": [
+        "Yusuke crouches slightly and forms a finger-gun with his right hand",
+        "Blue energy gathers at the fingertip with a spiraling effect",
+        "A massive blue orb of energy blasts forward across the screen"
+       ],
+       "colors": [
+        "#00FFFF",
+        "#FFFFFF"
+       ],
+       "sound_feel": "High-pitched charging whistle followed by a thunderous boom",
+       "maps_to_block": "bolt",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.2
+          },
+          "upperF": {
+           "abs": 1.2
+          },
+          "foreF": {
+           "abs": 1.5
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 15,
+         "pose": {
+          "upperF": {
+           "abs": -0.5
+          },
+          "foreF": {
+           "abs": 2
+          }
+         },
+         "lunge": -10
+        },
+        {
+         "t": 25,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          },
+          "foreF": {
+           "abs": 0
+          }
+         },
+         "lunge": 20
+        },
+        {
+         "t": 45,
+         "pose": {
+          "upperF": {
+           "abs": 0.5
+          },
+          "foreF": {
+           "abs": 0.5
+          }
+         },
+         "lunge": 0
+        }
+       ],
+       "vfx": [
+        {
+         "t": 15,
+         "effect": "glow",
+         "detail": "Cyan aura at fingertip"
+        },
+        {
+         "t": 25,
+         "effect": "flash",
+         "detail": "Screen white-out for 2 ticks"
+        },
+        {
+         "t": 25,
+         "effect": "speedlines",
+         "detail": "Horizontal focus"
+        }
+       ],
+       "parody_name_ideas": [
+        "Ghost Pistol",
+        "Soul Shot",
+        "Aura Blast"
+       ]
+      },
+      {
+       "official_name": "Shotgun",
+       "translation": "Shotgun",
+       "what_it_does": "Fires a barrage of small spirit energy orbs from the fist in a spread pattern.",
+       "visual_sequence": [
+        "Yusuke pulls his fist back as it glows blue",
+        "He punches forward rapidly, releasing multiple small blue sparks",
+        "The sparks travel in a cone shape"
+       ],
+       "colors": [
+        "#00AEEF"
+       ],
+       "sound_feel": "Rapid-fire popping sounds",
+       "maps_to_block": "barrage",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 1.5
+          }
+         }
+        },
+        {
+         "t": 5,
+         "pose": {
+          "upperF": {
+           "abs": -0.2
+          },
+          "foreF": {
+           "abs": 0.2
+          }
+         }
+        },
+        {
+         "t": 10,
+         "pose": {
+          "upperB": {
+           "abs": -0.1
+          },
+          "foreB": {
+           "abs": 0.1
+          }
+         }
+        },
+        {
+         "t": 15,
+         "pose": {
+          "upperF": {
+           "abs": 0.1
+          },
+          "foreF": {
+           "abs": -0.1
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 5,
+         "effect": "particles",
+         "detail": "Blue energy sparks flying forward"
+        },
+        {
+         "t": 10,
+         "effect": "shake",
+         "detail": "Light camera jitter"
+        }
+       ],
+       "parody_name_ideas": [
+        "Spirit Spray",
+        "Soul Scatter"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Hiei",
+     "fighting_style": "Swordplay / Jaganshi",
+     "moves": [
+      {
+       "official_name": "Jaou Ensatsu Kokuryuha",
+       "translation": "Dragon of the Darkness Flame",
+       "what_it_does": "Summons a massive dragon made of black hellfire from the demon world.",
+       "visual_sequence": [
+        "Hiei unwraps his right arm, revealing the black dragon tattoo",
+        "Black flames erupt around him",
+        "A giant black dragon head lunges across the screen, consuming everything"
+       ],
+       "colors": [
+        "#000000",
+        "#4B0082"
+       ],
+       "sound_feel": "Deep, demonic roar and rushing wind",
+       "maps_to_block": "bolt",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 1.5
+          },
+          "head": {
+           "rel": 0.3
+          }
+         }
+        },
+        {
+         "t": 30,
+         "pose": {
+          "upperF": {
+           "abs": -0.5
+          },
+          "foreF": {
+           "abs": 0
+          }
+         },
+         "lunge": 30
+        },
+        {
+         "t": 60,
+         "pose": {
+          "torso": {
+           "rel": -0.4
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "afterimage",
+         "detail": "Purple shadows"
+        },
+        {
+         "t": 30,
+         "effect": "zoom",
+         "detail": "Focus on Hiei's face"
+        },
+        {
+         "t": 35,
+         "effect": "sphere",
+         "detail": "Black fire expansion"
+        }
+       ],
+       "parody_name_ideas": [
+        "Shadow Wyrm",
+        "Darkfire Serpent",
+        "Abyssal Dragon"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Younger Toguro",
+     "fighting_style": "Muscle Power",
+     "moves": [
+      {
+       "official_name": "100% no Naka no 100%",
+       "translation": "100% of 100% Power",
+       "what_it_does": "Forces the body to expand to its absolute limit, increasing all physical stats.",
+       "visual_sequence": [
+        "Toguro's muscles bulge and ripple violently",
+        "His skin turns greyish and veins pop out",
+        "A massive green aura explodes around him"
+       ],
+       "colors": [
+        "#32CD32"
+       ],
+       "sound_feel": "Cracking bones and heavy bass hum",
+       "maps_to_block": "NEW",
+       "new_block": {
+        "id": "stat_boost",
+        "gameplay": "Increases ATK and DEF by 50% for 600 ticks. Character size increases by 1.2x.",
+        "timing_ticks": {
+         "startup": 40,
+         "active": 600,
+         "recovery": 20
+        },
+        "damage_mult": 1,
+        "range": "self",
+        "special_rules": "Super armor during startup."
+       },
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.5
+          }
+         }
+        },
+        {
+         "t": 20,
+         "pose": {
+          "upperF": {
+           "abs": 1
+          },
+          "upperB": {
+           "abs": 1
+          }
+         }
+        },
+        {
+         "t": 40,
+         "pose": {
+          "torso": {
+           "rel": 0
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "shake",
+         "detail": "Continuous heavy shake"
+        },
+        {
+         "t": 40,
+         "effect": "ring",
+         "detail": "Green shockwave from feet"
+        }
+       ],
+       "parody_name_ideas": [
+        "Max Overload",
+        "Full Bulk",
+        "Absolute Unit"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Fist of the North Star",
+   "characters": [
+    {
+     "name": "Kenshiro",
+     "fighting_style": "Hokuto Shinken",
+     "moves": [
+      {
+       "official_name": "Hokuto Hyakuretsu Ken",
+       "translation": "Hundred Crack Fist",
+       "what_it_does": "A flurry of rapid punches to the opponent's pressure points.",
+       "visual_sequence": [
+        "Kenshiro lets out a high-pitched battle cry (ATATATA!)",
+        "His arms become a blur of dozens of punches",
+        "The opponent is hit multiple times, ending with a final thumb strike"
+       ],
+       "colors": [
+        "#FFFFFF",
+        "#ADD8E6"
+       ],
+       "sound_feel": "Rapid 'thwip' sounds followed by a delayed explosion sound",
+       "maps_to_block": "barrage",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.2
+          }
+         },
+         "lunge": 10
+        },
+        {
+         "t": 5,
+         "pose": {
+          "upperF": {
+           "abs": -0.2
+          },
+          "foreF": {
+           "abs": 0.2
+          }
+         }
+        },
+        {
+         "t": 10,
+         "pose": {
+          "upperB": {
+           "abs": 0.1
+          },
+          "foreB": {
+           "abs": -0.1
+          }
+         }
+        },
+        {
+         "t": 15,
+         "pose": {
+          "upperF": {
+           "abs": 0.3
+          },
+          "foreF": {
+           "abs": -0.3
+          }
+         }
+        },
+        {
+         "t": 40,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          },
+          "foreF": {
+           "abs": 0
+          }
+         },
+         "lunge": 5
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "speedlines",
+         "detail": "Radial focus"
+        },
+        {
+         "t": 5,
+         "effect": "afterimage",
+         "detail": "Multiple arms"
+        },
+        {
+         "t": 45,
+         "effect": "slowmo",
+         "detail": "Brief pause on final hit"
+        }
+       ],
+       "parody_name_ideas": [
+        "North Star Flurry",
+        "Pressure Point Mash",
+        "You Are Dead"
+       ]
+      },
+      {
+       "official_name": "Musou Tensei",
+       "translation": "Nil-Thought Transmigration",
+       "what_it_does": "Kenshiro enters a state of nothingness, becoming intangible.",
+       "visual_sequence": [
+        "Kenshiro's body becomes translucent with a soft glow",
+        "He glides forward, leaving multiple afterimages of fallen friends",
+        "He passes through the opponent's attacks"
+       ],
+       "colors": [
+        "#FFFFFF",
+        "#E0FFFF"
+       ],
+       "sound_feel": "Ethereal chiming and wind",
+       "maps_to_block": "NEW",
+       "new_block": {
+        "id": "ethereal_state",
+        "gameplay": "User is immune to all hitboxes and can walk through the opponent for 180 ticks.",
+        "timing_ticks": {
+         "startup": 10,
+         "active": 180,
+         "recovery": 10
+        },
+        "damage_mult": 0,
+        "range": "self",
+        "special_rules": "Cannot attack while active; ends early if an attack is initiated."
+       },
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": -0.1
+          }
+         }
+        },
+        {
+         "t": 10,
+         "pose": {
+          "torso": {
+           "rel": 0
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "afterimage",
+         "detail": "Faded blue trails"
+        },
+        {
+         "t": 0,
+         "effect": "glow",
+         "detail": "White aura"
+        }
+       ],
+       "parody_name_ideas": [
+        "Zen Ghost",
+        "Void Walk",
+        "Empty Soul"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Raoh",
+     "fighting_style": "Hokuto Shinken (King of Fist)",
+     "moves": [
+      {
+       "official_name": "Tensho Honretsu",
+       "translation": "Heavenly Command Charge",
+       "what_it_does": "Raoh gathers massive ki and fires a concentrated beam from both palms.",
+       "visual_sequence": [
+        "Raoh raises his hands to the sky, then brings them forward",
+        "A massive pillar of golden energy blasts horizontally",
+        "The ground beneath him cracks"
+       ],
+       "colors": [
+        "#FFD700",
+        "#FFA500"
+       ],
+       "sound_feel": "Low frequency rumble and a massive explosion",
+       "maps_to_block": "beam",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": -1.5
+          },
+          "upperB": {
+           "abs": -1.5
+          }
+         }
+        },
+        {
+         "t": 20,
+         "pose": {
+          "upperF": {
+           "abs": -0.1
+          },
+          "upperB": {
+           "abs": 0.1
+          }
+         }
+        },
+        {
+         "t": 60,
+         "pose": {
+          "torso": {
+           "rel": 0.2
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 20,
+         "effect": "beam",
+         "detail": "Thick golden beam"
+        },
+        {
+         "t": 20,
+         "effect": "shake",
+         "detail": "Heavy screen shake"
+        },
+        {
+         "t": 20,
+         "effect": "flash",
+         "detail": "Yellow screen flash"
+        }
+       ],
+       "parody_name_ideas": [
+        "King's Decree",
+        "Heavenly Blast",
+        "Overlord Beam"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "JoJo's Bizarre Adventure",
+   "characters": [
+    {
+     "name": "Jotaro Kujo",
+     "fighting_style": "Stand (Star Platinum)",
+     "moves": [
+      {
+       "official_name": "Ora Ora Rush",
+       "translation": "Ora Ora Barrage",
+       "what_it_does": "Star Platinum appears and delivers a blindingly fast series of punches.",
+       "visual_sequence": [
+        "A purple muscular spirit appears behind Jotaro",
+        "The spirit punches forward dozens of times per second",
+        "Jotaro stands still with his hands in his pockets"
+       ],
+       "colors": [
+        "#8A2BE2",
+        "#FFD700"
+       ],
+       "sound_feel": "Machine-gun-like punching sounds and 'ORA ORA ORA!'",
+       "maps_to_block": "barrage",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": -0.1
+          },
+          "head": {
+           "rel": 0.2
+          }
+         }
+        },
+        {
+         "t": 5,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "afterimage",
+         "detail": "Purple spirit overlay"
+        },
+        {
+         "t": 5,
+         "effect": "speedlines",
+         "detail": "Intense radial"
+        },
+        {
+         "t": 5,
+         "effect": "glow",
+         "detail": "Purple/Gold aura"
+        }
+       ],
+       "parody_name_ideas": [
+        "Star Rush",
+        "Platinum Punch",
+        "Yare Yare"
+       ]
+      },
+      {
+       "official_name": "Star Platinum: The World",
+       "translation": "Time Stop",
+       "what_it_does": "Freezes time for everyone except Jotaro for a few seconds.",
+       "visual_sequence": [
+        "A circular ripple expands from Jotaro",
+        "Colors invert (negative effect)",
+        "Sound becomes muffled like underwater",
+        "The opponent stops moving entirely"
+       ],
+       "colors": [
+        "#000000",
+        "#FFFFFF",
+        "#8A2BE2"
+       ],
+       "sound_feel": "Electronic 'BWOMP' and clock ticking",
+       "maps_to_block": "NEW",
+       "new_block": {
+        "id": "time_stop",
+        "gameplay": "Freezes the opponent and all physics for 120 ticks. Damage dealt is stored and applied when time resumes.",
+        "timing_ticks": {
+         "startup": 15,
+         "active": 120,
+         "recovery": 15
+        },
+        "damage_mult": 0,
+        "range": "global",
+        "special_rules": "Screen colors are inverted during active window."
+       },
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": -0.2
+          },
+          "head": {
+           "rel": 0.1
+          }
+         }
+        },
+        {
+         "t": 15,
+         "pose": {
+          "upperF": {
+           "abs": 0.5
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "ring",
+         "detail": "Expanding negative-color circle"
+        },
+        {
+         "t": 0,
+         "effect": "flash",
+         "detail": "Invert colors"
+        },
+        {
+         "t": 120,
+         "effect": "flash",
+         "detail": "Restore colors"
+        }
+       ],
+       "parody_name_ideas": [
+        "The Universe",
+        "Clock Stopper",
+        "Star Freeze"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Dio Brando",
+     "fighting_style": "Stand (The World)",
+     "moves": [
+      {
+       "official_name": "Muda Muda Rush",
+       "translation": "Useless Useless Barrage",
+       "what_it_does": "The World delivers a flurry of punches while Dio laughs.",
+       "visual_sequence": [
+        "A golden spirit appears and punches rapidly",
+        "Dio strikes a flamboyant pose",
+        "Impacts create yellow sparks"
+       ],
+       "colors": [
+        "#FFFF00",
+        "#DAA520"
+       ],
+       "sound_feel": "Rapid heavy thuds and 'MUDA MUDA MUDA!'",
+       "maps_to_block": "barrage",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": -0.4
+          },
+          "head": {
+           "rel": -0.2
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "afterimage",
+         "detail": "Golden spirit"
+        },
+        {
+         "t": 5,
+         "effect": "particles",
+         "detail": "Yellow sparks"
+        }
+       ],
+       "parody_name_ideas": [
+        "Useless Strike",
+        "Golden Flurry"
+       ]
+      },
+      {
+       "official_name": "Knife Throw",
+       "translation": "Knife Throw",
+       "what_it_does": "Throws a dozen knives at once during stopped time or in sequence.",
+       "visual_sequence": [
+        "Dio fans out his hands, revealing multiple knives",
+        "He throws them in a wide spread",
+        "Knives trail silver streaks"
+       ],
+       "colors": [
+        "#C0C0C0"
+       ],
+       "sound_feel": "Metallic 'shing' sounds",
+       "maps_to_block": "bolt",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": -1
+          },
+          "upperB": {
+           "abs": -1
+          }
+         }
+        },
+        {
+         "t": 10,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          },
+          "upperB": {
+           "abs": 0
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 10,
+         "effect": "particles",
+         "detail": "Silver knife projectiles"
+        }
+       ],
+       "parody_name_ideas": [
+        "Blade Fan",
+        "Kitchen Toss"
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

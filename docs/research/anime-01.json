@@ -1,0 +1,710 @@
+{
+ "anime": [
+  {
+   "title": "Dragon Ball Z / Super",
+   "characters": [
+    {
+     "name": "Goku",
+     "fighting_style": "Turtle School Kung Fu",
+     "moves": [
+      {
+       "official_name": "Kamehameha",
+       "translation": "Turtle Destruction Wave",
+       "what_it_does": "Fires a massive blue energy beam from cupped hands.",
+       "visual_sequence": [
+        "Steps back into deep stance, cupping hands at the hip",
+        "Blue light gathers between palms with sparks",
+        "Thrusts hands forward, releasing a thick horizontal beam",
+        "Maintains pose while beam sustains"
+       ],
+       "colors": [
+        "#00FFFF",
+        "#FFFFFF"
+       ],
+       "sound_feel": "Low hum building to a roar, then a high-pitched energy blast",
+       "maps_to_block": "beam",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.2
+          },
+          "upperF": {
+           "abs": 2.5
+          },
+          "foreF": {
+           "abs": 2.2
+          },
+          "upperB": {
+           "abs": 2.6
+          },
+          "foreB": {
+           "abs": 2.3
+          }
+         }
+        },
+        {
+         "t": 40,
+         "pose": {
+          "torso": {
+           "rel": -0.1
+          },
+          "upperF": {
+           "abs": 0
+          },
+          "foreF": {
+           "abs": 0
+          },
+          "upperB": {
+           "abs": 0.1
+          },
+          "foreB": {
+           "abs": 0.1
+          }
+         },
+         "lunge": 15
+        },
+        {
+         "t": 80,
+         "pose": {
+          "torso": {
+           "rel": 0
+          },
+          "upperF": {
+           "abs": 1.2
+          },
+          "foreF": {
+           "abs": 1
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "glow",
+         "detail": "blue sphere between hands"
+        },
+        {
+         "t": 40,
+         "effect": "beam",
+         "detail": "thick blue beam with white core"
+        },
+        {
+         "t": 40,
+         "effect": "flash",
+         "detail": "screen white-out 2 ticks"
+        },
+        {
+         "t": 40,
+         "effect": "shake",
+         "detail": "intensity 5"
+        }
+       ],
+       "parody_name_ideas": [
+        "K-Wave",
+        "Turtle Beam",
+        "Blue Surge"
+       ]
+      },
+      {
+       "official_name": "Genki Dama",
+       "translation": "Spirit Bomb",
+       "what_it_does": "Gathers energy into a massive sphere above the head and throws it slowly.",
+       "visual_sequence": [
+        "Raises both arms straight up",
+        "A tiny white speck grows into a massive blue/white orb above the fighter",
+        "Slowly brings arms down to hurl the orb forward"
+       ],
+       "colors": [
+        "#E0FFFF",
+        "#00BFFF"
+       ],
+       "sound_feel": "Ethereal shimmering sound, followed by a heavy wind-rush",
+       "maps_to_block": "orb",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": -1.57
+          },
+          "foreF": {
+           "abs": -1.57
+          },
+          "upperB": {
+           "abs": -1.57
+          },
+          "foreB": {
+           "abs": -1.57
+          }
+         }
+        },
+        {
+         "t": 60,
+         "pose": {
+          "upperF": {
+           "abs": -1.57
+          },
+          "foreF": {
+           "abs": -1.57
+          }
+         }
+        },
+        {
+         "t": 80,
+         "pose": {
+          "upperF": {
+           "abs": 0.5
+          },
+          "foreF": {
+           "abs": 0.5
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 10,
+         "effect": "sphere",
+         "detail": "grows to 150 units diameter"
+        },
+        {
+         "t": 10,
+         "effect": "particles",
+         "detail": "rising blue sparks from ground"
+        },
+        {
+         "t": 80,
+         "effect": "slowmo",
+         "detail": "orb travels at 0.3x speed"
+        }
+       ],
+       "parody_name_ideas": [
+        "Life Ball",
+        "Nature Sphere",
+        "World Gift"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Vegeta",
+     "fighting_style": "Royal Saiyan Style",
+     "moves": [
+      {
+       "official_name": "Final Flash",
+       "translation": "Final Flash",
+       "what_it_does": "Spreads arms wide to gather gold energy, then brings them together for a massive beam.",
+       "visual_sequence": [
+        "Extends arms to the sides, palms open, screaming",
+        "Yellow lightning arcs between hands",
+        "Slams palms together in front to fire a giant yellow beam"
+       ],
+       "colors": [
+        "#FFFF00",
+        "#FFD700"
+       ],
+       "sound_feel": "Static electricity crackle, then a thunderous explosion",
+       "maps_to_block": "beam",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": -2.5
+          },
+          "upperB": {
+           "abs": 0.5
+          }
+         }
+        },
+        {
+         "t": 50,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          },
+          "foreF": {
+           "abs": 0
+          },
+          "upperB": {
+           "abs": 0
+          },
+          "foreB": {
+           "abs": 0
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "particles",
+         "detail": "yellow lightning"
+        },
+        {
+         "t": 50,
+         "effect": "beam",
+         "detail": "yellow beam with lightning trails"
+        },
+        {
+         "t": 50,
+         "effect": "speedlines",
+         "detail": "radial"
+        }
+       ],
+       "parody_name_ideas": [
+        "Ultimate Shine",
+        "Prince Beam",
+        "Gold Ray"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Naruto",
+   "characters": [
+    {
+     "name": "Naruto Uzumaki",
+     "fighting_style": "Shadow Clone Taijutsu",
+     "moves": [
+      {
+       "official_name": "Rasengan",
+       "translation": "Spiraling Sphere",
+       "what_it_does": "Concentrates a spinning ball of chakra in the palm and rams it into the opponent.",
+       "visual_sequence": [
+        "Holds hand back, a blue sphere forms with swirling wind lines",
+        "Sprints forward with the sphere held low",
+        "Grinds the sphere into the opponent's gut, causing them to spin away"
+       ],
+       "colors": [
+        "#87CEFA",
+        "#FFFFFF"
+       ],
+       "sound_feel": "High-pitched grinding buzz, like a turbine",
+       "maps_to_block": "spiral",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 2
+          },
+          "foreF": {
+           "abs": 1.5
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 20,
+         "pose": {
+          "upperF": {
+           "abs": 0.5
+          },
+          "foreF": {
+           "abs": 0.2
+          }
+         },
+         "lunge": 100
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "sphere",
+         "detail": "swirling blue 30 units"
+        },
+        {
+         "t": 20,
+         "effect": "ring",
+         "detail": "impact shockwave"
+        },
+        {
+         "t": 20,
+         "effect": "slowmo",
+         "detail": "on hit"
+        }
+       ],
+       "parody_name_ideas": [
+        "Spiral Ball",
+        "Wind Orb",
+        "Whirlwind Palm"
+       ]
+      },
+      {
+       "official_name": "Uzumaki Naruto Rendan",
+       "translation": "Naruto Uzumaki Barrage",
+       "what_it_does": "A flurry of punches and kicks ending in a powerful strike.",
+       "visual_sequence": [
+        "Dashes forward",
+        "A blur of limbs strikes the opponent from multiple angles",
+        "Ends with a heavy downward kick"
+       ],
+       "colors": [
+        "#FFA500"
+       ],
+       "sound_feel": "Rapid-fire 'thwack' sounds followed by a heavy 'boom'",
+       "maps_to_block": "barrage",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.2
+          }
+         },
+         "lunge": 20
+        },
+        {
+         "t": 40,
+         "pose": {
+          "thighF": {
+           "abs": -1
+          },
+          "shinF": {
+           "abs": 0
+          }
+         },
+         "lunge": 10
+        }
+       ],
+       "vfx": [
+        {
+         "t": 5,
+         "effect": "afterimage",
+         "detail": "orange trails"
+        },
+        {
+         "t": 40,
+         "effect": "shake",
+         "detail": "final hit"
+        }
+       ],
+       "parody_name_ideas": [
+        "Orange Flurry",
+        "Clone Combo",
+        "Fox Rush"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Sasuke Uchiha",
+     "fighting_style": "Uchiha Style Kenjutsu / Taijutsu",
+     "moves": [
+      {
+       "official_name": "Chidori",
+       "translation": "One Thousand Birds",
+       "what_it_does": "Covers the hand in lightning and performs a high-speed piercing thrust.",
+       "visual_sequence": [
+        "Crouches low, grabbing the wrist of the striking arm",
+        "Lightning erupts around the hand with a chirping sound",
+        "Dashes forward at extreme speed, arm extended like a spear"
+       ],
+       "colors": [
+        "#ADD8E6",
+        "#FFFFFF"
+       ],
+       "sound_feel": "Thousands of birds chirping, electrical arcing",
+       "maps_to_block": "charge",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.8
+          },
+          "upperF": {
+           "abs": 1.57
+          },
+          "foreF": {
+           "abs": 1.57
+          }
+         }
+        },
+        {
+         "t": 25,
+         "pose": {
+          "torso": {
+           "rel": -0.3
+          },
+          "upperF": {
+           "abs": 0
+          },
+          "foreF": {
+           "abs": 0
+          }
+         },
+         "lunge": 250
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "particles",
+         "detail": "blue lightning sparks"
+        },
+        {
+         "t": 25,
+         "effect": "speedlines",
+         "detail": "horizontal"
+        },
+        {
+         "t": 25,
+         "effect": "flash",
+         "detail": "blue"
+        }
+       ],
+       "parody_name_ideas": [
+        "Bird Strike",
+        "Volt Pierce",
+        "Lightning Hand"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "One Piece",
+   "characters": [
+    {
+     "name": "Monkey D. Luffy",
+     "fighting_style": "Gomu Gomu no Mi (Rubber)",
+     "moves": [
+      {
+       "official_name": "Gomu Gomu no Gatling",
+       "translation": "Gum-Gum Gatling",
+       "what_it_does": "Throws a rapid barrage of stretched punches that look like dozens of arms.",
+       "visual_sequence": [
+        "Leans forward, arms pulled back",
+        "Launches a flurry of punches where arms stretch and blur",
+        "The screen fills with fist impacts"
+       ],
+       "colors": [
+        "#FFC0CB"
+       ],
+       "sound_feel": "Rapid rubbery stretching and heavy impacts",
+       "maps_to_block": "barrage",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.1
+          },
+          "upperF": {
+           "abs": 2
+          },
+          "upperB": {
+           "abs": 2
+          }
+         }
+        },
+        {
+         "t": 10,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          }
+         },
+         "lunge": 5
+        },
+        {
+         "t": 50,
+         "pose": {
+          "upperB": {
+           "abs": 0
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 10,
+         "effect": "afterimage",
+         "detail": "multiple arms stretching"
+        },
+        {
+         "t": 10,
+         "effect": "smear",
+         "detail": "fist trails"
+        }
+       ],
+       "parody_name_ideas": [
+        "Rubber Rapid",
+        "Bouncy Barrage",
+        "Meat Puncher"
+       ]
+      },
+      {
+       "official_name": "Gomu Gomu no Pistol",
+       "translation": "Gum-Gum Pistol",
+       "what_it_does": "A long-range straight punch where the arm stretches across the screen.",
+       "visual_sequence": [
+        "Swings arm back far behind the body",
+        "Arm snaps forward, stretching to hit the opponent from a distance",
+        "Arm snaps back like a rubber band"
+       ],
+       "colors": [
+        "#DEB887"
+       ],
+       "sound_feel": "Loud 'twang' and a heavy thud",
+       "maps_to_block": "NEW",
+       "new_block": {
+        "id": "stretch_bolt",
+        "gameplay": "A projectile-like strike where the hitbox is connected to the player by a stretching limb graphic.",
+        "timing_ticks": {
+         "startup": 15,
+         "active": 10,
+         "recovery": 20
+        },
+        "damage_mult": 1.2,
+        "range": "450 units",
+        "special_rules": "Limb can be hit to damage the attacker."
+       },
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 3.14
+          }
+         }
+        },
+        {
+         "t": 15,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          }
+         }
+        },
+        {
+         "t": 45,
+         "pose": {
+          "upperF": {
+           "abs": 1.2
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 15,
+         "effect": "speedlines",
+         "detail": "along the arm"
+        },
+        {
+         "t": 15,
+         "effect": "ring",
+         "detail": "at the fist tip"
+        }
+       ],
+       "parody_name_ideas": [
+        "Rubber Shot",
+        "Long Reach",
+        "Snap Punch"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Roronoa Zoro",
+     "fighting_style": "Santoryu (Three Sword Style)",
+     "moves": [
+      {
+       "official_name": "Oni Giri",
+       "translation": "Demon Slash",
+       "what_it_does": "Crosses swords and dashes through the opponent with a three-way slash.",
+       "visual_sequence": [
+        "Crouches with swords crossed in front of chest",
+        "Dashes forward instantly, appearing behind the opponent",
+        "Opponent is hit by three diagonal slashes simultaneously"
+       ],
+       "colors": [
+        "#F0FFF0",
+        "#006400"
+       ],
+       "sound_feel": "Metallic 'shing' followed by a delayed slicing sound",
+       "maps_to_block": "NEW",
+       "new_block": {
+        "id": "dash_slash",
+        "gameplay": "Player teleports/dashes through the opponent. Damage is dealt at the moment of passing.",
+        "timing_ticks": {
+         "startup": 12,
+         "active": 4,
+         "recovery": 20
+        },
+        "damage_mult": 1.8,
+        "range": "300 units",
+        "special_rules": "Invulnerable during active frames."
+       },
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.5
+          },
+          "upperF": {
+           "abs": 0.5
+          },
+          "upperB": {
+           "abs": -0.5
+          }
+         }
+        },
+        {
+         "t": 12,
+         "pose": {
+          "torso": {
+           "rel": -0.2
+          }
+         },
+         "lunge": 300
+        },
+        {
+         "t": 36,
+         "pose": {
+          "torso": {
+           "rel": 0
+          },
+          "flip": true
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 12,
+         "effect": "slash",
+         "detail": "three-way cross pattern"
+        },
+        {
+         "t": 12,
+         "effect": "afterimage",
+         "detail": "green trail"
+        },
+        {
+         "t": 16,
+         "effect": "slowmo",
+         "detail": "brief pause on hit"
+        }
+       ],
+       "parody_name_ideas": [
+        "Ogre Cut",
+        "Triple Blade",
+        "Green Dash"
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

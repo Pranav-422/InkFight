@@ -1,0 +1,668 @@
+{
+ "anime": [
+  {
+   "title": "One Punch Man",
+   "characters": [
+    {
+     "name": "Saitama",
+     "fighting_style": "Street",
+     "moves": [
+      {
+       "official_name": "Renzoku Futsu no Punch",
+       "translation": "Consecutive Normal Punches",
+       "what_it_does": "A flurry of rapid-fire one-handed jabs that pulverizes the target.",
+       "visual_sequence": [
+        "Saitama leans forward slightly with a bored expression.",
+        "His front arm becomes a blur of multiple overlapping arms.",
+        "Dozens of impact rings appear on the opponent simultaneously."
+       ],
+       "colors": [
+        "#ffffff",
+        "#ff0000"
+       ],
+       "sound_feel": "Rapid machine-gun thuds ending in a wet splat.",
+       "maps_to_block": "barrage",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "abs": 0.2
+          },
+          "upperF": {
+           "abs": 0.5
+          }
+         },
+         "lunge": 10
+        },
+        {
+         "t": 5,
+         "pose": {
+          "upperF": {
+           "abs": -0.2
+          },
+          "foreF": {
+           "abs": 0
+          }
+         },
+         "lunge": 5
+        },
+        {
+         "t": 10,
+         "pose": {
+          "upperF": {
+           "abs": 0.4
+          },
+          "foreF": {
+           "abs": 0.2
+          }
+         },
+         "lunge": 5
+        }
+       ],
+       "vfx": [
+        {
+         "t": 5,
+         "effect": "afterimage",
+         "detail": "Multiple punching arms"
+        },
+        {
+         "t": 5,
+         "effect": "particles",
+         "detail": "Red impact sparks"
+        }
+       ],
+       "parody_name_ideas": [
+        "Regular Rapid Jabs",
+        "Average Flurry"
+       ]
+      },
+      {
+       "official_name": "Majiserizu: Maji Punch",
+       "translation": "Serious Series: Serious Punch",
+       "what_it_does": "A devastating straight punch that creates a massive shockwave, parting clouds or seas.",
+       "visual_sequence": [
+        "Screen darkens and zooms in on Saitama's face becoming detailed.",
+        "He draws his fist back slowly as wind swirls around him.",
+        "A massive horizontal beam of white pressure erupts from the fist."
+       ],
+       "colors": [
+        "#ffffff",
+        "#888888"
+       ],
+       "sound_feel": "Absolute silence for a split second, then a world-shaking bass explosion.",
+       "maps_to_block": "beam",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "abs": -0.3
+          },
+          "upperF": {
+           "abs": 1.5
+          },
+          "foreF": {
+           "abs": 1.5
+          }
+         },
+         "lunge": -10
+        },
+        {
+         "t": 25,
+         "pose": {
+          "torso": {
+           "abs": 0.5
+          },
+          "upperF": {
+           "abs": 0
+          },
+          "foreF": {
+           "abs": 0
+          }
+         },
+         "lunge": 60
+        },
+        {
+         "t": 60,
+         "pose": {
+          "torso": {
+           "abs": 0.1
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "zoom",
+         "detail": "Tight on face"
+        },
+        {
+         "t": 25,
+         "effect": "flash",
+         "detail": "Full screen white"
+        },
+        {
+         "t": 25,
+         "effect": "shake",
+         "detail": "Heavy"
+        },
+        {
+         "t": 26,
+         "effect": "speedlines",
+         "detail": "Horizontal"
+        }
+       ],
+       "parody_name_ideas": [
+        "Earnest Strike",
+        "Genuinely Trying Punch"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Genos",
+     "fighting_style": "Systema",
+     "moves": [
+      {
+       "official_name": "Shokyaku Ho",
+       "translation": "Incineration Cannon",
+       "what_it_does": "Fires a massive blast of heat and flame from palms.",
+       "visual_sequence": [
+        "Genos plants his feet and extends both palms forward.",
+        "Mechanical parts in his arms shift and glow orange.",
+        "A wide beam of fire engulfs the front area."
+       ],
+       "colors": [
+        "#ff4400",
+        "#ffff00"
+       ],
+       "sound_feel": "High-pitched mechanical whine followed by a roaring jet engine.",
+       "maps_to_block": "beam",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "abs": 0.1
+          },
+          "upperF": {
+           "abs": 0
+          },
+          "upperB": {
+           "abs": 0
+          }
+         },
+         "lunge": -5
+        },
+        {
+         "t": 40,
+         "pose": {
+          "torso": {
+           "abs": 0.2
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 10,
+         "effect": "glow",
+         "detail": "Orange arm vents"
+        },
+        {
+         "t": 15,
+         "effect": "beam",
+         "detail": "Fire texture"
+        }
+       ],
+       "parody_name_ideas": [
+        "Trash Burner",
+        "Heat Vent"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Garou",
+     "fighting_style": "Martial Arts",
+     "moves": [
+      {
+       "official_name": "Ryusui Gansai-ken",
+       "translation": "Water Stream Rock Smashing Fist",
+       "what_it_does": "A defensive style that parries attacks and counters with fluid, blue-trailing strikes.",
+       "visual_sequence": [
+        "Garou enters a low, flowing stance.",
+        "Blue silk-like light trails follow his hand movements.",
+        "He deflects an invisible force and strikes the opponent's vitals."
+       ],
+       "colors": [
+        "#00aaff",
+        "#ffffff"
+       ],
+       "sound_feel": "Whistling wind and splashing water.",
+       "maps_to_block": "NEW",
+       "new_block": {
+        "id": "parry_counter",
+        "gameplay": "Enters a parry state for 20 ticks. If hit by a physical attack, negates damage and performs a 1.5x damage dash-strike.",
+        "timing_ticks": {
+         "startup": 2,
+         "active": 20,
+         "recovery": 15
+        },
+        "damage_mult": 1.5,
+        "range": "120",
+        "special_rules": "Only triggers on punch/kick/special physical hits."
+       },
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "abs": 0.3
+          },
+          "thighF": {
+           "abs": 2
+          },
+          "upperF": {
+           "abs": 0.8
+          }
+         }
+        },
+        {
+         "t": 10,
+         "pose": {
+          "upperF": {
+           "abs": -0.5
+          },
+          "upperB": {
+           "abs": 1.2
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "smear",
+         "detail": "Blue water trails"
+        }
+       ],
+       "parody_name_ideas": [
+        "Flowing Pebble Cracker",
+        "Liquid Stone Style"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Mob Psycho 100",
+   "characters": [
+    {
+     "name": "Shigeo Kageyama (Mob)",
+     "fighting_style": "Street",
+     "moves": [
+      {
+       "official_name": "100% Fury",
+       "translation": "100% Rage",
+       "what_it_does": "A massive psychic explosion that pushes everything away from Mob.",
+       "visual_sequence": [
+        "Mob's hair stands up and his eyes glow white.",
+        "A dark, jagged aura surrounds him.",
+        "A circular shockwave expands rapidly from his center."
+       ],
+       "colors": [
+        "#440066",
+        "#ffffff"
+       ],
+       "sound_feel": "Static electricity crackle followed by a heavy psychic 'thrum'.",
+       "maps_to_block": "wave",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "abs": 0
+          },
+          "head": {
+           "abs": -0.2
+          }
+         }
+        },
+        {
+         "t": 15,
+         "pose": {
+          "torso": {
+           "abs": 0
+          },
+          "upperF": {
+           "abs": -1.5
+          },
+          "upperB": {
+           "abs": -1.5
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "glow",
+         "detail": "Purple aura"
+        },
+        {
+         "t": 15,
+         "effect": "ring",
+         "detail": "Expanding dark circle"
+        },
+        {
+         "t": 15,
+         "effect": "shake",
+         "detail": "Medium"
+        }
+       ],
+       "parody_name_ideas": [
+        "Full Emotion",
+        "Bowl Cut Blast"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Arataka Reigen",
+     "fighting_style": "Street",
+     "moves": [
+      {
+       "official_name": "Salty Splash",
+       "translation": "Salt Splash",
+       "what_it_does": "Throws a handful of table salt to 'exorcise' (distract) the opponent.",
+       "visual_sequence": [
+        "Reigen reaches into his pocket.",
+        "He throws a spray of white grains with a dramatic flourish.",
+        "The opponent is momentarily blinded."
+       ],
+       "colors": [
+        "#ffffff"
+       ],
+       "sound_feel": "Soft 'shhh' of falling sand.",
+       "maps_to_block": "NEW",
+       "new_block": {
+        "id": "pocket_salt",
+        "gameplay": "Projectile with 0 damage but high hit-stun (40 ticks).",
+        "timing_ticks": {
+         "startup": 10,
+         "active": 5,
+         "recovery": 20
+        },
+        "damage_mult": 0,
+        "range": "150",
+        "special_rules": "Forces opponent into 'block' animation even if not blocking."
+       },
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "abs": -0.2
+          },
+          "upperF": {
+           "abs": 1.2
+          }
+         }
+        },
+        {
+         "t": 10,
+         "pose": {
+          "upperF": {
+           "abs": -0.8
+          },
+          "foreF": {
+           "abs": -0.5
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 10,
+         "effect": "particles",
+         "detail": "White salt grains"
+        }
+       ],
+       "parody_name_ideas": [
+        "Sodium Strike",
+        "Seasoning Attack"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Attack on Titan",
+   "characters": [
+    {
+     "name": "Eren Yeager (Titan)",
+     "fighting_style": "Boxing",
+     "moves": [
+      {
+       "official_name": "Koka",
+       "translation": "Hardening",
+       "what_it_does": "Hardens the fist into crystal and delivers a massive lunging punch.",
+       "visual_sequence": [
+        "Eren's fist glows blue and develops a jagged, crystalline texture.",
+        "He takes a deep boxing step forward.",
+        "He throws a heavy cross that shatters on impact."
+       ],
+       "colors": [
+        "#88ccff",
+        "#ffffff"
+       ],
+       "sound_feel": "Crystal clinking followed by a heavy concrete smash.",
+       "maps_to_block": "charge",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "abs": -0.4
+          },
+          "upperB": {
+           "abs": 1.5
+          }
+         },
+         "lunge": -5
+        },
+        {
+         "t": 15,
+         "pose": {
+          "torso": {
+           "abs": 0.6
+          },
+          "upperB": {
+           "abs": 0
+          },
+          "foreB": {
+           "abs": 0
+          }
+         },
+         "lunge": 45
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "glow",
+         "detail": "Blue fist"
+        },
+        {
+         "t": 15,
+         "effect": "particles",
+         "detail": "Blue crystal shards"
+        }
+       ],
+       "parody_name_ideas": [
+        "Diamond Knuckle",
+        "Stiff Punch"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Levi Ackerman",
+     "fighting_style": "Street",
+     "moves": [
+      {
+       "official_name": "Kaiten Giri",
+       "translation": "Spiral Slash",
+       "what_it_does": "Uses ODM gear to spin like a sawblade, shredding the target.",
+       "visual_sequence": [
+        "Levi fires wires that pull him forward.",
+        "He tucks into a ball and spins rapidly with blades extended.",
+        "A series of circular slashes cover his path."
+       ],
+       "colors": [
+        "#aaaaaa",
+        "#335533"
+       ],
+       "sound_feel": "High-speed wire reel and 'shing-shing-shing' of blades.",
+       "maps_to_block": "NEW",
+       "new_block": {
+        "id": "sawblade_dash",
+        "gameplay": "User lunges forward 200 units, hitting 5 times for 0.3x damage each.",
+        "timing_ticks": {
+         "startup": 8,
+         "active": 25,
+         "recovery": 15
+        },
+        "damage_mult": 1.5,
+        "range": "200",
+        "special_rules": "User is airborne during the move."
+       },
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "abs": 1.5
+          },
+          "upperF": {
+           "abs": 0
+          },
+          "upperB": {
+           "abs": 3.14
+          }
+         },
+         "hop": 5
+        },
+        {
+         "t": 10,
+         "pose": {
+          "torso": {
+           "abs": 4.5
+          }
+         },
+         "lunge": 80
+        },
+        {
+         "t": 20,
+         "pose": {
+          "torso": {
+           "abs": 7.5
+          }
+         },
+         "lunge": 80
+        }
+       ],
+       "vfx": [
+        {
+         "t": 5,
+         "effect": "slash",
+         "detail": "Circular blade trails"
+        },
+        {
+         "t": 5,
+         "effect": "afterimage",
+         "detail": "Green cape blur"
+        }
+       ],
+       "parody_name_ideas": [
+        "Human Beyblade",
+        "Fidget Spinner Slash"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Annie Leonhart (Female Titan)",
+     "fighting_style": "Muay Thai",
+     "moves": [
+      {
+       "official_name": "Koka Geri",
+       "translation": "Hardened Kick",
+       "what_it_does": "A high roundhouse kick with a hardened shin that decapitates.",
+       "visual_sequence": [
+        "Annie pivots on her front foot.",
+        "Her back shin crystallizes with a blue glow.",
+        "She delivers a lightning-fast high kick to the head level."
+       ],
+       "colors": [
+        "#88ccff",
+        "#ffcccc"
+       ],
+       "sound_feel": "Whip-crack followed by a heavy 'thwack'.",
+       "maps_to_block": "meteor",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "abs": 0.2
+          },
+          "thighB": {
+           "abs": 1.5
+          }
+         }
+        },
+        {
+         "t": 12,
+         "pose": {
+          "torso": {
+           "abs": -0.5
+          },
+          "thighB": {
+           "abs": -1.2
+          },
+          "shinB": {
+           "abs": -0.5
+          }
+         },
+         "lunge": 15
+        }
+       ],
+       "vfx": [
+        {
+         "t": 8,
+         "effect": "smear",
+         "detail": "Blue arc"
+        },
+        {
+         "t": 12,
+         "effect": "impact",
+         "detail": "Large shockwave"
+        }
+       ],
+       "parody_name_ideas": [
+        "Crystal Roundhouse",
+        "Titan Shin"
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

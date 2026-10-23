@@ -1,0 +1,815 @@
+{
+ "anime": [
+  {
+   "title": "Rurouni Kenshin",
+   "characters": [
+    {
+     "name": "Himura Kenshin",
+     "fighting_style": "Hiten Mitsurugi-ryu",
+     "moves": [
+      {
+       "official_name": "Amakakeru Ryu no Hirameki",
+       "translation": "Heaven's Soaring Dragon Flash",
+       "what_it_does": "A god-speed battojutsu draw that uses an extra step to create a vacuum, pulling the opponent in before a second devastating strike.",
+       "visual_sequence": [
+        "Drops into a very low stance, left hand on the scabbard",
+        "Takes a heavy step forward with the left foot (the 'secret' step)",
+        "A blurring horizontal draw-slash across the screen",
+        "A vacuum swirl effect pulls the opponent toward Kenshin",
+        "A second, overhead strike follows immediately"
+       ],
+       "colors": [
+        "white",
+        "blue",
+        "silver"
+       ],
+       "sound_feel": "High-pitched metallic 'shing' followed by a deep wind vacuum whoosh",
+       "maps_to_block": "slash",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.4
+          },
+          "thighF": {
+           "abs": 1.2
+          },
+          "thighB": {
+           "abs": 2
+          },
+          "upperF": {
+           "abs": 1.5
+          }
+         }
+        },
+        {
+         "t": 10,
+         "pose": {
+          "torso": {
+           "rel": 0.2
+          }
+         },
+         "lunge": 40
+        },
+        {
+         "t": 15,
+         "pose": {
+          "upperF": {
+           "abs": -1.5
+          },
+          "foreF": {
+           "abs": -1.5
+          }
+         },
+         "lunge": 80
+        },
+        {
+         "t": 45,
+         "pose": {
+          "torso": {
+           "rel": 0
+          },
+          "upperF": {
+           "abs": 1.2
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 10,
+         "effect": "speedlines",
+         "detail": "Radial lines focusing on the hilt"
+        },
+        {
+         "t": 15,
+         "effect": "slash",
+         "detail": "Horizontal white arc with blue trail"
+        },
+        {
+         "t": 16,
+         "effect": "slowmo",
+         "detail": "0.2x speed for 10 ticks"
+        },
+        {
+         "t": 17,
+         "effect": "zoom",
+         "detail": "Camera tight on the impact"
+        }
+       ],
+       "parody_name_ideas": [
+        "Sky-High Lizard Flash",
+        "God-Speed Draw",
+        "Vacuum Blade"
+       ]
+      },
+      {
+       "official_name": "Kuzu-ryu-sen",
+       "translation": "Nine-Head Dragon Strike",
+       "what_it_does": "Nine simultaneous strikes to the vital points of the body, impossible to block or dodge.",
+       "visual_sequence": [
+        "Kenshin charges forward with his sword held high",
+        "Nine blue light trails appear simultaneously covering all angles",
+        "The opponent is hit by a flurry of impacts at once"
+       ],
+       "colors": [
+        "blue",
+        "white"
+       ],
+       "sound_feel": "Nine rapid-fire metallic clangs in under half a second",
+       "maps_to_block": "barrage",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": -1
+          }
+         },
+         "lunge": 20
+        },
+        {
+         "t": 10,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          }
+         },
+         "lunge": 100
+        },
+        {
+         "t": 30,
+         "pose": {
+          "upperF": {
+           "abs": 1.2
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 10,
+         "effect": "afterimage",
+         "detail": "Multiple Kenshin silhouettes"
+        },
+        {
+         "t": 12,
+         "effect": "flash",
+         "detail": "Screen turns white for 2 ticks"
+        }
+       ],
+       "parody_name_ideas": [
+        "9-Point Poke",
+        "Multi-Dragon Mash",
+        "Hydra Hit"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Saito Hajime",
+     "fighting_style": "Shinsengumi Kenjutsu",
+     "moves": [
+      {
+       "official_name": "Gatotsu",
+       "translation": "Fang Thrust",
+       "what_it_does": "A powerful left-hand horizontal thrust, concentrating the entire body's weight into the tip of the blade.",
+       "visual_sequence": [
+        "Stands sideways, right hand on hilt, left arm extended forward as a guide",
+        "The sword is held level with the shoulder",
+        "Dashes forward at extreme speed with a single, piercing thrust"
+       ],
+       "colors": [
+        "white",
+        "grey"
+       ],
+       "sound_feel": "A heavy, singular 'thud-shing' like a railgun",
+       "maps_to_block": "charge",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          },
+          "upperB": {
+           "abs": -1.5
+          },
+          "foreB": {
+           "abs": -1.5
+          }
+         }
+        },
+        {
+         "t": 15,
+         "pose": {
+          "upperB": {
+           "abs": 0
+          },
+          "foreB": {
+           "abs": 0
+          }
+         },
+         "lunge": 150
+        },
+        {
+         "t": 40,
+         "pose": {
+          "upperB": {
+           "abs": 1.2
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 15,
+         "effect": "speedlines",
+         "detail": "Horizontal streaks"
+        },
+        {
+         "t": 15,
+         "effect": "impact",
+         "detail": "Sharp white cone at the sword tip"
+        }
+       ],
+       "parody_name_ideas": [
+        "Wolf's Tooth",
+        "Direct Stab",
+        "The Shish-Kebab"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Shishio Makoto",
+     "fighting_style": "Self-taught (Fire-based Kenjutsu)",
+     "moves": [
+      {
+       "official_name": "Guren Kaina",
+       "translation": "Crimson Lotus Arm",
+       "what_it_does": "Ignites gunpowder on the gloves/sword to create an explosion upon striking the opponent.",
+       "visual_sequence": [
+        "Shishio grabs the opponent's face or chest",
+        "A massive explosion of fire erupts from his palm",
+        "The opponent is blasted backward by the shockwave"
+       ],
+       "colors": [
+        "orange",
+        "red",
+        "black"
+       ],
+       "sound_feel": "A muffled 'clink' followed by a massive 'BOOM'",
+       "maps_to_block": "charge",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": -0.5
+          }
+         },
+         "lunge": 30
+        },
+        {
+         "t": 12,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          }
+         },
+         "lunge": 10
+        },
+        {
+         "t": 50,
+         "pose": {
+          "upperF": {
+           "abs": 1.2
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 12,
+         "effect": "flash",
+         "detail": "Orange screen flash"
+        },
+        {
+         "t": 12,
+         "effect": "particles",
+         "detail": "Fire and black smoke"
+        },
+        {
+         "t": 12,
+         "effect": "shake",
+         "detail": "Heavy screen shake"
+        }
+       ],
+       "parody_name_ideas": [
+        "Firecracker Palm",
+        "Exploding Mitt",
+        "Burn Ward"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Inuyasha",
+   "characters": [
+    {
+     "name": "Inuyasha",
+     "fighting_style": "Yokai Brawling / Kenjutsu",
+     "moves": [
+      {
+       "official_name": "Kaze no Kizu",
+       "translation": "Wind Scar",
+       "what_it_does": "Releases a massive blast of energy by striking the rift where wind currents meet.",
+       "visual_sequence": [
+        "Swings the Tessaiga downward with both hands",
+        "Five yellow energy claws erupt from the ground",
+        "The energy travels forward as a massive wave"
+       ],
+       "colors": [
+        "yellow",
+        "gold"
+       ],
+       "sound_feel": "Roaring wind and tearing paper sound",
+       "maps_to_block": "wave",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": -2
+          },
+          "upperB": {
+           "abs": -2
+          }
+         }
+        },
+        {
+         "t": 15,
+         "pose": {
+          "upperF": {
+           "abs": 0.5
+          },
+          "upperB": {
+           "abs": 0.5
+          }
+         }
+        },
+        {
+         "t": 40,
+         "pose": {
+          "upperF": {
+           "abs": 1.2
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 15,
+         "effect": "ring",
+         "detail": "Yellow shockwave at feet"
+        },
+        {
+         "t": 15,
+         "effect": "particles",
+         "detail": "Flying dirt and yellow sparks"
+        }
+       ],
+       "parody_name_ideas": [
+        "Breeze Scratch",
+        "Dog Breath Wave",
+        "Yellow Ripper"
+       ]
+      },
+      {
+       "official_name": "Bakuryuha",
+       "translation": "Backlash Wave",
+       "what_it_does": "A counter-move that wraps the opponent's energy in the Wind Scar and hurls it back as a massive vortex.",
+       "visual_sequence": [
+        "Twirls the sword in a circular motion",
+        "A large swirling vortex of purple and gold energy forms",
+        "The vortex expands and moves forward slowly, hitting multiple times"
+       ],
+       "colors": [
+        "purple",
+        "gold",
+        "blue"
+       ],
+       "sound_feel": "Deep, resonant humming and cyclonic wind",
+       "maps_to_block": "orb",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          }
+         }
+        },
+        {
+         "t": 10,
+         "pose": {
+          "upperF": {
+           "abs": 3.14
+          }
+         }
+        },
+        {
+         "t": 20,
+         "pose": {
+          "upperF": {
+           "abs": 6.28
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 10,
+         "effect": "sphere",
+         "detail": "Swirling vortex around Kenshin"
+        },
+        {
+         "t": 20,
+         "effect": "slowmo",
+         "detail": "Brief pause as vortex launches"
+        }
+       ],
+       "parody_name_ideas": [
+        "Reverse Swirl",
+        "Vortex Vomit",
+        "Karma Wave"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Sesshomaru",
+     "fighting_style": "Daiyokai Kenjutsu",
+     "moves": [
+      {
+       "official_name": "Soryuha",
+       "translation": "Dragon Strike",
+       "what_it_does": "Channels Sesshomaru's own demonic energy into a massive blue dragon-shaped blast.",
+       "visual_sequence": [
+        "Points sword upward; blue lightning crackles around him",
+        "Swings the sword forward",
+        "A massive blue energy dragon flies across the screen"
+       ],
+       "colors": [
+        "cyan",
+        "blue",
+        "white"
+       ],
+       "sound_feel": "Electric crackle followed by a dragon's roar",
+       "maps_to_block": "beam",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": -1.5
+          }
+         }
+        },
+        {
+         "t": 20,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          }
+         }
+        },
+        {
+         "t": 50,
+         "pose": {
+          "upperF": {
+           "abs": 1.2
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "glow",
+         "detail": "Blue aura around body"
+        },
+        {
+         "t": 20,
+         "effect": "particles",
+         "detail": "Blue lightning bolts"
+        }
+       ],
+       "parody_name_ideas": [
+        "Blue Lizard Beam",
+        "Pretty Boy Blast",
+        "Royal Surge"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Saint Seiya",
+   "characters": [
+    {
+     "name": "Pegasus Seiya",
+     "fighting_style": "Cosmo-based Martial Arts",
+     "moves": [
+      {
+       "official_name": "Pegasus Ryu Sei Ken",
+       "translation": "Pegasus Meteor Fist",
+       "what_it_does": "Throws hundreds of punches per second, appearing as a shower of meteors.",
+       "visual_sequence": [
+        "Traces the Pegasus constellation with his hands",
+        "Leans forward and punches rapidly",
+        "Dozens of blue-white light spheres fly toward the opponent"
+       ],
+       "colors": [
+        "blue",
+        "white"
+       ],
+       "sound_feel": "Rapid 'pew-pew-pew' like laser fire",
+       "maps_to_block": "barrage",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 1.2
+          },
+          "upperB": {
+           "abs": 1.2
+          }
+         }
+        },
+        {
+         "t": 15,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          },
+          "upperB": {
+           "abs": 0.2
+          }
+         }
+        },
+        {
+         "t": 45,
+         "pose": {
+          "upperF": {
+           "abs": 1.2
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 15,
+         "effect": "particles",
+         "detail": "Blue light streaks"
+        },
+        {
+         "t": 15,
+         "effect": "speedlines",
+         "detail": "Blue and white"
+        }
+       ],
+       "parody_name_ideas": [
+        "Pony Star Punch",
+        "Meteor Mash",
+        "Space Horse Flurry"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Dragon Shiryu",
+     "fighting_style": "Lushan Martial Arts",
+     "moves": [
+      {
+       "official_name": "Rozan Sho Ryu Ha",
+       "translation": "Lushan Rising Dragon Supremacy",
+       "what_it_does": "A powerful uppercut that summons the image of a rising dragon, reversing the flow of waterfalls.",
+       "visual_sequence": [
+        "Crouches low with a green aura",
+        "Explodes upward with a massive right uppercut",
+        "A green water-dragon spirals around the fist upward"
+       ],
+       "colors": [
+        "green",
+        "emerald"
+       ],
+       "sound_feel": "Heavy water splash and a low-frequency roar",
+       "maps_to_block": "uppercut",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.5
+          },
+          "thighF": {
+           "abs": 1
+          }
+         }
+        },
+        {
+         "t": 10,
+         "pose": {
+          "torso": {
+           "rel": -0.2
+          },
+          "upperF": {
+           "abs": -2.5
+          }
+         },
+         "hop": -15
+        },
+        {
+         "t": 40,
+         "pose": {
+          "upperF": {
+           "abs": 1.2
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 10,
+         "effect": "glow",
+         "detail": "Green dragon silhouette"
+        },
+        {
+         "t": 10,
+         "effect": "ring",
+         "detail": "Green water ripple on floor"
+        }
+       ],
+       "parody_name_ideas": [
+        "Green Lizard Lift",
+        "Waterfall Punch",
+        "Dragon Chin-Checker"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Cygnus Hyoga",
+     "fighting_style": "Absolute Zero Cryomancy",
+     "moves": [
+      {
+       "official_name": "Diamond Dust",
+       "translation": "Diamond Dust",
+       "what_it_does": "A blast of freezing air and ice crystals that freezes the opponent in place.",
+       "visual_sequence": [
+        "Moves arms in a graceful, swan-like circular motion",
+        "Brings fists together and thrusts forward",
+        "A blizzard of ice crystals and a cold blue beam fires"
+       ],
+       "colors": [
+        "cyan",
+        "white",
+        "silver"
+       ],
+       "sound_feel": "High-pitched crystal chimes and freezing wind",
+       "maps_to_block": "bolt",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 1.5
+          },
+          "upperB": {
+           "abs": -1.5
+          }
+         }
+        },
+        {
+         "t": 20,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          },
+          "upperB": {
+           "abs": 0
+          }
+         }
+        },
+        {
+         "t": 50,
+         "pose": {
+          "upperF": {
+           "abs": 1.2
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 20,
+         "effect": "particles",
+         "detail": "Snowflakes and ice shards"
+        },
+        {
+         "t": 20,
+         "effect": "flash",
+         "detail": "Bright cyan flash"
+        }
+       ],
+       "parody_name_ideas": [
+        "Glitter Blast",
+        "Swan Sleet",
+        "Freezy Pop"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Phoenix Ikki",
+     "fighting_style": "Phoenix Cosmo",
+     "moves": [
+      {
+       "official_name": "Hoyoku Tensho",
+       "translation": "Phoenix Wings Rise",
+       "what_it_does": "A powerful gust of wind and fire created by the flapping of the Phoenix's wings.",
+       "visual_sequence": [
+        "Spreads arms wide like wings",
+        "Brings them forward violently",
+        "A massive phoenix made of fire flies forward, engulfing the opponent"
+       ],
+       "colors": [
+        "orange",
+        "red",
+        "yellow"
+       ],
+       "sound_feel": "The sound of a furnace igniting",
+       "maps_to_block": "wave",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": -1.5
+          },
+          "upperB": {
+           "abs": 1.5
+          }
+         }
+        },
+        {
+         "t": 15,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          },
+          "upperB": {
+           "abs": 0
+          }
+         }
+        },
+        {
+         "t": 45,
+         "pose": {
+          "upperF": {
+           "abs": 1.2
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 15,
+         "effect": "glow",
+         "detail": "Fire bird silhouette"
+        },
+        {
+         "t": 15,
+         "effect": "particles",
+         "detail": "Burning feathers"
+        }
+       ],
+       "parody_name_ideas": [
+        "Fire Bird Flap",
+        "Spicy Chicken Wing",
+        "Ash Blast"
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

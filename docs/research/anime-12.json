@@ -1,0 +1,696 @@
+{
+ "anime": [
+  {
+   "title": "Fire Force",
+   "characters": [
+    {
+     "name": "Shinra Kusakabe",
+     "fighting_style": "Kickboxing (Breakdance influence)",
+     "moves": [
+      {
+       "official_name": "Rapid",
+       "translation": "Rapid",
+       "what_it_does": "High-speed propulsion kick using feet jets.",
+       "visual_sequence": [
+        "Crouches low with hands on ground",
+        "Blue flames ignite at heels",
+        "Blasts forward in a blur",
+        "Delivers a heavy flying roundhouse"
+       ],
+       "colors": [
+        "#00FFFF",
+        "#FFFFFF"
+       ],
+       "sound_feel": "Jet engine roar followed by a sharp crack",
+       "maps_to_block": "charge",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "abs": 0.8
+          },
+          "thighF": {
+           "abs": 2.5
+          },
+          "thighB": {
+           "abs": 2.5
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 10,
+         "pose": {
+          "torso": {
+           "abs": -0.4
+          },
+          "thighF": {
+           "abs": -0.5
+          },
+          "shinF": {
+           "abs": 0.5
+          }
+         },
+         "lunge": 150
+        },
+        {
+         "t": 20,
+         "pose": {
+          "torso": {
+           "abs": 0
+          },
+          "thighF": {
+           "abs": 1.5
+          }
+         },
+         "lunge": 20
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "particles",
+         "detail": "blue flame sparks at feet"
+        },
+        {
+         "t": 5,
+         "effect": "speedlines",
+         "detail": "horizontal motion blur"
+        },
+        {
+         "t": 12,
+         "effect": "ring",
+         "detail": "blue sonic boom at impact"
+        }
+       ],
+       "parody_name_ideas": [
+        "Jet Kick",
+        "Blue Burner"
+       ]
+      },
+      {
+       "official_name": "Corna",
+       "translation": "Sign of the Horns",
+       "what_it_does": "Concentrated explosion from the palm using a hand sign.",
+       "visual_sequence": [
+        "Forms 'horns' hand sign",
+        "Compresses flames into a small point",
+        "Releases a massive point-blank explosion"
+       ],
+       "colors": [
+        "#FF4500",
+        "#FFFF00"
+       ],
+       "sound_feel": "Muffled hum followed by a heavy 'THOOM'",
+       "maps_to_block": "spiral",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": -0.2
+          },
+          "foreF": {
+           "abs": -0.5
+          }
+         }
+        },
+        {
+         "t": 25,
+         "pose": {
+          "upperF": {
+           "abs": 0.2
+          },
+          "foreF": {
+           "abs": 0.1
+          }
+         },
+         "lunge": 10
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "glow",
+         "detail": "orange light in palm"
+        },
+        {
+         "t": 25,
+         "effect": "sphere",
+         "detail": "expanding orange fireball"
+        },
+        {
+         "t": 26,
+         "effect": "shake",
+         "detail": "heavy screen shake"
+        }
+       ],
+       "parody_name_ideas": [
+        "Devil Horn",
+        "Palm Blast"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Arthur Boyle",
+     "fighting_style": "Kendo (Knightly style)",
+     "moves": [
+      {
+       "official_name": "Violet Flash",
+       "translation": "Violet Flash",
+       "what_it_does": "A lightning-fast horizontal plasma slash.",
+       "visual_sequence": [
+        "Grips hilt with both hands",
+        "Plasma blade extends instantly",
+        "A single horizontal line cuts the screen"
+       ],
+       "colors": [
+        "#EE82EE",
+        "#FFFFFF"
+       ],
+       "sound_feel": "Electric buzz and a clean 'shing'",
+       "maps_to_block": "slash",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 1.5
+          },
+          "upperB": {
+           "abs": 1.5
+          }
+         }
+        },
+        {
+         "t": 8,
+         "pose": {
+          "upperF": {
+           "abs": -1.5
+          },
+          "upperB": {
+           "abs": -1.5
+          }
+         },
+         "lunge": 40
+        }
+       ],
+       "vfx": [
+        {
+         "t": 5,
+         "effect": "flash",
+         "detail": "purple screen tint"
+        },
+        {
+         "t": 8,
+         "effect": "slash",
+         "detail": "horizontal purple streak"
+        }
+       ],
+       "parody_name_ideas": [
+        "Plasma Edge",
+        "Knight Cut"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "The Seven Deadly Sins",
+   "characters": [
+    {
+     "name": "Meliodas",
+     "fighting_style": "Shortsword Brawling",
+     "moves": [
+      {
+       "official_name": "Full Counter",
+       "translation": "Full Counter",
+       "what_it_does": "Reflects magical/energy attacks with double power.",
+       "visual_sequence": [
+        "Holds broken sword horizontally",
+        "Eyes glow green",
+        "Swings upward as projectile hits",
+        "A massive version of the projectile returns"
+       ],
+       "colors": [
+        "#00FF00",
+        "#FFFFFF"
+       ],
+       "sound_feel": "Glass shattering and a heavy boom",
+       "maps_to_block": "NEW",
+       "new_block": {
+        "id": "counter",
+        "gameplay": "Enters a 20-tick stance. If hit by a non-physical move, negate damage and fire a 'bolt' dealing 2x the original damage.",
+        "timing_ticks": {
+         "startup": 2,
+         "active": 20,
+         "recovery": 15
+        },
+        "damage_mult": 2,
+        "range": "screen",
+        "special_rules": "Only triggers on projectiles or energy-based specials."
+       },
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 1.5
+          },
+          "foreF": {
+           "abs": 0.5
+          }
+         }
+        },
+        {
+         "t": 10,
+         "pose": {
+          "upperF": {
+           "abs": -1
+          },
+          "foreF": {
+           "abs": -0.5
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "glow",
+         "detail": "green aura"
+        },
+        {
+         "t": 10,
+         "effect": "flash",
+         "detail": "white screen pop"
+        }
+       ],
+       "parody_name_ideas": [
+        "Total Reflect",
+        "Double Back"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Ban",
+     "fighting_style": "Street Fighting (Nunchaku)",
+     "moves": [
+      {
+       "official_name": "Fox Hunt",
+       "translation": "Fox Hunt",
+       "what_it_does": "Uses a whip-like motion to grab the opponent's heart or energy.",
+       "visual_sequence": [
+        "Reaches out with a clawed hand",
+        "A spectral fox head lunges",
+        "Opponent is pulled toward Ban"
+       ],
+       "colors": [
+        "#FF0000",
+        "#8B0000"
+       ],
+       "sound_feel": "A spectral howl and a wet 'thud'",
+       "maps_to_block": "NEW",
+       "new_block": {
+        "id": "snatch",
+        "gameplay": "Long range grab. On hit, pulls opponent to 80 units distance and steals 30 energy.",
+        "timing_ticks": {
+         "startup": 12,
+         "active": 6,
+         "recovery": 20
+        },
+        "damage_mult": 0.5,
+        "range": "350",
+        "special_rules": "Unblockable if opponent is not crouching."
+       },
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          },
+          "foreF": {
+           "abs": 0
+          }
+         }
+        },
+        {
+         "t": 15,
+         "pose": {
+          "upperF": {
+           "abs": 0.5
+          },
+          "foreF": {
+           "abs": 1
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 5,
+         "effect": "particles",
+         "detail": "red spectral trail"
+        },
+        {
+         "t": 12,
+         "effect": "zoom",
+         "detail": "camera focus on Ban"
+        }
+       ],
+       "parody_name_ideas": [
+        "Heart Thief",
+        "Greedy Grab"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Escanor",
+     "fighting_style": "Heavy Axe / Brute Force",
+     "moves": [
+      {
+       "official_name": "Cruel Sun",
+       "translation": "Cruel Sun",
+       "what_it_does": "Creates a miniature sun and hurls it.",
+       "visual_sequence": [
+        "Raises finger, sun forms above it",
+        "Sun grows rapidly",
+        "Swings hand down to launch the sun"
+       ],
+       "colors": [
+        "#FFD700",
+        "#FF4500"
+       ],
+       "sound_feel": "Intense solar hum and a massive explosion",
+       "maps_to_block": "orb",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": -1.5
+          }
+         }
+        },
+        {
+         "t": 30,
+         "pose": {
+          "upperF": {
+           "abs": 0.5
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "sphere",
+         "detail": "glowing yellow orb above head"
+        },
+        {
+         "t": 30,
+         "effect": "speedlines",
+         "detail": "vertical heat haze"
+        }
+       ],
+       "parody_name_ideas": [
+        "Mean Star",
+        "Pride Ball"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Kill la Kill",
+   "characters": [
+    {
+     "name": "Ryuko Matoi",
+     "fighting_style": "Scissor Blade Brawling",
+     "moves": [
+      {
+       "official_name": "Sen-i Soshitsu",
+       "translation": "Fiber Lost",
+       "what_it_does": "A massive X-shaped scissor snip.",
+       "visual_sequence": [
+        "Extends scissor blade into Decapitation Mode",
+        "Dashes past opponent",
+        "Screen turns red with a giant 'X' cut"
+       ],
+       "colors": [
+        "#FF0000",
+        "#000000"
+       ],
+       "sound_feel": "Heavy metal clank and a fabric tear",
+       "maps_to_block": "slash",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": -1
+          },
+          "upperB": {
+           "abs": 1
+          }
+         }
+        },
+        {
+         "t": 15,
+         "pose": {
+          "upperF": {
+           "abs": 1
+          },
+          "upperB": {
+           "abs": -1
+          }
+         },
+         "lunge": 200
+        }
+       ],
+       "vfx": [
+        {
+         "t": 15,
+         "effect": "flash",
+         "detail": "red screen with black kanji"
+        },
+        {
+         "t": 16,
+         "effect": "slash",
+         "detail": "giant red X"
+        }
+       ],
+       "parody_name_ideas": [
+        "Thread Shredder",
+        "Scissor Finish"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Satsuki Kiryuin",
+     "fighting_style": "Iaijutsu (Samurai)",
+     "moves": [
+      {
+       "official_name": "Bakuzan Koryu",
+       "translation": "Bakuzan Gale",
+       "what_it_does": "A shockwave slash from her katana.",
+       "visual_sequence": [
+        "Sheathes blade partially",
+        "Quick-draws a vertical strike",
+        "A blue pressure wave travels across the ground"
+       ],
+       "colors": [
+        "#ADD8E6",
+        "#FFFFFF"
+       ],
+       "sound_feel": "High-pitched 'ping' and wind rush",
+       "maps_to_block": "wave",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 1.2
+          },
+          "foreF": {
+           "abs": 0.8
+          }
+         }
+        },
+        {
+         "t": 10,
+         "pose": {
+          "upperF": {
+           "abs": -1.2
+          },
+          "foreF": {
+           "abs": -0.5
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 10,
+         "effect": "ring",
+         "detail": "blue shockwave on floor"
+        },
+        {
+         "t": 10,
+         "effect": "speedlines",
+         "detail": "radial focus on Satsuki"
+        }
+       ],
+       "parody_name_ideas": [
+        "Blade Pressure",
+        "Iron Will Wave"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Gurren Lagann",
+   "characters": [
+    {
+     "name": "Simon",
+     "fighting_style": "Drill-based Melee",
+     "moves": [
+      {
+       "official_name": "Giga Drill Break",
+       "translation": "Giga Drill Break",
+       "what_it_does": "Forms a massive drill and charges through the enemy.",
+       "visual_sequence": [
+        "Points finger to the heavens",
+        "A drill 3x the body size forms on the arm",
+        "Spins rapidly and lunges forward"
+       ],
+       "colors": [
+        "#00FF00",
+        "#FFFF00"
+       ],
+       "sound_feel": "Grinding metal and a spiraling roar",
+       "maps_to_block": "spiral",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": -1.5
+          }
+         }
+        },
+        {
+         "t": 20,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          }
+         },
+         "lunge": 10
+        },
+        {
+         "t": 40,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          }
+         },
+         "lunge": 250
+        }
+       ],
+       "vfx": [
+        {
+         "t": 20,
+         "effect": "sphere",
+         "detail": "green spiral energy around arm"
+        },
+        {
+         "t": 40,
+         "effect": "afterimage",
+         "detail": "trailing green silhouettes"
+        },
+        {
+         "t": 40,
+         "effect": "shake",
+         "detail": "continuous vibration"
+        }
+       ],
+       "parody_name_ideas": [
+        "Mega Screw Smash",
+        "Heaven Piercer"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Kamina",
+     "fighting_style": "Wild Swordplay",
+     "moves": [
+      {
+       "official_name": "Sun-Attack",
+       "translation": "Sun Attack",
+       "what_it_does": "A fiery overhead slash with a long nodachi.",
+       "visual_sequence": [
+        "Adjusts sunglasses",
+        "Leaps high into the air",
+        "Brings sword down with a trail of fire"
+       ],
+       "colors": [
+        "#FF4500",
+        "#FFFFFF"
+       ],
+       "sound_feel": "Burning whoosh and a heavy impact",
+       "maps_to_block": "meteor",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": -2
+          }
+         },
+         "hop": -15
+        },
+        {
+         "t": 25,
+         "pose": {
+          "upperF": {
+           "abs": 1
+          }
+         },
+         "lunge": 50
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "glow",
+         "detail": "orange aura"
+        },
+        {
+         "t": 25,
+         "effect": "ring",
+         "detail": "fire impact on ground"
+        }
+       ],
+       "parody_name_ideas": [
+        "Bro Slash",
+        "Manly Strike"
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

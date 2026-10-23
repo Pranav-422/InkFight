@@ -1,0 +1,662 @@
+{
+ "anime": [
+  {
+   "title": "Baki the Grappler",
+   "characters": [
+    {
+     "name": "Baki Hanma",
+     "fighting_style": "Mixed Martial Arts",
+     "moves": [
+      {
+       "official_name": "Cockroach Dash",
+       "translation": "Cockroach Dash",
+       "what_it_does": "An instantaneous dash from a completely relaxed state, hitting the opponent with massive kinetic force.",
+       "visual_sequence": [
+        "Baki drops into a deep, low crouch, limbs looking limp",
+        "Suddenly blurs forward with afterimages",
+        "Connects with a double-palm strike or tackle",
+        "Skids to a halt behind the opponent"
+       ],
+       "colors": [
+        "#ffffff",
+        "#888888"
+       ],
+       "sound_feel": "A whip-crack followed by a heavy boom",
+       "maps_to_block": "charge",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.8
+          },
+          "thighF": {
+           "abs": -1.2
+          },
+          "thighB": {
+           "abs": 1.2
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 8,
+         "pose": {
+          "torso": {
+           "rel": 0.4
+          }
+         },
+         "lunge": 320
+        },
+        {
+         "t": 15,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          },
+          "upperB": {
+           "abs": 0
+          }
+         },
+         "lunge": 50
+        }
+       ],
+       "vfx": [
+        {
+         "t": 8,
+         "effect": "afterimage",
+         "detail": "3 grey silhouettes"
+        },
+        {
+         "t": 8,
+         "effect": "speedlines",
+         "detail": "horizontal"
+        },
+        {
+         "t": 15,
+         "effect": "ring",
+         "detail": "white impact"
+        }
+       ],
+       "parody_name_ideas": [
+        "Pest Sprint",
+        "Insect Velocity",
+        "Zero-G Dash"
+       ]
+      },
+      {
+       "official_name": "Triceratops Fist",
+       "translation": "Triceratops Fist",
+       "what_it_does": "A heavy, grounded charge where the fighter imagines the weight of a dinosaur, becoming unmovable and crushing everything in its path.",
+       "visual_sequence": [
+        "Baki takes a wide stance, hands mimicking horns",
+        "A spectral Triceratops outline appears",
+        "Slow, heavy stomp forward",
+        "Devastating shoulder ram and punch"
+       ],
+       "colors": [
+        "#a52a2a",
+        "#ffd700"
+       ],
+       "sound_feel": "Earth-shaking thuds and a low roar",
+       "maps_to_block": "charge",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": -0.5
+          },
+          "upperB": {
+           "abs": -0.8
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 20,
+         "pose": {
+          "torso": {
+           "rel": 0.2
+          }
+         },
+         "lunge": 100
+        },
+        {
+         "t": 40,
+         "pose": {
+          "upperF": {
+           "abs": 0.2
+          }
+         },
+         "lunge": 150
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "shake",
+         "detail": "constant low intensity"
+        },
+        {
+         "t": 40,
+         "effect": "flash",
+         "detail": "orange screen tint"
+        },
+        {
+         "t": 40,
+         "effect": "zoom",
+         "detail": "1.2x"
+        }
+       ],
+       "parody_name_ideas": [
+        "Three-Horn Stance",
+        "Dino Ram",
+        "Ancient Weight"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Yujiro Hanma",
+     "fighting_style": "Total Fighting",
+     "moves": [
+      {
+       "official_name": "Axe Kick",
+       "translation": "Axe Kick",
+       "what_it_does": "A vertical leg drop that splits the ground and the opponent.",
+       "visual_sequence": [
+        "Yujiro leaps high into the air",
+        "Leg extends 180 degrees upward",
+        "Smashes the heel down with terrifying speed",
+        "The ground cracks upon impact"
+       ],
+       "colors": [
+        "#ff0000",
+        "#000000"
+       ],
+       "sound_feel": "A thunderclap",
+       "maps_to_block": "meteor",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "thighF": {
+           "abs": -2.8
+          }
+         },
+         "hop": 18
+        },
+        {
+         "t": 20,
+         "pose": {
+          "thighF": {
+           "abs": -3.14
+          }
+         }
+        },
+        {
+         "t": 35,
+         "pose": {
+          "thighF": {
+           "abs": 1.57
+          },
+          "shinF": {
+           "abs": 1.57
+          }
+         },
+         "lunge": 20
+        }
+       ],
+       "vfx": [
+        {
+         "t": 35,
+         "effect": "shake",
+         "detail": "heavy"
+        },
+        {
+         "t": 35,
+         "effect": "particles",
+         "detail": "rock debris"
+        },
+        {
+         "t": 35,
+         "effect": "ring",
+         "detail": "red shockwave"
+        }
+       ],
+       "parody_name_ideas": [
+        "Ogre Heel",
+        "Splitting Maul",
+        "The Guillotine"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Kengan Ashura",
+   "characters": [
+    {
+     "name": "Ohma Tokita",
+     "fighting_style": "Niko Style",
+     "moves": [
+      {
+       "official_name": "Ironbreaker",
+       "translation": "Ironbreaker",
+       "what_it_does": "A punch utilizing the Adamantine Kata to harden the muscles, delivering a concentrated shockwave.",
+       "visual_sequence": [
+        "Ohma tenses his arm, which glows with a metallic sheen",
+        "A short, powerful straight punch",
+        "A massive circular shockwave erupts from the point of impact"
+       ],
+       "colors": [
+        "#4169e1",
+        "#ffffff"
+       ],
+       "sound_feel": "A heavy metallic 'clonk' then a boom",
+       "maps_to_block": "charge",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 2.5
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 15,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          }
+         },
+         "lunge": 60
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "glow",
+         "detail": "blue arm aura"
+        },
+        {
+         "t": 15,
+         "effect": "ring",
+         "detail": "expanding white circle"
+        },
+        {
+         "t": 15,
+         "effect": "slowmo",
+         "detail": "5 ticks"
+        }
+       ],
+       "parody_name_ideas": [
+        "Steel Smasher",
+        "Hardened Fist",
+        "Anvil Strike"
+       ]
+      },
+      {
+       "official_name": "Demonsbane",
+       "translation": "Demonsbane",
+       "what_it_does": "A formless counter that absorbs the opponent's power and returns it multiplied.",
+       "visual_sequence": [
+        "Ohma goes limp as the opponent strikes",
+        "He blurs through the attack",
+        "Instantly reappears behind the opponent with a devastating counter-strike"
+       ],
+       "colors": [
+        "#800080",
+        "#ffffff"
+       ],
+       "sound_feel": "Silence, then a massive shattering sound",
+       "maps_to_block": "teleport",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.2
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 10,
+         "pose": {
+          "torso": {
+           "rel": -0.2
+          }
+         },
+         "flip": true
+        },
+        {
+         "t": 25,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          }
+         },
+         "lunge": 20
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "afterimage",
+         "detail": "purple"
+        },
+        {
+         "t": 10,
+         "effect": "flash",
+         "detail": "white"
+        },
+        {
+         "t": 25,
+         "effect": "zoom",
+         "detail": "1.3x"
+        }
+       ],
+       "parody_name_ideas": [
+        "Devil's Return",
+        "Spirit Counter",
+        "Ghost Riposte"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Kanoh Agito",
+     "fighting_style": "Formless",
+     "moves": [
+      {
+       "official_name": "Dragon Shot",
+       "translation": "Dragon Shot",
+       "what_it_does": "A 'One-Inch Punch' style strike with zero distance, delivering maximum power from any position.",
+       "visual_sequence": [
+        "Agito places his fist almost touching the opponent",
+        "A tiny, explosive twitch of the arm",
+        "The opponent is launched back by an invisible force"
+       ],
+       "colors": [
+        "#000000",
+        "#ffd700"
+       ],
+       "sound_feel": "A sharp, pressurized 'pop'",
+       "maps_to_block": "charge",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 0.1
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 4,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          }
+         },
+         "lunge": 10
+        }
+       ],
+       "vfx": [
+        {
+         "t": 4,
+         "effect": "flash",
+         "detail": "yellow spark"
+        },
+        {
+         "t": 4,
+         "effect": "shake",
+         "detail": "short/sharp"
+        },
+        {
+         "t": 4,
+         "effect": "ring",
+         "detail": "small/fast"
+        }
+       ],
+       "parody_name_ideas": [
+        "Lizard Snap",
+        "Point-Blank Blast",
+        "The Emperor's Inch"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Lookism",
+   "characters": [
+    {
+     "name": "Daniel Park",
+     "fighting_style": "Copy / UI Mode",
+     "moves": [
+      {
+       "official_name": "UI Barrage",
+       "translation": "Ultra Instinct Barrage",
+       "what_it_does": "A flurry of perfectly executed strikes from various martial arts, performed with cold mechanical precision.",
+       "visual_sequence": [
+        "Daniel's eyes turn black with white pupils",
+        "He unleashes a sequence of jab, hook, roundhouse, and spinning elbow",
+        "Each hit has a small speedline effect"
+       ],
+       "colors": [
+        "#000000",
+        "#ffffff"
+       ],
+       "sound_feel": "Rapid-fire rhythmic thuds",
+       "maps_to_block": "barrage",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          }
+         }
+        },
+        {
+         "t": 10,
+         "pose": {
+          "upperB": {
+           "abs": 0
+          }
+         }
+        },
+        {
+         "t": 20,
+         "pose": {
+          "thighF": {
+           "abs": 1
+          }
+         }
+        },
+        {
+         "t": 30,
+         "pose": {
+          "upperF": {
+           "abs": -0.5
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "speedlines",
+         "detail": "radial"
+        },
+        {
+         "t": 0,
+         "effect": "glow",
+         "detail": "black eyes"
+        },
+        {
+         "t": 40,
+         "effect": "slowmo",
+         "detail": "10 ticks"
+        }
+       ],
+       "parody_name_ideas": [
+        "Auto-Pilot Flurry",
+        "Perfect Copy",
+        "Void Rush"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Vasco",
+     "fighting_style": "Muay Thai",
+     "moves": [
+      {
+       "official_name": "Compressed Low Kick",
+       "translation": "Compressed Low Kick",
+       "what_it_does": "A low kick so powerful it creates a vacuum wave along the floor.",
+       "visual_sequence": [
+        "Vasco winds up his leg, muscles bulging",
+        "Smashes his shin into the opponent's legs",
+        "A shockwave travels across the ground"
+       ],
+       "colors": [
+        "#ffa500",
+        "#ffffff"
+       ],
+       "sound_feel": "A heavy baseball bat hitting a tree",
+       "maps_to_block": "wave",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "thighF": {
+           "abs": -0.8
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 15,
+         "pose": {
+          "thighF": {
+           "abs": 1.2
+          },
+          "shinF": {
+           "abs": 1.4
+          }
+         },
+         "lunge": 30
+        }
+       ],
+       "vfx": [
+        {
+         "t": 15,
+         "effect": "particles",
+         "detail": "dust trail"
+        },
+        {
+         "t": 15,
+         "effect": "shake",
+         "detail": "low"
+        },
+        {
+         "t": 15,
+         "effect": "ring",
+         "detail": "horizontal"
+        }
+       ],
+       "parody_name_ideas": [
+        "Vacuum Shin",
+        "Forest Feller",
+        "Taboo Kick"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Gun Park",
+     "fighting_style": "Kyokushin Karate / Aikido",
+     "moves": [
+      {
+       "official_name": "Aikido Counter",
+       "translation": "Aikido Counter",
+       "what_it_does": "Uses the opponent's momentum to throw them violently to the ground.",
+       "visual_sequence": [
+        "Gun catches the opponent's arm",
+        "A circular motion blurs the screen",
+        "The opponent is slammed face-first into the floor behind Gun"
+       ],
+       "colors": [
+        "#ffffff",
+        "#000000"
+       ],
+       "sound_feel": "A smooth 'whoosh' then a concrete-breaking slam",
+       "maps_to_block": "teleport",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 0.5
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 12,
+         "pose": {
+          "torso": {
+           "rel": -0.3
+          }
+         },
+         "flip": true
+        },
+        {
+         "t": 25,
+         "pose": {
+          "upperF": {
+           "abs": 1.5
+          }
+         },
+         "lunge": -20
+        }
+       ],
+       "vfx": [
+        {
+         "t": 12,
+         "effect": "smear",
+         "detail": "circular"
+        },
+        {
+         "t": 25,
+         "effect": "shake",
+         "detail": "heavy"
+        },
+        {
+         "t": 25,
+         "effect": "particles",
+         "detail": "ground cracks"
+        }
+       ],
+       "parody_name_ideas": [
+        "White Ghost Throw",
+        "Momentum Flip",
+        "The Master's Grip"
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

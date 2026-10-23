@@ -1,0 +1,777 @@
+{
+ "anime": [
+  {
+   "title": "Hajime no Ippo",
+   "characters": [
+    {
+     "name": "Ippo Makunouchi",
+     "fighting_style": "Boxing",
+     "moves": [
+      {
+       "official_name": "Dempsey Roll",
+       "translation": "Dempsey Roll",
+       "what_it_does": "A continuous weave in an infinity-symbol pattern followed by a barrage of hooks.",
+       "visual_sequence": [
+        "Crouches low with head tucked",
+        "Torso weaves rapidly left and right in a figure-eight motion",
+        "Unleashes a series of alternating left and right hooks with heavy momentum"
+       ],
+       "colors": [
+        "#ffffff",
+        "#888888"
+       ],
+       "sound_feel": "Rhythmic heavy thuds and whistling wind",
+       "maps_to_block": "barrage",
+       "new_block": null,
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "abs": -1.2
+          },
+          "head": {
+           "abs": -1.4
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 10,
+         "pose": {
+          "torso": {
+           "abs": -1.9
+          },
+          "head": {
+           "abs": -2.1
+          }
+         },
+         "lunge": 15
+        },
+        {
+         "t": 20,
+         "pose": {
+          "torso": {
+           "abs": -1.2
+          },
+          "head": {
+           "abs": -1.4
+          }
+         },
+         "lunge": 15
+        },
+        {
+         "t": 30,
+         "pose": {
+          "upperF": {
+           "abs": 0.5
+          },
+          "foreF": {
+           "abs": -0.5
+          }
+         },
+         "lunge": 20
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "speedlines",
+         "detail": "Radial lines from center"
+        },
+        {
+         "t": 10,
+         "effect": "afterimage",
+         "detail": "Ghosting of the torso weave"
+        },
+        {
+         "t": 30,
+         "effect": "shake",
+         "detail": "Screen shake on every punch impact"
+        }
+       ],
+       "parody_name_ideas": [
+        "Rhino Weaver",
+        "Infinity Hooks",
+        "Engine Roll"
+       ]
+      },
+      {
+       "official_name": "Gazelle Punch",
+       "translation": "Gazelle Punch",
+       "what_it_does": "An upward leaping hook from a crouched position.",
+       "visual_sequence": [
+        "Deep crouch to build leg tension",
+        "Explosive leap forward and slightly upward",
+        "Lead hook aimed at the chin"
+       ],
+       "colors": [
+        "#ffffff"
+       ],
+       "sound_feel": "Sharp 'whoosh' followed by a bone-cracking impact",
+       "maps_to_block": "uppercut",
+       "new_block": null,
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "thighF": {
+           "abs": 0.5
+          },
+          "thighB": {
+           "abs": 0.5
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 8,
+         "pose": {
+          "thighF": {
+           "abs": 1.57
+          },
+          "thighB": {
+           "abs": 1.57
+          },
+          "upperF": {
+           "abs": 1.2
+          }
+         },
+         "lunge": 40
+        },
+        {
+         "t": 15,
+         "pose": {
+          "upperF": {
+           "abs": -0.5
+          },
+          "foreF": {
+           "abs": -1
+          }
+         },
+         "lunge": 10
+        }
+       ],
+       "vfx": [
+        {
+         "t": 8,
+         "effect": "flash",
+         "detail": "White spark at feet on takeoff"
+        },
+        {
+         "t": 15,
+         "effect": "ring",
+         "detail": "Impact ring at the fist"
+        }
+       ],
+       "parody_name_ideas": [
+        "Antelope Strike",
+        "Leaping Lead"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Ichiro Miyata",
+     "fighting_style": "Boxing",
+     "moves": [
+      {
+       "official_name": "Jolt Counter",
+       "translation": "Jolt Counter",
+       "what_it_does": "A full-body weight counter-punch that uses the opponent's momentum.",
+       "visual_sequence": [
+        "Leans back slightly to bait an attack",
+        "Steps forward with a sudden, stiff straight punch",
+        "The entire body forms a straight line from heel to fist"
+       ],
+       "colors": [
+        "#00ffff"
+       ],
+       "sound_feel": "High-pitched 'ping' and a heavy boom",
+       "maps_to_block": "charge",
+       "new_block": null,
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "abs": -1.8
+          }
+         },
+         "lunge": -5
+        },
+        {
+         "t": 6,
+         "pose": {
+          "torso": {
+           "abs": -1.3
+          },
+          "upperF": {
+           "abs": 0
+          },
+          "foreF": {
+           "abs": 0
+          }
+         },
+         "lunge": 60
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "slowmo",
+         "detail": "Brief 5-tick slowdown on startup"
+        },
+        {
+         "t": 6,
+         "effect": "flash",
+         "detail": "Blue screen flash on impact"
+        }
+       ],
+       "parody_name_ideas": [
+        "Lightning Bolt",
+        "Momentum Breaker"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Ryo Mashiba",
+     "fighting_style": "Boxing",
+     "moves": [
+      {
+       "official_name": "Flicker Jab",
+       "translation": "Flicker Jab",
+       "what_it_does": "Long-range, whip-like jabs thrown from a low guard.",
+       "visual_sequence": [
+        "Lead arm hangs low and loose",
+        "Arm snaps out like a whip in multiple directions",
+        "Fist appears to blur due to speed"
+       ],
+       "colors": [
+        "#440044"
+       ],
+       "sound_feel": "Sharp 'crack' like a whip",
+       "maps_to_block": "barrage",
+       "new_block": null,
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 1.5
+          },
+          "foreF": {
+           "abs": 1.5
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 5,
+         "pose": {
+          "upperF": {
+           "abs": 0.2
+          },
+          "foreF": {
+           "abs": 0
+          }
+         },
+         "lunge": 5
+        },
+        {
+         "t": 10,
+         "pose": {
+          "upperF": {
+           "abs": -0.2
+          },
+          "foreF": {
+           "abs": 0
+          }
+         },
+         "lunge": 5
+        }
+       ],
+       "vfx": [
+        {
+         "t": 5,
+         "effect": "afterimage",
+         "detail": "Purple trails following the fist"
+        },
+        {
+         "t": 5,
+         "effect": "particles",
+         "detail": "Small dark sparks on hit"
+        }
+       ],
+       "parody_name_ideas": [
+        "Whip Snap",
+        "Grim Jabs"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "The God of High School",
+   "characters": [
+    {
+     "name": "Jin Mori",
+     "fighting_style": "Renewal Taekwondo",
+     "moves": [
+      {
+       "official_name": "Blue Dragon's Kick",
+       "translation": "Kick of the Blue Dragon",
+       "what_it_does": "A powerful roundhouse kick that manifests a giant blue dragon made of wind.",
+       "visual_sequence": [
+        "Spins 360 degrees on one foot",
+        "Leg extends fully as a massive blue dragon aura spirals forward",
+        "The dragon 'bites' the opponent, pushing them back"
+       ],
+       "colors": [
+        "#0088ff",
+        "#ffffff"
+       ],
+       "sound_feel": "Roar of a dragon mixed with a hurricane",
+       "maps_to_block": "beam",
+       "new_block": null,
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "thighF": {
+           "abs": 1.57
+          },
+          "torso": {
+           "abs": -1.57
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 12,
+         "pose": {
+          "thighF": {
+           "abs": 0
+          },
+          "shinF": {
+           "abs": 0
+          },
+          "torso": {
+           "abs": -1.57
+          }
+         },
+         "lunge": 20
+        }
+       ],
+       "vfx": [
+        {
+         "t": 12,
+         "effect": "beam",
+         "detail": "Blue dragon-shaped energy stream"
+        },
+        {
+         "t": 12,
+         "effect": "zoom",
+         "detail": "Camera zooms in on the kick extension"
+        }
+       ],
+       "parody_name_ideas": [
+        "Azure Serpent Strike",
+        "Wind Dragon Kick"
+       ]
+      },
+      {
+       "official_name": "3rd Stance Hwechook",
+       "translation": "Triple Strike Roundhouse",
+       "what_it_does": "Three consecutive roundhouse kicks to the head from different angles in one jump.",
+       "visual_sequence": [
+        "Leaps into the air",
+        "Kicks the left side of the head, then the right, then the back of the neck",
+        "All three hits land almost simultaneously"
+       ],
+       "colors": [
+        "#ffcc00"
+       ],
+       "sound_feel": "Three rapid 'thud-thud-thud' sounds",
+       "maps_to_block": "barrage",
+       "new_block": null,
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "thighF": {
+           "abs": -0.5
+          }
+         },
+         "lunge": 10
+        },
+        {
+         "t": 5,
+         "pose": {
+          "thighF": {
+           "abs": 0.5
+          }
+         },
+         "lunge": 5
+        },
+        {
+         "t": 10,
+         "pose": {
+          "thighF": {
+           "abs": 0
+          }
+         },
+         "lunge": 5
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "afterimage",
+         "detail": "Yellow silhouettes of the kicks"
+        },
+        {
+         "t": 10,
+         "effect": "ring",
+         "detail": "Large impact ring on the final hit"
+        }
+       ],
+       "parody_name_ideas": [
+        "Trinity Spin",
+        "Three-Way Roundhouse"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Han Daewi",
+     "fighting_style": "Full Contact Karate",
+     "moves": [
+      {
+       "official_name": "Blue Dragon's Storm",
+       "translation": "Dance of the Blue Dragon",
+       "what_it_does": "A punch that creates a massive shockwave of air pressure.",
+       "visual_sequence": [
+        "Draws fist back to the hip",
+        "Punches forward with immense force",
+        "A visible cone of white and blue air pressure blasts the opponent"
+       ],
+       "colors": [
+        "#ffffff",
+        "#0000ff"
+       ],
+       "sound_feel": "Sonic boom",
+       "maps_to_block": "wave",
+       "new_block": null,
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 3.14
+          },
+          "foreF": {
+           "abs": 1.57
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 15,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          },
+          "foreF": {
+           "abs": 0
+          }
+         },
+         "lunge": 30
+        }
+       ],
+       "vfx": [
+        {
+         "t": 15,
+         "effect": "wave",
+         "detail": "Distortion wave moving across the floor"
+        },
+        {
+         "t": 15,
+         "effect": "shake",
+         "detail": "Heavy screen shake"
+        }
+       ],
+       "parody_name_ideas": [
+        "Pressure Punch",
+        "Tidal Fist"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Yoo Mira",
+     "fighting_style": "Moonlight Sword Style",
+     "moves": [
+      {
+       "official_name": "13th Form: Moonlight Blade",
+       "translation": "Moonlight Blade",
+       "what_it_does": "A high-speed horizontal slash that leaves a trail of moonlight.",
+       "visual_sequence": [
+        "Low stance, hand on the hilt",
+        "Vashes forward in a blur",
+        "A crescent moon-shaped slash appears behind her"
+       ],
+       "colors": [
+        "#ffffaa",
+        "#ffffff"
+       ],
+       "sound_feel": "High-pitched metallic 'shing'",
+       "maps_to_block": "slash",
+       "new_block": null,
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "abs": -1.2
+          },
+          "upperF": {
+           "abs": 1.5
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 10,
+         "pose": {
+          "torso": {
+           "abs": -1.2
+          },
+          "upperF": {
+           "abs": -1.5
+          }
+         },
+         "lunge": 100
+        }
+       ],
+       "vfx": [
+        {
+         "t": 10,
+         "effect": "slash",
+         "detail": "Crescent moon energy arc"
+        },
+        {
+         "t": 0,
+         "effect": "speedlines",
+         "detail": "Horizontal motion lines"
+        }
+       ],
+       "parody_name_ideas": [
+        "Lunar Slice",
+        "Night Blade"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Tower of God",
+   "characters": [
+    {
+     "name": "Twenty-Fifth Baam",
+     "fighting_style": "Shinsu Manipulation",
+     "moves": [
+      {
+       "official_name": "Floral Butterfly Piercing Technique",
+       "translation": "Floral Butterfly Piercing Technique",
+       "what_it_does": "A palm strike that transmits Shinsu through the target, creating a butterfly-shaped explosion behind them.",
+       "visual_sequence": [
+        "Charges Shinsu in the palm",
+        "Strikes the opponent's chest",
+        "Blue butterfly wings of energy erupt from the opponent's back"
+       ],
+       "colors": [
+        "#00ccff",
+        "#ffffff"
+       ],
+       "sound_feel": "Crystalline shattering sound",
+       "maps_to_block": "spiral",
+       "new_block": null,
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 2
+          },
+          "foreF": {
+           "abs": 1
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 20,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          },
+          "foreF": {
+           "abs": 0
+          }
+         },
+         "lunge": 10
+        }
+       ],
+       "vfx": [
+        {
+         "t": 20,
+         "effect": "sphere",
+         "detail": "Concentrated blue orb at point of impact"
+        },
+        {
+         "t": 22,
+         "effect": "particles",
+         "detail": "Butterfly-shaped particle emitters"
+        }
+       ],
+       "parody_name_ideas": [
+        "Spirit Butterfly",
+        "Piercing Petal"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Rak Wraithraiser",
+     "fighting_style": "Spear Bearing",
+     "moves": [
+      {
+       "official_name": "Ancient Spear",
+       "translation": "Ancient Spear",
+       "what_it_does": "Throws a massive stone spear that explodes on impact.",
+       "visual_sequence": [
+        "Leans back with a massive stone spear",
+        "Hurls it with both hands",
+        "Spear travels fast and creates a rock explosion"
+       ],
+       "colors": [
+        "#886644",
+        "#ffaa00"
+       ],
+       "sound_feel": "Heavy rock grinding and a blast",
+       "maps_to_block": "arrow",
+       "new_block": null,
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 3.14
+          },
+          "upperB": {
+           "abs": 3.14
+          }
+         },
+         "lunge": -10
+        },
+        {
+         "t": 15,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          },
+          "upperB": {
+           "abs": 0
+          }
+         },
+         "lunge": 20
+        }
+       ],
+       "vfx": [
+        {
+         "t": 15,
+         "effect": "particles",
+         "detail": "Rock debris trailing the spear"
+        },
+        {
+         "t": 15,
+         "effect": "flash",
+         "detail": "Orange explosion on hit"
+        }
+       ],
+       "parody_name_ideas": [
+        "Gator Bolt",
+        "Stone Javelin"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Endorsi Jahad",
+     "fighting_style": "Jahad Style",
+     "moves": [
+      {
+       "official_name": "Bong Bong",
+       "translation": "Bong Bong",
+       "what_it_does": "Teleports behind the opponent and delivers a powerful kick.",
+       "visual_sequence": [
+        "Disappears in a pink flash",
+        "Reappears instantly behind the opponent",
+        "Delivers a flying side kick to the back"
+       ],
+       "colors": [
+        "#ff00ff"
+       ],
+       "sound_feel": "Digital 'pop' sound",
+       "maps_to_block": "teleport",
+       "new_block": null,
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "abs": -1.57
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 10,
+         "pose": {
+          "thighF": {
+           "abs": 0
+          },
+          "shinF": {
+           "abs": 0
+          }
+         },
+         "lunge": 0
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "flash",
+         "detail": "Pink heart-shaped flash"
+        },
+        {
+         "t": 10,
+         "effect": "afterimage",
+         "detail": "Pink trail at the reappearance point"
+        }
+       ],
+       "parody_name_ideas": [
+        "Heart Warp",
+        "Princess Leap"
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

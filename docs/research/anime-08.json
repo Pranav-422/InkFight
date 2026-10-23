@@ -1,0 +1,605 @@
+{
+ "anime": [
+  {
+   "title": "Chainsaw Man",
+   "characters": [
+    {
+     "name": "Denji",
+     "fighting_style": "Street",
+     "moves": [
+      {
+       "official_name": "Chainsaw Dash",
+       "translation": "Chainsaw Dash",
+       "what_it_does": "Denji revs his head saw and lunges forward, shredding anything in his path.",
+       "visual_sequence": [
+        "Denji pulls the cord on his chest",
+        "Chainsaws sprout from his head and arms",
+        "He leans forward and rockets across the screen with sparks flying"
+       ],
+       "colors": [
+        "#FF4500",
+        "#808080"
+       ],
+       "sound_feel": "High-pitched mechanical revving and metal grinding",
+       "maps_to_block": "charge",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.4
+          },
+          "upperF": {
+           "abs": 1.5
+          },
+          "upperB": {
+           "abs": 1.5
+          }
+         },
+         "lunge": 0
+        },
+        {
+         "t": 10,
+         "pose": {
+          "torso": {
+           "rel": 0.8
+          },
+          "upperF": {
+           "abs": 0
+          },
+          "upperB": {
+           "abs": 0
+          }
+         },
+         "lunge": 120
+        },
+        {
+         "t": 30,
+         "pose": {
+          "torso": {
+           "rel": 0.2
+          }
+         },
+         "lunge": 0
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "particles",
+         "detail": "Grey metal sparks and smoke"
+        },
+        {
+         "t": 10,
+         "effect": "speedlines",
+         "detail": "Horizontal motion blur"
+        },
+        {
+         "t": 10,
+         "effect": "shake",
+         "detail": "Constant low-intensity rumble"
+        }
+       ],
+       "parody_name_ideas": [
+        "Motorhead Rush",
+        "Rip & Tear"
+       ]
+      },
+      {
+       "official_name": "Chainsaw Barrage",
+       "translation": "Chainsaw Barrage",
+       "what_it_does": "A wild flurry of horizontal and vertical chainsaw swings.",
+       "visual_sequence": [
+        "Denji swings his arms wildly in a cross pattern",
+        "Blood and sparks spray with every hit",
+        "Ends with a heavy overhead head-butt"
+       ],
+       "colors": [
+        "#CC0000",
+        "#FFFFFF"
+       ],
+       "sound_feel": "Wet slicing sounds mixed with engine roars",
+       "maps_to_block": "barrage",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": -0.5
+          },
+          "upperB": {
+           "abs": 0.5
+          }
+         }
+        },
+        {
+         "t": 5,
+         "pose": {
+          "upperF": {
+           "abs": 0.5
+          },
+          "upperB": {
+           "abs": -0.5
+          }
+         }
+        },
+        {
+         "t": 40,
+         "pose": {
+          "head": {
+           "rel": 1.2
+          },
+          "torso": {
+           "rel": 0.5
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 5,
+         "effect": "slash",
+         "detail": "Red jagged trails"
+        },
+        {
+         "t": 40,
+         "effect": "flash",
+         "detail": "White impact screen"
+        }
+       ],
+       "parody_name_ideas": [
+        "Gasoline Tantrum",
+        "Sawblade Symphony"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Aki Hayakawa",
+     "fighting_style": "Systema",
+     "moves": [
+      {
+       "official_name": "Kon",
+       "translation": "Fox Devil Summon",
+       "what_it_does": "Aki makes a hand sign and the giant head of the Fox Devil bites the opponent.",
+       "visual_sequence": [
+        "Aki forms the 'Kon' hand sign",
+        "A massive fox head manifests from the background",
+        "The jaws snap shut on the opponent's location"
+       ],
+       "colors": [
+        "#FFFFFF",
+        "#000000"
+       ],
+       "sound_feel": "Deep, echoing 'KON' vocal followed by a massive crunch",
+       "maps_to_block": "NEW",
+       "new_block": {
+        "id": "summon_strike",
+        "gameplay": "A massive hitbox appears at a fixed distance (250 units) in front of the player after a delay.",
+        "timing_ticks": {
+         "startup": 25,
+         "active": 10,
+         "recovery": 30
+        },
+        "damage_mult": 2.5,
+        "range": "Long",
+        "special_rules": "Unblockable if the opponent is in the center of the bite."
+       },
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "foreF": {
+           "abs": -1.2
+          },
+          "foreB": {
+           "abs": -1.2
+          }
+         }
+        },
+        {
+         "t": 25,
+         "pose": {
+          "torso": {
+           "rel": -0.2
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "zoom",
+         "detail": "Focus on Aki's hands"
+        },
+        {
+         "t": 25,
+         "effect": "shake",
+         "detail": "Heavy screen shake"
+        },
+        {
+         "t": 25,
+         "effect": "particles",
+         "detail": "White fur and ink splatters"
+        }
+       ],
+       "parody_name_ideas": [
+        "Foxy Bite",
+        "Contractual Obligation"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Black Clover",
+   "characters": [
+    {
+     "name": "Asta",
+     "fighting_style": "Street",
+     "moves": [
+      {
+       "official_name": "Black Meteorite",
+       "translation": "Black Meteorite",
+       "what_it_does": "Asta enters his Black form and performs a homing dash that ends in a massive sword slash.",
+       "visual_sequence": [
+        "Black anti-magic flows over Asta's right side",
+        "He leaps into the air with a single black wing",
+        "He crashes into the opponent with his giant sword"
+       ],
+       "colors": [
+        "#000000",
+        "#4B0082"
+       ],
+       "sound_feel": "Low-frequency hum followed by a metallic boom",
+       "maps_to_block": "meteor",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "thighF": {
+           "rel": -1
+          },
+          "thighB": {
+           "rel": -1
+          }
+         },
+         "hop": -15
+        },
+        {
+         "t": 15,
+         "pose": {
+          "upperF": {
+           "abs": -2.5
+          },
+          "torso": {
+           "rel": 0.5
+          }
+         }
+        },
+        {
+         "t": 30,
+         "pose": {
+          "upperF": {
+           "abs": 1
+          },
+          "torso": {
+           "rel": 0.8
+          }
+         },
+         "lunge": 50
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "afterimage",
+         "detail": "Black shadowy trails"
+        },
+        {
+         "t": 30,
+         "effect": "ring",
+         "detail": "Black shockwave on impact"
+        },
+        {
+         "t": 30,
+         "effect": "slowmo",
+         "detail": "Brief pause on hit"
+        }
+       ],
+       "parody_name_ideas": [
+        "Anti-Magic Slam",
+        "Dark Star"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Yami Sukehiro",
+     "fighting_style": "Karate",
+     "moves": [
+      {
+       "official_name": "Dark Cloaked Avidya Slash",
+       "translation": "Dark Cloaked Avidya Slash",
+       "what_it_does": "Yami coats his katana in darkness and releases a flying crescent wave.",
+       "visual_sequence": [
+        "Yami draws his sword slowly",
+        "Darkness pools around the blade",
+        "A horizontal slash releases a black energy wave"
+       ],
+       "colors": [
+        "#1A1A1A",
+        "#800080"
+       ],
+       "sound_feel": "Sharp 'shing' followed by a heavy wind gust",
+       "maps_to_block": "slash",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 1.5
+          },
+          "foreF": {
+           "abs": 1.5
+          }
+         }
+        },
+        {
+         "t": 12,
+         "pose": {
+          "upperF": {
+           "abs": -0.5
+          },
+          "foreF": {
+           "abs": 0
+          }
+         }
+        },
+        {
+         "t": 25,
+         "pose": {
+          "upperF": {
+           "abs": 1
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 12,
+         "effect": "slash",
+         "detail": "Thick black crescent moving forward"
+        },
+        {
+         "t": 12,
+         "effect": "glow",
+         "detail": "Purple aura on blade"
+        }
+       ],
+       "parody_name_ideas": [
+        "Grumpy Slash",
+        "Midnight Edge"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Fairy Tail",
+   "characters": [
+    {
+     "name": "Natsu Dragneel",
+     "fighting_style": "Street",
+     "moves": [
+      {
+       "official_name": "Karyu no Hoko",
+       "translation": "Fire Dragon's Roar",
+       "what_it_does": "Natsu breathes a massive blast of fire from his mouth.",
+       "visual_sequence": [
+        "Natsu cups his hands to his mouth",
+        "He inhales deeply, chest expanding",
+        "A huge cone of fire erupts forward"
+       ],
+       "colors": [
+        "#FF8C00",
+        "#FF0000"
+       ],
+       "sound_feel": "Explosive dragon roar and rushing wind",
+       "maps_to_block": "beam",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": -0.3
+          },
+          "head": {
+           "rel": -0.4
+          }
+         }
+        },
+        {
+         "t": 15,
+         "pose": {
+          "torso": {
+           "rel": 0.4
+          },
+          "head": {
+           "rel": 0.2
+          }
+         }
+        },
+        {
+         "t": 45,
+         "pose": {
+          "torso": {
+           "rel": 0
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 15,
+         "effect": "beam",
+         "detail": "Wide fire cone with orange particles"
+        },
+        {
+         "t": 15,
+         "effect": "flash",
+         "detail": "Bright orange screen tint"
+        }
+       ],
+       "parody_name_ideas": [
+        "Lizard Breath",
+        "Spicy Shout"
+       ]
+      },
+      {
+       "official_name": "Karyu no Tekken",
+       "translation": "Fire Dragon's Iron Fist",
+       "what_it_does": "Natsu engulfs his fist in flames and delivers a powerful lunging punch.",
+       "visual_sequence": [
+        "Natsu's fist ignites",
+        "He pulls his arm back while sliding forward",
+        "A massive flaming punch impacts the opponent"
+       ],
+       "colors": [
+        "#FFA500",
+        "#FF4500"
+       ],
+       "sound_feel": "Heavy punch impact with a fire burst",
+       "maps_to_block": "charge",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 2.5
+          },
+          "torso": {
+           "rel": -0.2
+          }
+         }
+        },
+        {
+         "t": 10,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          },
+          "torso": {
+           "rel": 0.5
+          }
+         },
+         "lunge": 80
+        },
+        {
+         "t": 20,
+         "pose": {
+          "upperF": {
+           "abs": 0.5
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "glow",
+         "detail": "Fire around front hand"
+        },
+        {
+         "t": 10,
+         "effect": "ring",
+         "detail": "Fire shockwave on hit"
+        }
+       ],
+       "parody_name_ideas": [
+        "Hot Punch",
+        "Salamander Strike"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Erza Scarlet",
+     "fighting_style": "Karate",
+     "moves": [
+      {
+       "official_name": "Tenrin: Ryoran no Ken",
+       "translation": "Heaven's Wheel: Blumenblatt",
+       "what_it_does": "Erza summons multiple swords and charges past the opponent, slashing with all of them.",
+       "visual_sequence": [
+        "Erza swaps into her Heaven's Wheel armor",
+        "A circle of swords appears behind her",
+        "She flies through the opponent in a blur of steel"
+       ],
+       "colors": [
+        "#C0C0C0",
+        "#FFD700"
+       ],
+       "sound_feel": "Metallic clashing and high-speed whistling",
+       "maps_to_block": "barrage",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": -1.5
+          },
+          "upperB": {
+           "abs": -1.5
+          }
+         },
+         "hop": -5
+        },
+        {
+         "t": 15,
+         "pose": {
+          "torso": {
+           "rel": 1
+          }
+         },
+         "lunge": 150
+        },
+        {
+         "t": 35,
+         "pose": {
+          "torso": {
+           "rel": 0
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "afterimage",
+         "detail": "Silver wing trails"
+        },
+        {
+         "t": 15,
+         "effect": "slash",
+         "detail": "Multiple white cross-slashes"
+        },
+        {
+         "t": 15,
+         "effect": "speedlines",
+         "detail": "Radial focus lines"
+        }
+       ],
+       "parody_name_ideas": [
+        "Sword Circle",
+        "Armor Swap Dash"
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

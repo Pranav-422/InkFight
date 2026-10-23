@@ -1,0 +1,781 @@
+{
+ "anime": [
+  {
+   "title": "Boruto: Naruto Next Generations",
+   "characters": [
+    {
+     "name": "Boruto Uzumaki",
+     "fighting_style": "Street",
+     "moves": [
+      {
+       "official_name": "Kieru Rasengan",
+       "translation": "Vanishing Rasengan",
+       "what_it_does": "Throws a small wind-natured sphere that turns invisible mid-flight and explodes on impact.",
+       "visual_sequence": [
+        "Boruto holds his hand out, forming a small swirling blue sphere.",
+        "He hurls it forward like a baseball.",
+        "The sphere fades into transparency after traveling a short distance.",
+        "A sudden explosion occurs where the sphere hits the opponent."
+       ],
+       "colors": [
+        "#87CEEB",
+        "#FFFFFF"
+       ],
+       "sound_feel": "High-pitched whistle followed by a muffled 'pop' and then a heavy blast.",
+       "maps_to_block": "spiral",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.2
+          },
+          "upperF": {
+           "abs": -2.5
+          },
+          "foreF": {
+           "abs": -2
+          }
+         }
+        },
+        {
+         "t": 10,
+         "pose": {
+          "upperF": {
+           "abs": 0.5
+          },
+          "foreF": {
+           "abs": 0.2
+          }
+         },
+         "lunge": 15
+        },
+        {
+         "t": 25,
+         "pose": {
+          "upperF": {
+           "abs": 1.2
+          },
+          "foreF": {
+           "abs": 1.2
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "sphere",
+         "detail": "Small blue swirling orb in hand"
+        },
+        {
+         "t": 10,
+         "effect": "afterimage",
+         "detail": "Sphere moves forward"
+        },
+        {
+         "t": 15,
+         "effect": "glow",
+         "detail": "Sphere alpha goes to 0"
+        },
+        {
+         "t": 35,
+         "effect": "flash",
+         "detail": "Impact explosion"
+        }
+       ],
+       "parody_name_ideas": [
+        "Ghostly Swirl",
+        "Invisible Orb"
+       ]
+      },
+      {
+       "official_name": "Boruto Sutorīmu",
+       "translation": "Boruto Stream",
+       "what_it_does": "Uses shadow clones to propel himself forward at high speed for a kunai strike.",
+       "visual_sequence": [
+        "Two clones appear behind Boruto.",
+        "They grab his hands and launch him forward like a slingshot.",
+        "Boruto flies across the screen with wind effects.",
+        "He strikes with a kunai at the end of the dash."
+       ],
+       "colors": [
+        "#FFFFFF",
+        "#FFFF00"
+       ],
+       "sound_feel": "Wind rushing 'whoosh' followed by a metallic 'ching'.",
+       "maps_to_block": "charge",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.5
+          },
+          "thighF": {
+           "rel": -0.5
+          }
+         }
+        },
+        {
+         "t": 8,
+         "pose": {
+          "torso": {
+           "rel": -0.2
+          }
+         },
+         "lunge": 120
+        },
+        {
+         "t": 20,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          }
+         },
+         "lunge": 20
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "afterimage",
+         "detail": "Two clones appear briefly"
+        },
+        {
+         "t": 8,
+         "effect": "speedlines",
+         "detail": "Full screen horizontal"
+        },
+        {
+         "t": 8,
+         "effect": "smear",
+         "detail": "White wind trail"
+        }
+       ],
+       "parody_name_ideas": [
+        "Brat Rocket",
+        "Slingshot Stab"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Sarada Uchiha",
+     "fighting_style": "Boxing",
+     "moves": [
+      {
+       "official_name": "Chidori",
+       "translation": "One Thousand Birds",
+       "what_it_does": "Concentrates lightning in the hand and performs a high-speed linear thrust.",
+       "visual_sequence": [
+        "Sarada crouches, lightning sparking in her palm.",
+        "She dashes forward at extreme speed.",
+        "The strike pierces the opponent with a massive electrical discharge."
+       ],
+       "colors": [
+        "#00FFFF",
+        "#FFFFFF"
+       ],
+       "sound_feel": "Intense chirping of thousands of birds, high-voltage crackle.",
+       "maps_to_block": "charge",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.8
+          },
+          "upperF": {
+           "abs": 1.5
+          }
+         }
+        },
+        {
+         "t": 15,
+         "pose": {
+          "torso": {
+           "rel": -0.4
+          },
+          "upperF": {
+           "abs": 0
+          }
+         },
+         "lunge": 200
+        },
+        {
+         "t": 30,
+         "pose": {
+          "upperF": {
+           "abs": 0.5
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "particles",
+         "detail": "Blue lightning sparks around hand"
+        },
+        {
+         "t": 15,
+         "effect": "zoom",
+         "detail": "Camera follows dash"
+        },
+        {
+         "t": 16,
+         "effect": "flash",
+         "detail": "White screen flicker"
+        }
+       ],
+       "parody_name_ideas": [
+        "Bird Chirp Pierce",
+        "Volt Dash"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Kawaki",
+     "fighting_style": "Street",
+     "moves": [
+      {
+       "official_name": "Kāma Hō",
+       "translation": "Karma Blast",
+       "what_it_does": "Fires a massive beam of energy from the palm of the hand.",
+       "visual_sequence": [
+        "Kawaki holds his hand forward, the Karma mark glowing red.",
+        "Energy condenses into a sphere.",
+        "A thick, destructive beam fires across the screen."
+       ],
+       "colors": [
+        "#FF0000",
+        "#000000"
+       ],
+       "sound_feel": "Low hum building to a heavy bass boom.",
+       "maps_to_block": "beam",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": -0.1
+          },
+          "upperF": {
+           "abs": 0
+          }
+         }
+        },
+        {
+         "t": 40,
+         "pose": {
+          "torso": {
+           "rel": 0.2
+          },
+          "upperF": {
+           "abs": 0.1
+          }
+         },
+         "lunge": -10
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "glow",
+         "detail": "Red glow on hand"
+        },
+        {
+         "t": 15,
+         "effect": "beam",
+         "detail": "Thick red beam with black core"
+        },
+        {
+         "t": 15,
+         "effect": "shake",
+         "detail": "Screen rumble"
+        }
+       ],
+       "parody_name_ideas": [
+        "Mark Blast",
+        "Cursed Beam"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Tokyo Ghoul",
+   "characters": [
+    {
+     "name": "Ken Kaneki",
+     "fighting_style": "Systema",
+     "moves": [
+      {
+       "official_name": "Kagune Risshin",
+       "translation": "Kagune Emergence",
+       "what_it_does": "Four red tentacles sprout from the lower back and perform a rapid flurry of stabs.",
+       "visual_sequence": [
+        "Kaneki cracks his finger.",
+        "Four scale-like tentacles burst from his back.",
+        "The tentacles strike forward repeatedly in a blur of red.",
+        "The tentacles retract."
+       ],
+       "colors": [
+        "#8B0000",
+        "#FF4500"
+       ],
+       "sound_feel": "Wet tearing sound followed by rapid 'thwip-thwip-thwip' stabs.",
+       "maps_to_block": "barrage",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.3
+          },
+          "head": {
+           "rel": 0.4
+          }
+         }
+        },
+        {
+         "t": 10,
+         "pose": {
+          "torso": {
+           "rel": -0.1
+          }
+         },
+         "lunge": 30
+        },
+        {
+         "t": 50,
+         "pose": {
+          "torso": {
+           "rel": 0
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 5,
+         "effect": "particles",
+         "detail": "Red blood-like mist"
+        },
+        {
+         "t": 10,
+         "effect": "afterimage",
+         "detail": "Red tentacle smears"
+        },
+        {
+         "t": 10,
+         "effect": "shake",
+         "detail": "Light vibration"
+        }
+       ],
+       "parody_name_ideas": [
+        "Centipede Stabs",
+        "Red Tendrils"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Touka Kirishima",
+     "fighting_style": "Street",
+     "moves": [
+      {
+       "official_name": "Ukaku no Ha",
+       "translation": "Ukaku Shards",
+       "what_it_does": "Hardens her wing-like kagune to fire a volley of crystallized projectiles.",
+       "visual_sequence": [
+        "A single jagged wing of fire-like energy appears behind her shoulder.",
+        "She swings her torso, flinging dozens of glowing shards.",
+        "The shards travel in a spreading cone pattern."
+       ],
+       "colors": [
+        "#4B0082",
+        "#FF0000"
+       ],
+       "sound_feel": "Crystalline shattering followed by rapid whistling projectiles.",
+       "maps_to_block": "arrow",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.5
+          }
+         }
+        },
+        {
+         "t": 10,
+         "pose": {
+          "torso": {
+           "rel": -0.5
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "glow",
+         "detail": "Purple and red wing flare"
+        },
+        {
+         "t": 10,
+         "effect": "particles",
+         "detail": "Purple crystal shards flying"
+        }
+       ],
+       "parody_name_ideas": [
+        "Crystal Rain",
+        "Wing Shards"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Kishou Arima",
+     "fighting_style": "Boxing",
+     "moves": [
+      {
+       "official_name": "Narukami",
+       "translation": "Thunder God",
+       "what_it_does": "Fires concentrated bolts of electricity from a briefcase-sword.",
+       "visual_sequence": [
+        "Arima holds a mechanical sword forward.",
+        "Four panels open on the blade.",
+        "A massive bolt of lightning arcs toward the opponent."
+       ],
+       "colors": [
+        "#FFFFFF",
+        "#FFFFE0"
+       ],
+       "sound_feel": "Mechanical click followed by a deafening thunderclap.",
+       "maps_to_block": "bolt",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 0
+          },
+          "foreF": {
+           "abs": 0
+          }
+         }
+        },
+        {
+         "t": 20,
+         "pose": {
+          "upperF": {
+           "abs": 0.1
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 10,
+         "effect": "flash",
+         "detail": "Bright yellow screen flash"
+        },
+        {
+         "t": 10,
+         "effect": "beam",
+         "detail": "Jagged lightning bolt"
+        }
+       ],
+       "parody_name_ideas": [
+        "Reaper's Bolt",
+        "White Lightning"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Akame ga Kill!",
+   "characters": [
+    {
+     "name": "Akame",
+     "fighting_style": "Karate",
+     "moves": [
+      {
+       "official_name": "Ichigeki Hissatsu: Murasame",
+       "translation": "One-Cut Killer: Murasame",
+       "what_it_does": "A lightning-fast dash and slash that leaves a cursed mark, dealing massive damage.",
+       "visual_sequence": [
+        "Akame enters a low stance, hand on hilt.",
+        "She vanishes and reappears behind the opponent.",
+        "A single red slash line appears across the screen.",
+        "The opponent is covered in black curse markings."
+       ],
+       "colors": [
+        "#FF0000",
+        "#000000"
+       ],
+       "sound_feel": "Absolute silence, then a sharp 'shing' and a heartbeat sound.",
+       "maps_to_block": "slash",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.6
+          },
+          "thighF": {
+           "rel": -0.8
+          }
+         }
+        },
+        {
+         "t": 5,
+         "pose": {
+          "torso": {
+           "rel": -0.2
+          }
+         },
+         "lunge": 300
+        },
+        {
+         "t": 20,
+         "pose": {
+          "torso": {
+           "rel": 0.1
+          },
+          "upperF": {
+           "abs": 2.5
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 5,
+         "effect": "afterimage",
+         "detail": "Black silhouette dash"
+        },
+        {
+         "t": 6,
+         "effect": "flash",
+         "detail": "Red screen tint"
+        },
+        {
+         "t": 25,
+         "effect": "slowmo",
+         "detail": "Brief pause on impact"
+        }
+       ],
+       "parody_name_ideas": [
+        "Cursed Blade",
+        "Single Stroke"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Esdeath",
+     "fighting_style": "Muay Thai",
+     "moves": [
+      {
+       "official_name": "Mahapadma",
+       "translation": "Great Crimson Lotus Ice",
+       "what_it_does": "Freezes time and space for a short duration, allowing free movement.",
+       "visual_sequence": [
+        "Esdeath snaps her fingers.",
+        "The entire screen turns negative/inverted colors.",
+        "The opponent and projectiles stop moving completely.",
+        "Esdeath can walk and attack for 2 seconds before time resumes."
+       ],
+       "colors": [
+        "#0000FF",
+        "#FFFFFF"
+       ],
+       "sound_feel": "A deep, echoing glass-shattering sound.",
+       "maps_to_block": "NEW",
+       "new_block": {
+        "id": "time_freeze",
+        "gameplay": "Stops all opponent logic and physics for a set duration. Player can still move and attack.",
+        "timing_ticks": {
+         "startup": 15,
+         "active": 120,
+         "recovery": 20
+        },
+        "damage_mult": 0,
+        "range": "960",
+        "special_rules": "Opponent is frozen in current state; damage taken during freeze is applied when time resumes."
+       },
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": 1.2
+          },
+          "foreF": {
+           "abs": 0.5
+          }
+         }
+        },
+        {
+         "t": 15,
+         "pose": {
+          "upperF": {
+           "abs": -1
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 15,
+         "effect": "flash",
+         "detail": "Inverted color screen flash"
+        },
+        {
+         "t": 15,
+         "effect": "ring",
+         "detail": "Blue frost wave expanding from center"
+        },
+        {
+         "t": 135,
+         "effect": "flash",
+         "detail": "Screen returns to normal"
+        }
+       ],
+       "parody_name_ideas": [
+        "Absolute Zero",
+        "Frost Stop"
+       ]
+      },
+      {
+       "official_name": "Weissschnabel",
+       "translation": "White Beak",
+       "what_it_does": "Creates and fires numerous icicles at the opponent.",
+       "visual_sequence": [
+        "Esdeath waves her hand, creating a row of ice spears in the air.",
+        "She points forward, and they launch one by one.",
+        "The spears shatter on impact."
+       ],
+       "colors": [
+        "#ADD8E6",
+        "#FFFFFF"
+       ],
+       "sound_feel": "Ice forming 'crackle' followed by sharp 'zip' sounds.",
+       "maps_to_block": "bolt",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "upperF": {
+           "abs": -0.5
+          }
+         }
+        },
+        {
+         "t": 10,
+         "pose": {
+          "upperF": {
+           "abs": 0.2
+          }
+         }
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "particles",
+         "detail": "Floating ice shards"
+        },
+        {
+         "t": 10,
+         "effect": "afterimage",
+         "detail": "Linear projectile trails"
+        }
+       ],
+       "parody_name_ideas": [
+        "Ice Darts",
+        "Glacier Spikes"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Tatsumi",
+     "fighting_style": "Street",
+     "moves": [
+      {
+       "official_name": "Incursio Spear",
+       "translation": "Incursio Strike",
+       "what_it_does": "A powerful armored charge using the Neuntote spear.",
+       "visual_sequence": [
+        "Tatsumi dons the silver Incursio armor.",
+        "He levels a large spear and charges forward.",
+        "The hit creates a massive cross-shaped impact spark."
+       ],
+       "colors": [
+        "#C0C0C0",
+        "#FF0000"
+       ],
+       "sound_feel": "Heavy metal clanking and a rocket-like roar.",
+       "maps_to_block": "charge",
+       "keyframes": [
+        {
+         "t": 0,
+         "pose": {
+          "torso": {
+           "rel": 0.4
+          },
+          "upperF": {
+           "abs": 0.5
+          }
+         }
+        },
+        {
+         "t": 15,
+         "pose": {
+          "torso": {
+           "rel": -0.2
+          },
+          "upperF": {
+           "abs": 0
+          }
+         },
+         "lunge": 180
+        }
+       ],
+       "vfx": [
+        {
+         "t": 0,
+         "effect": "glow",
+         "detail": "Silver armor shine"
+        },
+        {
+         "t": 15,
+         "effect": "speedlines",
+         "detail": "Radial from center"
+        },
+        {
+         "t": 16,
+         "effect": "ring",
+         "detail": "Impact shockwave"
+        }
+       ],
+       "parody_name_ideas": [
+        "Dragon Armor Charge",
+        "Silver Spear"
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
