@@ -74,6 +74,35 @@ export class Renderer {
     const w = this.canvas.clientWidth;
     this.canvas.width = Math.round(w * dpr);
     this.canvas.height = Math.round(((w * ARENA.h) / ARENA.w) * dpr);
+    this.page = null; // re-rendered at the new size
+  }
+
+  // The notebook page never changes: draw it once per canvas size, then blit it.
+  private page: HTMLCanvasElement | null = null;
+  private pageImage() {
+    if (this.page) return this.page;
+    const c = document.createElement("canvas");
+    c.width = this.canvas.width;
+    c.height = this.canvas.height;
+    const g = c.getContext("2d")!;
+    g.scale(c.width / ARENA.w, c.width / ARENA.w);
+    g.fillStyle = C.paper;
+    g.fillRect(0, 0, ARENA.w, ARENA.h);
+    // Notebook rules + margin, very faint: the arena is a page.
+    g.strokeStyle = "rgba(47,91,224,.07)";
+    g.lineWidth = 1;
+    for (let y = 150; y < ARENA.ground; y += 34) {
+      g.beginPath();
+      g.moveTo(0, y);
+      g.lineTo(ARENA.w, y);
+      g.stroke();
+    }
+    g.strokeStyle = "rgba(229,72,45,.14)";
+    g.beginPath();
+    g.moveTo(64, 120);
+    g.lineTo(64, ARENA.h);
+    g.stroke();
+    return (this.page = c);
   }
 
   // Turn new sim events into visual effects (deduped by id).
@@ -198,21 +227,8 @@ export class Renderer {
   private background() {
     const { ctx } = this;
     ctx.fillStyle = C.paper;
-    ctx.fillRect(-20, -20, ARENA.w + 40, ARENA.h + 40);
-    // Notebook rules + margin, very faint: the arena is a page.
-    ctx.strokeStyle = "rgba(47,91,224,.07)";
-    ctx.lineWidth = 1;
-    for (let y = 150; y < ARENA.ground; y += 34) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(ARENA.w, y);
-      ctx.stroke();
-    }
-    ctx.strokeStyle = "rgba(229,72,45,.14)";
-    ctx.beginPath();
-    ctx.moveTo(64, 120);
-    ctx.lineTo(64, ARENA.h);
-    ctx.stroke();
+    ctx.fillRect(-20, -20, ARENA.w + 40, ARENA.h + 40); // under the page when the camera shakes
+    ctx.drawImage(this.pageImage(), 0, 0, ARENA.w, ARENA.h);
     this.drawDoodles();
     if (this.dim) {
       ctx.fillStyle = `rgba(23,23,26,${0.4 * Math.min(1, this.dim.life / 8)})`;
@@ -396,7 +412,7 @@ export class Renderer {
     ctx.globalAlpha = base;
     if (f.armorTicks > 0 || f.action === "special") {
       ctx.shadowColor = f.action === "special" ? C.hit : C.guard;
-      ctx.shadowBlur = 22;
+      ctx.shadowBlur = 12; // blur cost grows with radius, and it runs per stroke
     }
     if (base > 0.02) drawStick(ctx, pose, look);
     ctx.restore();

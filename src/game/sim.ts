@@ -625,3 +625,26 @@ export function snapshot(m: Match): Snapshot {
     styles: [m.defs[0].style, m.defs[1].style],
   };
 }
+
+// Rebuild a running match from the last snapshot a guest saw, so the fight can go on
+// in the guest's browser when the host leaves. Inputs start "already seen", so nothing
+// held at that moment fires twice.
+export function resumeMatch(s: Snapshot, a: FighterStats, b: FighterStats, inputs: [Input, Input]): Match {
+  const m = createMatch(a, b, inputs);
+  Object.assign(m, {
+    phase: s.phase,
+    phaseT: s.phaseT,
+    round: s.round,
+    timer: s.timer,
+    wins: [...s.wins],
+    roundWinner: s.roundWinner,
+    matchWinner: s.matchWinner,
+    roundReason: s.roundReason,
+    damage: [...s.damage],
+    projectiles: s.projectiles.map((p) => ({ ...p })),
+    events: [],
+  });
+  m.fighters = [0, 1].map((i) => ({ ...s.fighters[i], seen: { jump: inputs[i].jump, attack: inputs[i].attack, kick: inputs[i].kick, special: inputs[i].special } })) as [Fighter, Fighter];
+  m.nextId = Math.max(0, ...s.events.map((e) => e.id), ...s.projectiles.map((p) => p.id)) + 1;
+  return m;
+}

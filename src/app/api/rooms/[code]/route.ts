@@ -37,7 +37,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]">)
   const code = (await ctx.params).code.toUpperCase();
   if (!ROOM_CODE.test(code)) return Response.json({ error: "That room code looks wrong." }, { status: 400 });
 
-  const { fighterId, offer } = (await req.json().catch(() => ({}))) as { fighterId?: string; offer?: string };
+  const { fighterId, offer, keepGuest } = (await req.json().catch(() => ({}))) as { fighterId?: string; offer?: string; keepGuest?: boolean };
   if (!fighterId || !offer || offer.length > 20000) return Response.json({ error: "Bad offer." }, { status: 400 });
   const fighter = await db.character.findUnique({ where: { id: fighterId } });
   // Admins may fight with any design.
@@ -47,7 +47,16 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]">)
   if (existing && !isStale(existing) && existing.hostUserId !== s.userId) {
     return Response.json({ error: "Someone else is hosting this room." }, { status: 409 });
   }
-  const data = { hostUserId: s.userId, hostFighterId: fighterId, offer, answer: null, guestUserId: null, guestFighterId: null };
+  // keepGuest: the guest dropped mid-fight; reserve the seat so only they can rejoin.
+  const keep = keepGuest === true && existing && existing.hostUserId === s.userId;
+  const data = {
+    hostUserId: s.userId,
+    hostFighterId: fighterId,
+    offer,
+    answer: null,
+    guestUserId: keep ? existing.guestUserId : null,
+    guestFighterId: keep ? existing.guestFighterId : null,
+  };
   try {
     await db.room.upsert({ where: { code }, create: { code, ...data }, update: data });
   } catch {

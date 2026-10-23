@@ -7,7 +7,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientMsg, HostMsg, Lobby, LobbyPlayer, PublicFighter } from "./protocol";
-import { createMatch, EMPTY_INPUT, snapshot, step, TICK_HZ, type Input, type Match, type Snapshot } from "./sim";
+import { cpuThink, newBrain } from "./cpu";
+import { createMatch, EMPTY_INPUT, resumeMatch, snapshot, step, TICK_HZ, type Input, type Match, type Snapshot } from "./sim";
 
 export type { Lobby };
 export type SnapBuffer = { prev: Snapshot | null; cur: Snapshot | null; at: number };
@@ -145,7 +146,11 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
         hp: me.hp, atk: me.atk, def: me.def, spd: me.spd, pose: me.pose, rotation: me.rotation, specialKind: me.specialKind, style: me.style,
       };
 
-      type Seat = { fighter: PublicFighter; input: Input; ready: boolean; rematch: boolean };
+      // away: the guest dropped mid-fight and the computer is playing their fighter.
+      type Seat = { fighter: PublicFighter; input: Input; ready: boolean; rematch: boolean; away?: boolean };
+      const stand: Input = { ...EMPTY_INPUT }; // the computer's controls for an away guest
+      let brain = newBrain("normal");
+      let aiPlayed = false; // a fight the computer finished for someone isn't a real result
       const seats: [Seat, Seat | null] = [{ fighter: myFighter, input: { ...EMPTY_INPUT }, ready: false, rematch: false }, null];
       let status: Lobby["status"] = "lobby";
       let match: Match | null = null;
@@ -171,6 +176,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
         if (!guestSeat) return;
         status = "playing";
         match = createMatch({ ...seats[0].fighter }, { ...guestSeat.fighter }, [seats[0].input, guestSeat.input]);
+        aiPlayed = false;
         seats[0].rematch = guestSeat.rematch = false;
         setMatchOver(null);
         broadcast();
@@ -189,7 +195,8 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
           if (!m || !g) return stopLoop();
           while (acc >= TICK_MS) {
             acc -= TICK_MS;
-            step(m, [seats[0].input, g.input]);
+            if (g.away) cpuThink(m, 1, brain, stand);
+            step(m, [seats[0].input, g.away ? stand : g.input]);
             tick++;
             if (tick % SNAPSHOT_EVERY === 0 || m.phase === "matchEnd") {
               const s = snapshot(m);
@@ -204,7 +211,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
               status = "over";
               seats.forEach((p) => p && (p.ready = false));
               broadcast();
-              api(`/api/battles`, {
+              if (!aiPlayed) api(`/api/battles`, {
                 method: "POST",
                 body: JSON.stringify({ roomCode: code, matchId, winnerSlot: m.matchWinner, wins: m.wins, damage: m.damage, rounds: m.round }),
               }).catch(() => {});
@@ -250,16 +257,26 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
       };
 
       // (Re)open the room for a guest. Called at start and whenever the guest drops.
+      // Mid-fight, the fight keeps going: the computer plays the guest's fighter and the
+      // room reopens for that same player only, so they can jump back in.
       async function open(notice?: string) {
         const gen = ++generation;
         pc?.close();
-        stopLoop();
-        match = null;
-        status = "lobby";
-        seats[1] = null;
-        seats[0].ready = seats[0].rematch = false;
-        snaps.current = { prev: null, cur: null, at: 0 };
-        broadcast(notice);
+        const rejoin = status === "playing" && !!match && !!seats[1];
+        if (rejoin) {
+          seats[1]!.away = true;
+          aiPlayed = true;
+          brain = newBrain("normal");
+          broadcast(`${seats[1]!.fighter.name} left the fight. The computer plays for them until they're back.`);
+        } else {
+          stopLoop();
+          match = null;
+          status = "lobby";
+          seats[1] = null;
+          seats[0].ready = seats[0].rematch = false;
+          snaps.current = { prev: null, cur: null, at: 0 };
+          broadcast(notice);
+        }
 
         pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
         const thisPc = pc;
@@ -270,7 +287,11 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
         ctl.onopen = () => {
           if (gen !== generation) return;
           setStatus("Connected");
-          broadcast(`${seats[1]?.fighter.name ?? "A challenger"} has entered the arena!`);
+          if (seats[1]?.away) {
+            seats[1].away = false;
+            seats[1].input = { ...EMPTY_INPUT };
+            broadcast(`${seats[1].fighter.name} is back in the fight!`);
+          } else broadcast(`${seats[1]?.fighter.name ?? "A challenger"} has entered the arena!`);
         };
         thisPc.onconnectionstatechange = () => {
           if (gen !== generation || cancelled) return;
@@ -288,7 +309,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
         if (cancelled || gen !== generation) return;
         const res = await api(`/api/rooms/${code}`, {
           method: "POST",
-          body: JSON.stringify({ fighterId, offer: thisPc.localDescription!.sdp }),
+          body: JSON.stringify({ fighterId, offer: thisPc.localDescription!.sdp, keepGuest: rejoin }),
         });
         if (res.status === 409) {
           // Lost a race for this code: someone else is hosting, so join them instead.
@@ -312,8 +333,9 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
             return setError(SWITCHED);
           }
           if (info.answer && info.guestFighter) {
-            seats[1] = { fighter: info.guestFighter, input: { ...EMPTY_INPUT }, ready: false, rematch: false };
-            broadcast(`${info.guestFighter.name} is connecting…`);
+            // A returning guest keeps the fighter that's already in the fight.
+            if (!rejoin) seats[1] = { fighter: info.guestFighter, input: { ...EMPTY_INPUT }, ready: false, rematch: false };
+            broadcast(`${(rejoin ? seats[1]! : { fighter: info.guestFighter }).fighter.name} is connecting…`);
             setStatus(`Connecting to ${info.guestFighter.name}…`);
             await thisPc.setRemoteDescription({ type: "answer", sdp: info.answer });
             setTimeout(() => {
@@ -341,6 +363,19 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
       let game: RTCDataChannel | null = null;
       cleanups.push(() => pc.close());
       let lastSeq = 0;
+      // Jitter buffer: network packets arrive in clumps, so hold ~3 snapshots (50 ms) and
+      // play them out one per tick. The view moves at a steady 60/s instead of stuttering.
+      const queue: Snapshot[] = [];
+      let primed = false;
+      const playout = setInterval(() => {
+        if (!primed && queue.length < 3) return;
+        primed = queue.length > 0;
+        // Fallen behind (tab was busy)? Skip ahead rather than lag further.
+        while (queue.length > 6) queue.shift();
+        const s = queue.shift();
+        if (s) pushSnap(s);
+      }, TICK_MS);
+      cleanups.push(() => clearInterval(playout));
 
       const onHostMessage = (raw: string) => {
         const msg = JSON.parse(raw) as HostMsg;
@@ -348,12 +383,14 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
           // The game channel is unordered: a late, older snapshot would make the view jump back.
           if (msg.n <= lastSeq) return;
           lastSeq = msg.n;
-          pushSnap(msg.s);
+          queue.push(msg.s);
         } else if (msg.t === "lobby") {
           setLobby(msg.lobby);
           if (msg.lobby.status === "playing") {
             setMatchOver(null);
             lastSeq = 0;
+            queue.length = 0;
+            primed = false;
           }
           if (msg.lobby.status === "lobby") snaps.current = { prev: null, cur: null, at: 0 };
         }
