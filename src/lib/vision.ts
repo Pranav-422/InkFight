@@ -101,7 +101,7 @@ Look only at what is actually drawn. Report:
 - a special move. First pick its kind, the one that best matches the drawing's vibe:
 ${SPECIAL_KINDS.map((k) => `  - ${k}: ${SPECIAL_INFO[k].looks}`).join("\n")}
   Then name it like an over-the-top anime finisher that only THIS drawing could have: riff on something specific you see (the hair, a scribble, a hat, the item, the ink colour, the paper). Puns, fake-Japanese-sounding names and homages to famous anime moves are welcome (e.g. "Ink-ame-hameha", "Scribble-gan"), but make it fresh, never a straight copy. Description: one vivid sentence of what it looks like
-- a fighting style, from how the figure stands and what it looks like:
+- a fighting style, from how the figure stands and what it looks like. Read the cues: fists up or arms forward → Boxing; long legs, a leg raised, tall and thin → Taekwondo; wide low stance, knees bent, bulky → Muay Thai; neat straight lines, upright and calm → Karate; messy, scribbly, wild or rough → Street; loose, relaxed, odd or tricky pose → Systema. Don't default to Karate; pick what the drawing really suggests:
 ${STYLES.map((s) => `  - ${s}: ${STYLE_INFO[s].blurb}`).join("\n")}
 - a one-line flavor text, playful trash-talk tone, under 90 characters
 - which edge of the image the head points toward (the drawing may be sideways in the photo)
@@ -137,23 +137,43 @@ async function callClaude(image: Buffer, mediaType: MediaType) {
 
 // Same analysis through Gemini's REST API (no extra dependency). JSON mode plus the
 // schema in the prompt, then the reply is validated with the same zod schema.
+// A busy (503/429), slow or unavailable-to-this-key (404) model falls through to the next.
+const GEMINI_MODELS = [...new Set([GEMINI_MODEL, "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3-flash-preview"])];
+
 async function callGemini(image: Buffer, mediaType: MediaType) {
   const schema = JSON.stringify(z.toJSONSchema(VisionSchema));
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY! },
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: `${SYSTEM}\n\nReply with only a JSON object matching this JSON Schema:\n${schema}` }] },
-      contents: [
-        {
-          role: "user",
-          parts: [{ inline_data: { mime_type: mediaType, data: image.toString("base64") } }, { text: "Turn this drawing into a fighter." }],
-        },
-      ],
-      generationConfig: { responseMimeType: "application/json", temperature: 1 },
-    }),
-    signal: AbortSignal.timeout(45_000),
+  const body = JSON.stringify({
+    system_instruction: { parts: [{ text: `${SYSTEM}\n\nReply with only a JSON object matching this JSON Schema:\n${schema}` }] },
+    contents: [
+      {
+        role: "user",
+        parts: [{ inline_data: { mime_type: mediaType, data: image.toString("base64") } }, { text: "Turn this drawing into a fighter." }],
+      },
+    ],
+    generationConfig: { responseMimeType: "application/json", temperature: 1 },
   });
+  let res: Response | null = null;
+  let busy = "";
+  for (const model of GEMINI_MODELS) {
+    try {
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY! },
+        body,
+        signal: AbortSignal.timeout(25_000),
+      });
+    } catch (err) {
+      if (err instanceof Error && err.name === "TimeoutError") {
+        busy += `${model} timed out; `;
+        continue;
+      }
+      throw err;
+    }
+    if (res.status !== 503 && res.status !== 429 && res.status !== 404 && res.status < 500) break;
+    busy += `${model} ${res.status}; `;
+    res = null;
+  }
+  if (!res) throw new Error(`Gemini busy: ${busy}`);
   if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[] };
   const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
