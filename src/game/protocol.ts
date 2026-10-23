@@ -12,6 +12,8 @@ export type PublicFighter = {
   spd: number;
   pose?: string | null; // JSON keypoints from vision (see src/lib/vision.ts)
   rotation?: number; // degrees clockwise to stand the drawing upright
+  specialKind?: string | null; // special-move building block (moves.ts); null → class default
+  style?: string | null; // fighting style; null → class default
 };
 
 export type LobbyPlayer = PublicFighter & { ready: boolean; rematch: boolean };

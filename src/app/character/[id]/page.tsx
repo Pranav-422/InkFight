@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { CharacterCard } from "@/components/CharacterCard";
 import { FightButtons } from "@/components/FightButtons";
 import { RotateControl } from "@/components/RotateControl";
+import { MOVES, SPECIAL_INFO, STYLE_INFO, type MoveName } from "@/game/moves";
 import { deriveDef, TICK_HZ } from "@/game/sim";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -13,6 +14,9 @@ export const dynamic = "force-dynamic";
 
 const LABEL = { hp: "HP", atk: "ATK", def: "DEF", spd: "SPD" } as const;
 
+const MOVE_LABEL: Partial<Record<MoveName, string>> = { uppercutP: "Uppercut", flyingKnee: "Flying knee", frontKick: "Front kick", spinKick: "Spinning back kick", axeKick: "Axe kick", lowKick: "Low kick" };
+const moveLabel = (m: MoveName) => MOVE_LABEL[m] ?? m[0].toUpperCase() + m.slice(1);
+
 export default async function CharacterPage({ params, searchParams }: PageProps<"/character/[id]">) {
   const { id } = await params;
   const { new: isNew } = await searchParams;
@@ -21,14 +25,6 @@ export default async function CharacterPage({ params, searchParams }: PageProps<
   const session = await getSession();
   const owns = session?.userId === me.ownerId;
   const def = deriveDef(me);
-  const SPECIAL_HOW: Record<string, string> = {
-    bolt: "fires a magic bolt",
-    arrow: "fires a fast arrow",
-    orb: "throws a slow, heavy orb",
-    slash: "dashes in with a slash",
-    charge: "shield-charges and takes half damage for 3s",
-    uppercut: "launches the opponent with an uppercut",
-  };
   const power = [
     ["Health", `${def.maxHp} HP`, "from HP"],
     ["Punch damage", def.punch.toFixed(1), "from ATK"],
@@ -92,7 +88,7 @@ export default async function CharacterPage({ params, searchParams }: PageProps<
               )}
               <p className="text-xs text-muted">
                 Final stats = 70% class + drawing rules, 30%{" "}
-                {breakdown.source === "claude" ? "Claude's read of your art" : "rules only (offline)"}, clamped to fixed
+                {breakdown.source === "claude" ? "Claude's read of your art" : breakdown.source === "gemini" ? "Gemini's read of your art" : "rules only (offline)"}, clamped to fixed
                 ranges so nobody gets a 9000-power scribble.
               </p>
               {breakdown.note && <p className="text-xs text-muted">{breakdown.note}</p>}
@@ -112,9 +108,25 @@ export default async function CharacterPage({ params, searchParams }: PageProps<
             ))}
           </div>
           <p className="mt-3 text-sm">
-            <span className="font-semibold text-hit">{me.specialMove}</span>: {SPECIAL_HOW[def.special]} (the {me.class} special),
-            usable when the meter is full.
+            <span className="font-semibold text-hit">{me.specialMove}</span>: {SPECIAL_INFO[def.special].how}, usable when the meter is
+            full.
           </p>
+        </section>
+
+        <section>
+          <h2 className="font-display text-xl font-extrabold">Fighting style: {def.style}</h2>
+          <p className="text-sm text-muted">{STYLE_INFO[def.style].blurb}. Keep tapping the same button to chain the combo.</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {(["punch", "kick"] as const).map((k) => (
+              <div key={k} className="rounded-xl bg-card p-3 ring-1 ring-line">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted">{k === "punch" ? "Punch (J)" : "Kick (K)"} combo</p>
+                <p className="font-display font-extrabold">{STYLE_INFO[def.style][k].map(moveLabel).join(" → ")}</p>
+                <p className="text-[11px] text-muted tabular-nums">
+                  {STYLE_INFO[def.style][k].map((m) => `${MOVES[m].mult}×`).join(" · ")} damage
+                </p>
+              </div>
+            ))}
+          </div>
         </section>
 
         {owns ? (

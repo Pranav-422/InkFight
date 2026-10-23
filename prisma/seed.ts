@@ -15,6 +15,8 @@ const STARTERS = [
     hp: 120, atk: 76, def: 63, spd: 52,
     specialMove: "Ballpoint Rush",
     specialDesc: "Charges in with the sword drawn three times over",
+    specialKind: "slash",
+    style: "Karate",
     flavorText: "Drew the sword first, the face second. Priorities.",
     features: { size: "large", pose: "aggressive", dominant_colors: ["red"] },
     items: ["sword"],
@@ -24,8 +26,10 @@ const STARTERS = [
     imageUrl: "/samples/mage.png",
     class: "Mage",
     hp: 82, atk: 74, def: 52, spd: 68,
-    specialMove: "Footnote Bolt",
-    specialDesc: "Fires a spell straight out of the open book",
+    specialMove: "Ink-ame-hameha",
+    specialDesc: "Cups the open book, screams, and fires a beam the width of the page",
+    specialKind: "beam",
+    style: "Systema",
     flavorText: "Reads the rules. Then ignores them at high speed.",
     features: { size: "medium", pose: "neutral", dominant_colors: ["blue"] },
     items: ["book"],
@@ -41,6 +45,10 @@ async function main() {
     });
     const s = STARTERS[i];
     const has = await db.character.findFirst({ where: { ownerId: user.id, imageUrl: s.imageUrl } });
+    // Starters made before moves were stored get their signature move once.
+    if (has && !has.specialKind) {
+      await db.character.update({ where: { id: has.id }, data: { specialKind: s.specialKind, style: s.style, specialMove: s.specialMove, specialDesc: s.specialDesc } });
+    }
     if (!has) {
       await db.character.create({
         data: {
@@ -55,6 +63,8 @@ async function main() {
           spd: s.spd,
           specialMove: s.specialMove,
           specialDesc: s.specialDesc,
+          specialKind: s.specialKind,
+          style: s.style,
           flavorText: s.flavorText,
           detectedItems: JSON.stringify({
             source: "offline",

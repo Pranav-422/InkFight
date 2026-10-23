@@ -8,6 +8,8 @@ export const SAMPLE_FIGHTERS: [PublicFighter, PublicFighter] = [
     class: "Warrior",
     imageUrl: "/samples/warrior.png",
     specialMove: "Ballpoint Rush",
+    specialKind: "slash",
+    style: "Karate",
     hp: 120, atk: 76, def: 63, spd: 52,
   },
   {
@@ -15,7 +17,9 @@ export const SAMPLE_FIGHTERS: [PublicFighter, PublicFighter] = [
     name: "Margin Mage",
     class: "Mage",
     imageUrl: "/samples/mage.png",
-    specialMove: "Footnote Bolt",
+    specialMove: "Ink-ame-hameha",
+    specialKind: "beam",
+    style: "Systema",
     hp: 82, atk: 74, def: 52, spd: 68,
   },
 ];

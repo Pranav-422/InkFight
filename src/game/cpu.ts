@@ -1,6 +1,7 @@
 // Computer opponent. Reads the match like a player would (with a reaction delay,
 // so it isn't frame-perfect) and drives the same Input a human would send.
 
+import { SPECIAL_INFO } from "./moves";
 import { BODY, type Input, type Match, type Slot } from "./sim";
 
 export type Level = "easy" | "normal" | "hard";
@@ -67,8 +68,10 @@ export function cpuThink(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
 
   // Special as soon as it's useful.
   const kind = m.defs[slot].special;
-  const ranged = kind === "bolt" || kind === "arrow" || kind === "orb";
-  if (me.energy >= 100 && (ranged ? dist < 650 : dist < 170) && Math.random() < L.aggro) {
+  const ranged = SPECIAL_INFO[kind].ranged;
+  // Teleport and meteor reach from mid-range; the rest need to be close.
+  const range = ranged ? 650 : kind === "teleport" ? 400 : kind === "meteor" || kind === "spiral" ? 300 : 170;
+  if (me.energy >= 100 && dist < range && Math.random() < L.aggro) {
     input.special++;
     return;
   }
@@ -85,8 +88,10 @@ export function cpuThink(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
     input[toward] = true;
     if (Math.random() < 0.04) input.jump++;
   } else if (Math.random() < L.aggro) {
-    // In range: mostly punches, kicks when slightly further out.
-    if (dist > reach - 25 || Math.random() < 0.3) input.kick++;
+    // In range: keep pressing the same button so the style's combo chains,
+    // kicks when slightly further out.
+    if (me.action === "attack" || me.action === "kick") input[me.action === "kick" ? "kick" : "attack"]++;
+    else if (dist > reach - 25 || Math.random() < 0.3) input.kick++;
     else input.attack++;
   } else if (Math.random() < 0.3) {
     input[away] = true; // feint back
