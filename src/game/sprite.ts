@@ -23,7 +23,8 @@ export function loadSpriteCached(url: string, poseJson?: string | null, rotation
   return p;
 }
 
-const MAX_SIDE = 512;
+const MAX_SIDE = 512; // the cut-out figure
+const FIND_SIDE = 1024; // the whole photo, while finding the figure: thin pen lines must survive the downscale
 
 function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -96,19 +97,23 @@ function inkAlpha(px: Uint8ClampedArray, w: number, h: number, isolateFigure = t
   if (!isolateFigure) return alpha;
 
   // Connected blobs (8-neighbour, with a 2px bridge so broken pen strokes stay together).
+  // Only fairly solid ink links up: uneven lighting leaves faint "ink" over the whole
+  // page, which would chain the figure to the photo's edge and get it thrown away.
+  const LINK = 140;
   const label = new Int32Array(n).fill(-1);
-  const blobs: { size: number; x0: number; y0: number; x1: number; y1: number; edge: boolean }[] = [];
+  const blobs: { size: number; strong: number; x0: number; y0: number; x1: number; y1: number; edge: boolean }[] = [];
   const stack: number[] = [];
   for (let start = 0; start < n; start++) {
-    if (alpha[start] < 70 || label[start] !== -1) continue;
+    if (alpha[start] < LINK || label[start] !== -1) continue;
     const id = blobs.length;
-    const blob = { size: 0, x0: w, y0: h, x1: 0, y1: 0, edge: false };
+    const blob = { size: 0, strong: 0, x0: w, y0: h, x1: 0, y1: 0, edge: false };
     label[start] = id;
     stack.push(start);
     while (stack.length) {
       const p = stack.pop()!;
       const x = p % w, y = (p / w) | 0;
       blob.size++;
+      if (alpha[p] >= 200) blob.strong++;
       if (x < blob.x0) blob.x0 = x;
       if (x > blob.x1) blob.x1 = x;
       if (y < blob.y0) blob.y0 = y;
@@ -118,7 +123,7 @@ function inkAlpha(px: Uint8ClampedArray, w: number, h: number, isolateFigure = t
         const xx = x + dx, yy = y + dy;
         if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
         const q = yy * w + xx;
-        if (alpha[q] >= 70 && label[q] === -1) {
+        if (alpha[q] >= LINK && label[q] === -1) {
           label[q] = id;
           stack.push(q);
         }
@@ -128,10 +133,12 @@ function inkAlpha(px: Uint8ClampedArray, w: number, h: number, isolateFigure = t
   }
   if (!blobs.length) return alpha;
   const inner = blobs.filter((b) => !b.edge);
-  const main = (inner.length ? inner : blobs).reduce((a, b) => (b.size > a.size ? b : a));
-  const mw = main.x1 - main.x0, mh = main.y1 - main.y0;
-  const near = (b: (typeof blobs)[number]) =>
-    b.x1 >= main.x0 - mw * 0.25 && b.x0 <= main.x1 + mw * 0.25 && b.y1 >= main.y0 - mh * 0.25 && b.y0 <= main.y1 + mh * 0.25;
+  // The figure is the blob with the most solid ink, not the most pixels: a long faint
+  // paper fold or shadow can out-count a small, dark pen doodle.
+  const main = (inner.length ? inner : blobs).reduce((a, b) => (b.strong > a.strong || (b.strong === a.strong && b.size > a.size) ? b : a));
+  // Pull in the rest of the figure (sword, shield, loose strokes) within a margin of it.
+  const m = Math.max(main.x1 - main.x0, main.y1 - main.y0) * 0.4;
+  const near = (b: (typeof blobs)[number]) => b.x1 >= main.x0 - m && b.x0 <= main.x1 + m && b.y1 >= main.y0 - m && b.y0 <= main.y1 + m;
   const keep = blobs.map((b) => b === main || (!b.edge && b.size >= main.size * 0.01 && near(b)));
   for (let p = 0; p < n; p++) {
     const l = label[p];
@@ -154,7 +161,7 @@ function hasKeptNeighbour(label: Int32Array, keep: boolean[], p: number, w: numb
 
 // Stand a sideways photo upright: returns the rotated image and how to map
 // a point given as fractions of the *original* photo into it.
-function rotated(src: HTMLImageElement, deg: number) {
+function rotated(src: CanvasImageSource & { width: number; height: number }, deg: number) {
   const r = ((Math.round(deg / 90) % 4) + 4) % 4;
   const W0 = src.width, H0 = src.height;
   if (r === 0) return { img: src as CanvasImageSource & { width: number; height: number }, map: (v: Vec) => ({ x: v.x * W0, y: v.y * H0 }) };
@@ -176,7 +183,7 @@ function rotated(src: HTMLImageElement, deg: number) {
 
 export async function loadSprite(url: string, poseJson?: string | null, rotation = 0): Promise<Sprite> {
   const { img, map: toRotated } = rotated(await loadImage(url), rotation);
-  const scale = Math.min(1, MAX_SIDE / Math.max(img.width, img.height));
+  const scale = Math.min(1, FIND_SIDE / Math.max(img.width, img.height));
   const w = Math.max(1, Math.round(img.width * scale));
   const h = Math.max(1, Math.round(img.height * scale));
   const work = document.createElement("canvas");
@@ -303,7 +310,12 @@ function cutHead(src: HTMLCanvasElement, j: Joints): HTMLCanvasElement | null {
   g.arc(c.width / 2, c.height / 2, c.width / 2, 0, Math.PI * 2);
   g.clip();
   g.drawImage(src, j.head.x - r, j.head.y - r, r * 2, r * 2, 0, 0, c.width, c.height);
-  return c;
+  // Guessed joints can miss the head; an empty crop would show as a blank white face,
+  // so fall back to the plain drawn circle instead.
+  const a = g.getImageData(0, 0, c.width, c.height).data;
+  let ink = 0;
+  for (let i = 3; i < a.length; i += 4) if (a[i] > 64) ink++;
+  return ink > c.width * c.height * 0.02 ? c : null;
 }
 
 // Mean colour of solid ink, or null for faint/light ink (the renderer then uses black).
@@ -336,9 +348,9 @@ export type Measured = {
 };
 
 // Reads what's actually on the paper, before upload. Stats are built from these.
-export async function measureDrawing(file: Blob): Promise<Measured> {
-  const bmp = await createImageBitmap(file);
-  const scale = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));
+export async function measureDrawing(file: Blob, rotation = 0): Promise<Measured> {
+  const { img: bmp } = rotated(await createImageBitmap(file), rotation);
+  const scale = Math.min(1, FIND_SIDE / Math.max(bmp.width, bmp.height));
   const w = Math.max(1, Math.round(bmp.width * scale)), h = Math.max(1, Math.round(bmp.height * scale));
   const c = document.createElement("canvas");
   c.width = w;

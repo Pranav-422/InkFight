@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, ImageUp, Loader2, RotateCcw } from "lucide-react";
+import { Camera, ImageUp, Loader2, RotateCcw, RotateCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ITEMS, measureDrawing, type Item, type Measured } from "@/game/sprite";
@@ -55,6 +55,8 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
   const [error, setError] = useState<string | null>(null);
   const [facts, setFacts] = useState<Measured | null>(null);
   const [name, setName] = useState("");
+  const [turn, setTurn] = useState(0); // degrees clockwise to stand a sideways photo up
+  const measureId = useRef(0);
   const [measuring, setMeasuring] = useState(false);
 
   useEffect(() => {
@@ -74,13 +76,20 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
     setError(null);
     setFile(f);
     setPreview(URL.createObjectURL(f));
+    setTurn(0);
+    measure(f, 0);
+  }
+
+  // Measure the drawing right away so the user can check the item guess before upload.
+  // Only the latest request may land: a slow earlier photo/rotation must not overwrite it.
+  function measure(f: File, deg: number) {
+    const id = ++measureId.current;
     setFacts(null);
     setMeasuring(true);
-    // Measure the drawing right away so the user can check the item guess before upload.
-    measureDrawing(f)
-      .then(setFacts)
+    measureDrawing(f, deg)
+      .then((m) => id === measureId.current && setFacts(m))
       .catch((err) => console.warn("[measure]", err))
-      .finally(() => setMeasuring(false));
+      .finally(() => id === measureId.current && setMeasuring(false));
   }
 
   async function submit() {
@@ -93,6 +102,7 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
       body.append("image", await downscale(file), "drawing.jpg");
       if (name.trim()) body.append("name", name.trim());
       if (facts) body.append("features", JSON.stringify(facts));
+      if (turn) body.append("rotation", String(turn));
       const res = await fetch("/api/characters", { method: "POST", body });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Something went sideways.");
@@ -132,7 +142,12 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
       ) : (
         <div className="relative overflow-hidden rounded-2xl bg-white ring-1 ring-line">
           {/* eslint-disable-next-line @next/next/no-img-element -- local blob preview */}
-          <img src={preview} alt="Your drawing" className={`max-h-[60vh] w-full object-contain ${busy ? "opacity-40" : ""}`} />
+          <img
+            src={preview}
+            alt="Your drawing"
+            className={`max-h-[60vh] w-full object-contain transition-transform ${busy ? "opacity-40" : ""}`}
+            style={turn ? { transform: `rotate(${turn}deg)${turn % 180 ? " scale(0.75)" : ""}` } : undefined}
+          />
           {busy && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
               <Loader2 className="size-8 animate-spin text-hit" />
@@ -140,6 +155,19 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
                 {LOADING_LINES[line]}
               </p>
             </div>
+          )}
+          {!busy && file && (
+            <button
+              onClick={() => {
+                const next = (turn + 90) % 360;
+                setTurn(next);
+                measure(file, next);
+              }}
+              className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-3 py-1.5 text-sm ring-1 ring-line hover:bg-white"
+              title="Drawn sideways? Turn it so the head is at the top"
+            >
+              <RotateCw className="size-3.5" /> Turn
+            </button>
           )}
           {!busy && (
             <button

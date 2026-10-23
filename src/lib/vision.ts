@@ -94,7 +94,7 @@ export type Analysis = {
 
 const SYSTEM = `You analyze photos of hand-drawn stick-figure characters for a friendly fighting game.
 Look only at what is actually drawn. Report:
-- held items/props as lowercase nouns (empty list if empty-handed)
+- held items/props as lowercase nouns (empty list if empty-handed). Check BOTH hands and the whole figure: a round, oval or spiral shape held at a hand or arm is usually a shield; a long straight line from a hand is a sword, staff or spear; hats/helmets are not items
 - the class implied by the items: book→Mage, sword/blade→Warrior, staff/wand→Caster, shield→Tank, bow→Ranger, nothing→Brawler
 - size of the figure relative to the page (small/medium/large), pose (aggressive/defensive/neutral), and dominant ink colors
 - proposed stats within HP 60-140, ATK 40-90, DEF 40-90, SPD 40-90

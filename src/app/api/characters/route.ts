@@ -81,7 +81,8 @@ export async function POST(request: Request) {
       flavorText: a.flavorText,
       detectedItems: JSON.stringify(a.breakdown),
       pose: a.pose ? JSON.stringify(a.pose) : null,
-      rotation: a.rotation,
+      // The player's own "Turn" wins; otherwise the AI's read of where the head points.
+      rotation: [90, 180, 270].includes(Number(form.get("rotation"))) ? Number(form.get("rotation")) : a.rotation,
     },
   });
   return Response.json(character, { status: 201 });
