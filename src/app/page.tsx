@@ -1,6 +1,7 @@
 import { BookOpen, Camera, Gamepad2, Hand, PenLine, Shield, Sword, Target, WandSparkles, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { FighterAvatar } from "@/components/FighterAvatar";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 
@@ -147,8 +148,9 @@ export default async function Landing() {
             {recent.map((c) => (
               <li key={c.id}>
                 <Link href={`/character/${c.id}`} className="block rounded-2xl bg-card p-2 ring-1 ring-line transition hover:ring-ink">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- user uploads */}
-                  <img src={c.imageUrl} alt="" className="aspect-square w-full rounded-xl bg-white object-contain" />
+                  <div className="aspect-square w-full rounded-xl bg-white">
+                    <FighterAvatar fighter={c} />
+                  </div>
                   <p className="mt-2 truncate px-1 text-sm font-semibold">{c.name}</p>
                 </Link>
               </li>

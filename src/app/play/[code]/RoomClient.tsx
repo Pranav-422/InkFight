@@ -5,6 +5,7 @@ import { Camera, Check, Copy, Loader2, Swords, Trophy } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ClassBadge } from "@/components/ClassBadge";
+import { FighterAvatar } from "@/components/FighterAvatar";
 import { GameCanvas } from "@/components/GameCanvas";
 import type { LobbyPlayer } from "@/game/protocol";
 import { useGameRoom } from "@/game/useGameRoom";
@@ -166,8 +167,9 @@ function SeatCard({ p, you }: { p: LobbyPlayer | null; you: boolean }) {
         <span className="text-xs font-semibold uppercase tracking-widest text-muted">{you ? "You" : "Opponent"}</span>
         {p.ready && <span className="rounded-full bg-hit px-2 py-0.5 text-xs font-semibold text-white">Ready</span>}
       </div>
-      {/* eslint-disable-next-line @next/next/no-img-element -- user uploads */}
-      <img src={p.imageUrl} alt="" className="mx-auto mt-2 h-40 object-contain" />
+      <div className="mx-auto mt-2 h-40 w-32">
+        <FighterAvatar fighter={p} />
+      </div>
       <p className="mt-2 truncate font-display text-xl font-extrabold">{p.name}</p>
       <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
         <ClassBadge cls={p.class} />
@@ -268,8 +270,9 @@ function FighterPicker({ code, preferred, onPick }: { code: string; preferred: s
                 onClick={() => onPick(c.id)}
                 className={`w-full rounded-2xl bg-card p-3 text-left transition ${c.id === preferred ? "ring-2 ring-ink" : "ring-1 ring-line hover:ring-ink"}`}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element -- user uploads */}
-                <img src={c.imageUrl} alt="" className="aspect-square w-full rounded-xl bg-white object-contain" />
+                <div className="aspect-square w-full rounded-xl bg-white">
+                  <FighterAvatar fighter={c} />
+                </div>
                 <p className="mt-2 truncate font-display font-extrabold">{c.name}</p>
                 <ClassBadge cls={c.class} />
               </button>

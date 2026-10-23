@@ -7,6 +7,7 @@ import { FlaskConical, Loader2, Trophy } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ClassBadge } from "@/components/ClassBadge";
+import { FighterAvatar } from "@/components/FighterAvatar";
 import { GameCanvas } from "@/components/GameCanvas";
 import { newRoomCode, type ClientMsg, type PublicFighter } from "@/game/protocol";
 import { useGameRoom, type RoomOptions } from "@/game/useGameRoom";
@@ -66,8 +67,9 @@ export function TestClient({ userId, mine }: { userId: string; mine: PublicFight
                 onClick={() => setMeId(f.id)}
                 className={`w-full rounded-2xl bg-card p-2 text-left ${meId === f.id ? "ring-2 ring-hit" : "ring-1 ring-line hover:ring-ink"}`}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element -- user uploads */}
-                <img src={f.imageUrl} alt="" className="aspect-square w-full rounded-xl bg-white object-contain" />
+                <div className="aspect-square w-full rounded-xl bg-white">
+                  <FighterAvatar fighter={f} />
+                </div>
                 <p className="mt-2 truncate px-1 text-sm font-semibold">{f.name}</p>
                 <div className="px-1 pb-1">
                   <ClassBadge cls={f.class} />

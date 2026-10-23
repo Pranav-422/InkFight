@@ -1,6 +1,7 @@
 import { Crown } from "lucide-react";
 import Link from "next/link";
 import { ClassBadge } from "@/components/ClassBadge";
+import { FighterAvatar } from "@/components/FighterAvatar";
 import { getLeaderboard, type LeaderboardEntry } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -33,8 +34,9 @@ export default async function LeaderboardPage() {
                   >
                     {i === 0 ? <Crown className="size-5" /> : i + 1}
                   </span>
-                  {/* eslint-disable-next-line @next/next/no-img-element -- user uploads */}
-                  <img src={e.imageUrl} alt="" className="aspect-square w-full rounded-xl bg-white object-contain ring-1 ring-line" />
+                  <div className="aspect-square w-full rounded-xl bg-white ring-1 ring-line">
+                    <FighterAvatar fighter={e} />
+                  </div>
                   <p className="mt-3 truncate font-display text-xl font-extrabold">{e.name}</p>
                   <div className="mt-1 flex items-center justify-between text-sm">
                     <ClassBadge cls={e.class} />
