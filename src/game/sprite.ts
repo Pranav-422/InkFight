@@ -334,6 +334,10 @@ function cutProp(px: Uint8ClampedArray, W: number, H: number, s: PropSide, scale
     return { img: c, hx: mx(hold.x), hy: hold.y - y0, scale, rest, axis: null };
   }
   let [grip, tip] = d(ends[0]) <= d(ends[1]) ? ends : [ends[1], ends[0]];
+  // A heavy end (mace or hammer head) is the striking end, never the grip.
+  const r = Math.hypot(tip.x - grip.x, tip.y - grip.y) * 0.18;
+  const ink = (e: Vec) => s.pts.filter((p) => Math.hypot(p.x - e.x, p.y - e.y) < r).length;
+  if (ink(grip) > ink(tip) * 1.8) [grip, tip] = [tip, grip];
   if (flip) [grip, tip] = [tip, grip];
   return { img: c, hx: mx(grip.x), hy: grip.y - y0, scale, rest, axis: Math.atan2(tip.y - grip.y, (tip.x - grip.x) * (s.left ? -1 : 1)) };
 }

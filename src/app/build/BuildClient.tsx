@@ -50,7 +50,7 @@ function render(b: Build): HTMLCanvasElement {
   g.translate(300, 740);
   g.scale(3.6, 3.6);
   const pose = solveStick({} as Record<BoneName, number>);
-  drawStick(g, pose, { ink: b.ink, head: null, prop: null, cls: classFromItems(b.item === "nothing" ? [] : [b.item]), accent: b.ink, width: 6 });
+  drawStick(g, pose, { ink: b.ink, head: null, prop: null, cls: classFromItems(b.item === "nothing" ? [] : [b.item]), item: "nothing", accent: b.ink, width: 6 }); // the item is drawn as a vector from b.item, never baked into the drawing (a filled mace head fooled the joint finder)
   drawHead(g, b.head, pose.joints.head, b.ink);
   return c;
 }
@@ -222,9 +222,9 @@ export function BuildClient() {
 
       <aside className="sticky top-20 grid gap-3">
         <div className="aspect-square rounded-2xl bg-white ring-1 ring-line">
-          {preview && <FighterAvatar key={preview} fighter={{ imageUrl: preview, class: cls, style: b.style }} />}
+          {preview && <FighterAvatar key={preview} fighter={{ imageUrl: preview, class: cls, item: b.item, style: b.style }} />}
         </div>
-        {preview && <MovePreview fighter={{ imageUrl: preview, class: cls, style: b.style, specialKind: b.special }} demo={demo} />}
+        {preview && <MovePreview fighter={{ imageUrl: preview, class: cls, item: b.item, style: b.style, specialKind: b.special }} demo={demo} />}
         <p className="-mt-1 text-center text-xs text-muted">Pick a style or special to try it on the dummy.</p>
         <p className="text-center text-sm">
           <span className="font-semibold">{cls}</span> · {b.style} · {b.special} · {b.element}

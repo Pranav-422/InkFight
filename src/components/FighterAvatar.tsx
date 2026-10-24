@@ -6,19 +6,20 @@
 
 import { useEffect, useRef } from "react";
 import { MOVES, STYLE_INFO, styleOf, type MoveName } from "@/game/moves";
+import { normClass } from "@/lib/stats";
 import { poseFor } from "@/game/poses";
 import { resolvePose, type BoneName } from "@/game/skeleton";
 import type { Snapshot } from "@/game/sim";
 import { loadSpriteCached, type Sprite } from "@/game/sprite";
 import { drawStick, solveStick, STICK_REST } from "@/game/stickman";
 
-type AvatarFighter = { imageUrl: string; class: string; pose?: string | null; rotation?: number; style?: string | null; flipItem?: boolean };
+type AvatarFighter = { imageUrl: string; class: string; item?: string | null; pose?: string | null; rotation?: number; style?: string | null; flipItem?: boolean };
 
-const ACCENT: Record<string, string> = { Tank: "#2f5be0", Mage: "#2f5be0", Brawler: "#e5482d" };
+const ACCENT: Record<string, string> = { Tank: "#2f5be0", Attacker: "#2f5be0", Fighter: "#e5482d" };
 
 export function FighterAvatar({ fighter, className = "", showcase = true }: { fighter: AvatarFighter; className?: string; showcase?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const { imageUrl, pose, rotation, class: cls, style, flipItem } = fighter;
+  const { imageUrl, pose, rotation, class: cls, item, style, flipItem } = fighter;
 
   useEffect(() => {
     const canvas = ref.current!;
@@ -94,7 +95,8 @@ export function FighterAvatar({ fighter, className = "", showcase = true }: { fi
         head: s?.head ?? null,
         prop: s?.prop ?? null,
         cls,
-        accent: ACCENT[cls] ?? "#f2b705",
+        item,
+        accent: ACCENT[normClass(cls)] ?? "#f2b705",
         width: s?.width ?? 7,
       });
       raf = requestAnimationFrame(frame);
@@ -105,7 +107,7 @@ export function FighterAvatar({ fighter, className = "", showcase = true }: { fi
       io.disconnect();
       cancelAnimationFrame(raf);
     };
-  }, [imageUrl, pose, rotation, cls, style, flipItem, showcase]);
+  }, [imageUrl, pose, rotation, cls, item, style, flipItem, showcase]);
 
   return <canvas ref={ref} className={`block h-full w-full ${className}`} aria-hidden />;
 }

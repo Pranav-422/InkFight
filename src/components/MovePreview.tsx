@@ -9,10 +9,10 @@ import { MOVES, STYLE_INFO } from "@/game/moves";
 import { Renderer } from "@/game/render";
 import { ARENA, createMatch, deriveDef, EMPTY_INPUT, snapshot, step, TICK_HZ, type FighterStats, type Input, type Match, type Snapshot } from "@/game/sim";
 import { loadSpriteCached } from "@/game/sprite";
-import { CLASSES, ruleStats } from "@/lib/stats";
+import { ruleStats } from "@/lib/stats";
 
 export type Demo = { kind: "style" | "special" | "item"; n: number };
-type Look = { imageUrl: string; class: string; style?: string | null; specialKind?: string | null; pose?: string | null; rotation?: number; flipItem?: boolean };
+type Look = { imageUrl: string; class: string; item?: string | null; element?: string | null; style?: string | null; specialKind?: string | null; pose?: string | null; rotation?: number; flipItem?: boolean };
 
 const TICK_MS = 1000 / TICK_HZ;
 const HOME: [number, number] = [400, 540]; // close enough for the punches to land
@@ -20,8 +20,7 @@ const NEUTRAL = { size: "medium", pose: "neutral", dominant_colors: [] } as cons
 
 // The class's usual stat line, since the real one is only known once the fighter is made.
 function statsFor(f: Look): FighterStats {
-  const cls = (CLASSES as readonly string[]).includes(f.class) ? (f.class as (typeof CLASSES)[number]) : "Brawler";
-  return { ...ruleStats(cls, { ...NEUTRAL, dominant_colors: [] }), class: f.class, style: f.style, specialKind: f.specialKind };
+  return { ...ruleStats(f.class, { ...NEUTRAL, dominant_colors: [] }), class: f.class, item: f.item, element: f.element, style: f.style, specialKind: f.specialKind };
 }
 
 type Room = { m: Match; input: Input; script: { type: "attack" | "kick"; left: number }[] };
@@ -32,7 +31,7 @@ function play(r: Room, f: Look, kind: Demo["kind"]) {
   const { m, input } = r;
   m.defs[0] = deriveDef(statsFor(f));
   m.projectiles = [];
-  m.fighters.forEach((x, i) => Object.assign(x, { x: HOME[i], y: ARENA.ground, vx: 0, vy: 0, grounded: true, hp: 200, action: "idle", t: 0, cooldown: 0, combo: 0, comboT: 0, buffer: null, energy: 0 }));
+  m.fighters.forEach((x, i) => Object.assign(x, { x: HOME[i], y: ARENA.ground, vx: 0, vy: 0, grounded: true, hp: 200, action: "idle", t: 0, cooldown: 0, combo: 0, comboT: 0, buffer: null, energy: 0, status: null }));
   if (kind === "special") {
     m.fighters[0].energy = 100;
     input.special++;
@@ -55,13 +54,14 @@ export function MovePreview({ fighter, demo, className = "" }: { fighter: Look; 
   useEffect(() => {
     latest.current = { fighter, demo };
   });
-  const { imageUrl, pose, rotation, flipItem, class: cls } = fighter;
+  const { imageUrl, pose, rotation, flipItem, class: cls, item } = fighter;
 
   useEffect(() => {
     const canvas = ref.current!;
     const renderer = new Renderer(canvas, true);
     renderer.resize();
-    renderer.classes = [cls, "Brawler"];
+    renderer.classes = [cls, "Fighter"];
+    renderer.items = [item ?? "", ""];
     let alive = true;
     loadSpriteCached(imageUrl, pose, rotation ?? 0, flipItem ?? false)
       .then((s) => alive && (renderer.sprites[0] = s))
@@ -69,7 +69,7 @@ export function MovePreview({ fighter, demo, className = "" }: { fighter: Look; 
 
     const input: Input = { ...EMPTY_INPUT };
     const dummy: Input = { ...EMPTY_INPUT };
-    const m = createMatch(statsFor(fighter), { hp: 200, atk: 70, def: 70, spd: 70, class: "Brawler" }, [input, dummy]);
+    const m = createMatch(statsFor(fighter), { hp: 200, atk: 70, def: 70, spd: 70, agi: 70, iq: 70, class: "Fighter" }, [input, dummy]);
     m.phase = "fight";
     m.phaseT = 100;
     room.current = { m, input, script: [] };
@@ -128,7 +128,7 @@ export function MovePreview({ fighter, demo, className = "" }: { fighter: Look; 
     };
     // The fight restarts only for a new look; style/special changes go to the running room below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [imageUrl, pose, rotation, flipItem, cls]);
+  }, [imageUrl, pose, rotation, flipItem, cls, item]);
 
   useEffect(() => {
     if (room.current && demo.n > 0) play(room.current, latest.current.fighter, demo.kind);

@@ -3,6 +3,7 @@
 // class item sits in the front hand. Replaces bending the photo itself, which
 // tore apart on most real drawings.
 
+import { itemOf } from "./moves";
 import { BONES, type BoneName, type Joints, type Vec } from "./skeleton";
 import type { Prop } from "./sprite";
 
@@ -63,7 +64,7 @@ const LIMBS: [keyof Joints, keyof Joints, keyof Joints][] = [
 export function drawStick(
   ctx: CanvasRenderingContext2D,
   { joints: j, world }: StickPose,
-  o: { ink: string; head: HTMLCanvasElement | null; prop: Prop | null; cls: string; accent: string; width: number },
+  o: { ink: string; head: HTMLCanvasElement | null; prop: Prop | null; cls: string; item?: string | null; accent: string; width: number },
 ) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -118,22 +119,22 @@ export function drawStick(
     ctx.scale(p.scale, p.scale);
     ctx.drawImage(p.img, -p.hx, -p.hy);
     ctx.restore();
-  } else drawItem(ctx, o.cls, j, world.foreF, o.ink, o.accent);
+  } else drawItem(ctx, itemOf(o.item, o.cls), j, world.foreF, o.ink, o.accent);
   ctx.lineWidth = o.width;
   ctx.strokeStyle = o.ink;
   limb(LIMBS[3]);
 }
 
-// The class item, held in the front hand and aligned with the forearm.
-function drawItem(ctx: CanvasRenderingContext2D, cls: string, j: Joints, fore: number, ink: string, accent: string) {
+// The item, held in the front hand and aligned with the forearm. "nothing" = taped fists.
+function drawItem(ctx: CanvasRenderingContext2D, item: string, j: Joints, fore: number, ink: string, accent: string) {
   const h = j.handF;
   ctx.save();
   ctx.translate(h.x, h.y);
   ctx.strokeStyle = ink;
   ctx.fillStyle = "#fff";
   ctx.lineWidth = 4;
-  switch (cls) {
-    case "Warrior": {
+  switch (item) {
+    case "sword": {
       // Blade continues past the fist (drawn along -y), crossguard across it.
       ctx.rotate(heldAngle(fore) + Math.PI / 2);
       ctx.lineWidth = 5;
@@ -148,7 +149,31 @@ function drawItem(ctx: CanvasRenderingContext2D, cls: string, j: Joints, fore: n
       ctx.stroke();
       break;
     }
-    case "Mage": {
+    case "mace": {
+      // Handle along the held angle (drawn along -y) with a spiked head on the end.
+      ctx.rotate(heldAngle(fore) + Math.PI / 2);
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(0, 8);
+      ctx.lineTo(0, -46);
+      ctx.stroke();
+      ctx.lineWidth = 3;
+      for (let i = 0; i < 8; i++) {
+        const a = (i * Math.PI) / 4;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * 11, -56 + Math.sin(a) * 11);
+        ctx.lineTo(Math.cos(a) * 18, -56 + Math.sin(a) * 18);
+        ctx.stroke();
+      }
+      ctx.lineWidth = 4;
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.arc(0, -56, 11, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      break;
+    }
+    case "book": {
       ctx.rotate(fore);
       ctx.fillStyle = accent;
       ctx.beginPath();
@@ -161,7 +186,7 @@ function drawItem(ctx: CanvasRenderingContext2D, cls: string, j: Joints, fore: n
       ctx.stroke();
       break;
     }
-    case "Caster": {
+    case "staff": {
       // Staff stays mostly upright (drawn along -y), gem on top.
       ctx.rotate((heldAngle(fore) + Math.PI / 2) * 0.3);
       ctx.beginPath();
@@ -175,7 +200,7 @@ function drawItem(ctx: CanvasRenderingContext2D, cls: string, j: Joints, fore: n
       ctx.stroke();
       break;
     }
-    case "Tank": {
+    case "shield": {
       ctx.fillStyle = accent;
       ctx.beginPath();
       ctx.ellipse(8, 0, 14, 30, 0, 0, Math.PI * 2);
@@ -183,7 +208,7 @@ function drawItem(ctx: CanvasRenderingContext2D, cls: string, j: Joints, fore: n
       ctx.stroke();
       break;
     }
-    case "Ranger": {
+    case "bow": {
       ctx.rotate(fore);
       ctx.beginPath();
       ctx.arc(-6, 0, 34, -1.1, 1.1);
@@ -196,7 +221,7 @@ function drawItem(ctx: CanvasRenderingContext2D, cls: string, j: Joints, fore: n
       break;
     }
     default: {
-      // Brawler: taped fists.
+      // Nothing: taped fists.
       ctx.fillStyle = accent;
       ctx.beginPath();
       ctx.arc(0, 0, 8, 0, Math.PI * 2);

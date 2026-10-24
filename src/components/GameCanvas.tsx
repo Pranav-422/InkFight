@@ -1,18 +1,23 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore, type RefObject } from "react";
+import { RotateCw } from "lucide-react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import type { LobbyPlayer } from "@/game/protocol";
 import { Renderer } from "@/game/render";
 import { ARENA, EMPTY_INPUT, TICK_HZ, type Input, type Slot } from "@/game/sim";
 import { loadSpriteCached } from "@/game/sprite";
 import type { SnapBuffer } from "@/game/useGameRoom";
 import { Controller, type Control } from "./Controller";
+import { InspectPanel } from "./InspectPanel";
+import { buzz, TouchControls } from "./TouchControls";
 
 type Props = {
   snaps: RefObject<SnapBuffer>;
   players: [LobbyPlayer, LobbyPlayer];
   you: Slot;
   onInput: (input: Input) => void;
+  onExit?: () => void; // phone layout: the header is hidden, so the arena carries its own exit
+  children?: ReactNode; // overlays drawn over the arena (notices, the result card)
 };
 
 const SNAP_MS = 1000 / TICK_HZ; // one snapshot per sim tick
@@ -54,7 +59,7 @@ const PAD_BUTTONS: [number, Control][] = [
   [15, "right"],
 ];
 
-export function GameCanvas({ snaps, players, you, onInput }: Props) {
+export function GameCanvas({ snaps, players, you, onInput, onExit, children }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const input = useRef<Input>({ ...EMPTY_INPUT });
   // Server render (e.g. /demo) has no window: assume a mouse, then use the real value in the browser.
@@ -62,6 +67,8 @@ export function GameCanvas({ snaps, players, you, onInput }: Props) {
   const [lit, setLit] = useState<ReadonlySet<Control>>(new Set());
   const [energy, setEnergy] = useState(0);
   const [gamepad, setGamepad] = useState<string | null>(null);
+  const [inspect, setInspect] = useState(false); // reading the opponent (InspectPanel)
+  const them = (1 - you) as Slot;
 
   const onInputRef = useRef(onInput);
   useEffect(() => {
@@ -106,12 +113,14 @@ export function GameCanvas({ snaps, players, you, onInput }: Props) {
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
+      if (e.code === "KeyI" && !(e.target instanceof HTMLInputElement)) setInspect(true);
       const k = KEYS[e.code];
       if (!k || e.target instanceof HTMLInputElement) return;
       e.preventDefault();
       if (!e.repeat) press.current(k, true, `key:${e.code}`);
     };
     const up = (e: KeyboardEvent) => {
+      if (e.code === "KeyI") setInspect(false);
       const k = KEYS[e.code];
       if (k) press.current(k, false, `key:${e.code}`);
     };
@@ -141,12 +150,22 @@ export function GameCanvas({ snaps, players, you, onInput }: Props) {
     };
   }, [snaps, you]);
 
-  // Installed app on a phone: fights are landscape. (Browsers only allow this full-screen.)
+  // Phones fight landscape. Browsers only allow the lock in full screen, and only from a
+  // tap, so the first touch on the fight asks for both (iPhone Safari: neither; it gets
+  // the rotate overlay instead).
+  const goFull = async () => {
+    if (document.fullscreenElement) return;
+    try {
+      await document.documentElement.requestFullscreen?.();
+      await (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.("landscape");
+    } catch {}
+  };
   useEffect(() => {
     if (!touch) return;
-    const o = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
-    o.lock?.("landscape").catch(() => {});
-    return () => o.unlock?.();
+    return () => {
+      (screen.orientation as ScreenOrientation & { unlock?: () => void }).unlock?.();
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    };
   }, [touch]);
 
   useEffect(() => {
@@ -192,10 +211,17 @@ export function GameCanvas({ snaps, players, you, onInput }: Props) {
     };
 
     let raf = 0;
+    let lastBuzz = 0;
     const frame = (now: number) => {
       pollGamepad();
       const { prev, cur, at } = snaps.current;
       if (cur) {
+        // A short buzz when your hit lands (phones that vibrate).
+        for (const e of cur.events) {
+          if (e.id <= lastBuzz) continue;
+          lastBuzz = e.id;
+          if (e.type === "hit" && e.by === you && !e.blocked) buzz(e.special ? 40 : 20);
+        }
         renderer.ingest(cur, hud);
         renderer.draw(prev, cur, Math.min(1, (now - at) / SNAP_MS), hud, now);
       }
@@ -209,14 +235,54 @@ export function GameCanvas({ snaps, players, you, onInput }: Props) {
     };
   }, [players, snaps, you]);
 
+  const stickPress = (k: Control, d: boolean) => press.current(k, d, "stick");
+  const arena = (
+    <>
+      <canvas ref={canvasRef} className={`block w-full touch-none bg-paper ${touch ? "" : "rounded-2xl ring-1 ring-line"}`} />
+      {/* The opponent's HUD corner: hover (or tap on a phone) to read them. */}
+      <button
+        type="button"
+        aria-label={`Read ${players[them].name}`}
+        title="Read your opponent (or hold I)"
+        onMouseEnter={() => !touch && setInspect(true)}
+        onMouseLeave={() => !touch && setInspect(false)}
+        onClick={() => touch && setInspect((v) => !v)}
+        className={`absolute top-0 h-[24%] w-[40%] ${them === 1 ? "right-0" : "left-0"}`}
+      />
+      {inspect && (
+        <div className={`absolute top-[24%] z-10 ${them === 1 ? "right-3" : "left-3"}`}>
+          <InspectPanel me={players[you]} them={players[them]} slot={them} snaps={snaps} />
+        </div>
+      )}
+    </>
+  );
+
+  if (touch) {
+    // Phone: the arena fills the screen (over the site header) and the controls float on it.
+    return (
+      <div className="fixed inset-0 z-50 flex touch-none select-none items-center justify-center bg-paper" onPointerDown={goFull}>
+        <div className="relative" style={{ width: `min(100vw, calc(100svh * ${ARENA.w / ARENA.h}))` }}>
+          {arena}
+        </div>
+        <TouchControls press={stickPress} lit={lit} energy={energy} onExit={onExit} />
+        <div className="pointer-events-none absolute inset-0 z-20 [&>*]:pointer-events-auto">{children}</div>
+        <div className="fixed inset-0 z-[60] hidden flex-col items-center justify-center gap-3 bg-ink p-6 text-center text-white portrait:flex">
+          <RotateCw className="size-10 animate-spin [animation-duration:3s]" />
+          <p className="font-display text-xl font-extrabold">Turn your phone sideways</p>
+          <p className="text-sm text-white/60">Fights are played in landscape.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-3">
       {/* Fit the 16:9 arena inside the viewport height too, leaving room for the console. */}
-      <div className="mx-auto w-full" style={{ maxWidth: `calc((100svh - 230px) * ${ARENA.w / ARENA.h})` }}>
-        <canvas ref={canvasRef} className="block w-full touch-none rounded-2xl bg-paper ring-1 ring-line" />
+      <div className="relative mx-auto w-full" style={{ maxWidth: `calc((100svh - 230px) * ${ARENA.w / ARENA.h})` }}>
+        {arena}
+        {children}
       </div>
-      {touch && <p className="text-center text-xs text-muted portrait:block landscape:hidden">Tip: turn your phone sideways for a bigger arena.</p>}
-      <Controller press={(k, d) => press.current(k, d, "ui")} lit={lit} energy={energy} showKeys={!touch} gamepad={gamepad} />
+      <Controller press={(k, d) => press.current(k, d, "ui")} lit={lit} energy={energy} showKeys gamepad={gamepad} />
     </div>
   );
 }

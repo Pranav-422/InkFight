@@ -2,7 +2,8 @@
 // fighter as a posed stickman wearing its drawing's head, special-move effects,
 // impact FX (smears, rings, ink splats, hit-stop shake) and the HUD.
 
-import { MOVES, STYLE_INFO } from "./moves";
+import { normClass } from "../lib/stats";
+import { itemOf, MOVES, STYLE_INFO } from "./moves";
 import { ceremonyPose, poseFor } from "./poses";
 import { resolvePose, type BoneName, type Vec } from "./skeleton";
 import type { Sprite } from "./sprite";
@@ -29,6 +30,8 @@ type Doodle = { x: number; y: number; kind: number; speed: number; spin: number;
 export type HudInfo = { names: [string, string]; specialNames: [string, string]; you: Slot; buffs?: [boolean, boolean] };
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+// Element status colours: the halo on the stickman and the badge beside its head.
+const STATUS_COLOR: Record<string, string> = { FIRE: "#ff8a1f", ELECTRIC: "#3d8bff", FROST: "#6fc3ee", POISON: "#3fae3a", BLEED: "#d3202a", GRAVITY: "#8a4fe0" };
 const TIP = { hand: "handF", handB: "handB", foot: "footF", footB: "footB", knee: "kneeF", head: "head" } as const;
 
 export class Renderer {
@@ -44,7 +47,8 @@ export class Renderer {
   private fontDisplay = "sans-serif";
   private fontBody = "sans-serif";
   sprites: [Sprite | null, Sprite | null] = [null, null];
-  classes: [string, string] = ["Brawler", "Brawler"];
+  classes: [string, string] = ["Fighter", "Fighter"];
+  items: [string, string] = ["", ""]; // "" = the class's default item (see itemOf)
   private limbs: [Record<BoneName, number> | null, Record<BoneName, number> | null] = [null, null];
   private trails: [StickPose[], StickPose[]] = [[], []];
   private smears: [Vec[], Vec[]] = [[], []];
@@ -146,6 +150,10 @@ export class Renderer {
       this.banner = { text: `${hud.specialNames[e.by]}!`, color: C.hit, life: 80 };
       this.dim = { slot: e.by, life: 24 };
       this.shake = Math.max(this.shake, 4);
+    } else if (e.type === "dodge") {
+      // A quick afterimage ring and a word, no damage number.
+      this.rings.push({ x: e.x, y: e.y, r: 18, grow: 3, life: 0, max: 10, color: C.guard, width: 2 });
+      this.particles.push({ x: e.x, y: e.y - 30, vx: 0, vy: -1, life: 0, max: 28, text: ["SLIP", "MISS", "WHIFF"][e.id % 3], color: C.guard, size: 20 });
     } else if (e.type === "ko") {
       this.shake = 20;
       this.flash = 6;
@@ -213,7 +221,7 @@ export class Renderer {
     const order = [...fighters].sort((a, b) => (a.action === "special" ? 1 : 0) - (b.action === "special" ? 1 : 0));
     for (const f of order) this.fighter(f, cur.specials[f.slot], cur.styles[f.slot], now, hud.you === f.slot);
     this.lastNow = now;
-    for (const p of projectiles) this.projectile(p.kind, p.x, p.y, p.r, p.vx, now);
+    for (const p of projectiles) this.projectile(p.kind, p.x, p.y, p.r, p.vx, now, p.owner);
     this.fx();
     ctx.restore();
 
@@ -401,8 +409,9 @@ export class Renderer {
     } else trail.length = 0;
 
     const hurt = f.action === "hit" && f.t < 8;
-    const accent = cls === "Tank" || cls === "Mage" ? C.guard : cls === "Brawler" ? C.hit : C.gold;
-    const look = { ink: hurt ? C.hit : (sprite?.ink ?? C.ink), head: sprite?.head ?? null, prop: sprite?.prop ?? null, cls, accent, width: sprite?.width ?? 7 };
+    const nc = normClass(cls);
+    const accent = nc === "Tank" || nc === "Attacker" ? C.guard : nc === "Fighter" ? C.hit : C.gold;
+    const look = { ink: hurt ? C.hit : (sprite?.ink ?? C.ink), head: sprite?.head ?? null, prop: sprite?.prop ?? null, cls, item: this.items[f.slot], accent, width: sprite?.width ?? 7 };
 
     ctx.save();
     ctx.translate(f.x + dx, f.y + lift);
@@ -423,12 +432,16 @@ export class Renderer {
     if (f.armorTicks > 0 || f.action === "special") {
       ctx.shadowColor = f.action === "special" ? C.hit : C.guard;
       ctx.shadowBlur = 12; // blur cost grows with radius, and it runs per stroke
+    } else if (f.status) {
+      ctx.shadowColor = STATUS_COLOR[f.status.kind] ?? C.muted; // a faint halo in the element's colour
+      ctx.shadowBlur = 7;
     }
     if (base > 0.02) drawStick(ctx, pose, look);
     ctx.restore();
     ctx.globalAlpha = 1;
 
     if (f.action === "special") this.specialFx(f, special, pose, toWorld, now);
+    if (f.status && f.action !== "ko") this.statusFx(f.status.kind, f.x + dx - f.facing * 38, f.y + lift - 150, now);
 
     if (f.blocking) {
       ctx.strokeStyle = C.guard;
@@ -591,11 +604,102 @@ export class Renderer {
     ctx.restore();
   }
 
-  private projectile(kind: SpecialKind, x: number, y: number, r: number, vx: number, now: number) {
+  // Small animated badge beside a fighter's head for its element status. Kept to a few paths per frame.
+  private statusFx(kind: string, x: number, y: number, now: number) {
+    const { ctx } = this;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = ctx.strokeStyle = STATUS_COLOR[kind] ?? C.muted;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+    if (kind === "FIRE") {
+      for (let i = -1; i <= 1; i++) {
+        const h = 14 + Math.sin(now / 70 + i * 2) * 5 + (i ? 0 : 6);
+        ctx.beginPath();
+        ctx.moveTo(i * 8, 8);
+        ctx.quadraticCurveTo(i * 8 - 6, 8 - h * 0.55, i * 8 + Math.sin(now / 90 + i) * 2, 8 - h);
+        ctx.quadraticCurveTo(i * 8 + 6, 8 - h * 0.5, i * 8, 8);
+        ctx.fill();
+      }
+    } else if (kind === "ELECTRIC") {
+      const seed = Math.floor(now / 60);
+      for (let b = 0; b < 2; b++) {
+        const x0 = b * 14 - 7;
+        ctx.beginPath();
+        ctx.moveTo(x0, -14);
+        for (let i = 1; i <= 3; i++) ctx.lineTo(x0 + Math.sin(seed * 7.1 + b * 3 + i * 5.3) * 6, -14 + i * 9);
+        ctx.stroke();
+      }
+    } else if (kind === "FROST") {
+      ctx.rotate(now / 900);
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 3; i++) {
+        ctx.rotate(Math.PI / 3);
+        ctx.beginPath();
+        ctx.moveTo(-10, 0);
+        ctx.lineTo(10, 0);
+        ctx.stroke();
+      }
+    } else if (kind === "POISON" || kind === "BLEED") {
+      // Drops sliding down and fading.
+      for (let i = 0; i < 3; i++) {
+        const p = ((now / 22 + i * 9) % 28) / 28;
+        const dx = (i - 1) * 9, dy = -12 + p * 28;
+        ctx.globalAlpha = 1 - p * 0.8;
+        ctx.beginPath();
+        ctx.arc(dx, dy, 3.5, 0, Math.PI * 2);
+        ctx.moveTo(dx - 3, dy - 1);
+        ctx.lineTo(dx, dy - 8);
+        ctx.lineTo(dx + 3, dy - 1);
+        ctx.fill();
+      }
+    } else if (kind === "GRAVITY") {
+      ctx.beginPath();
+      for (let a = 0; a < Math.PI * 4; a += 0.5) ctx.lineTo(Math.cos(a + now / 150) * a * 1.7, Math.sin(a + now / 150) * a * 1.4);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  private projectile(kind: SpecialKind | "blast", x: number, y: number, r: number, vx: number, now: number, owner: Slot) {
     const { ctx } = this;
     const d = Math.sign(vx);
     ctx.save();
-    if (kind === "arrow") {
+    if (kind === "blast") {
+      // The Attacker's punch shot: an arrow for a bow, otherwise a ball of the drawing's own ink.
+      const ink = this.sprites[owner]?.ink ?? C.ink;
+      ctx.strokeStyle = ctx.fillStyle = ink;
+      if (itemOf(this.items[owner], this.classes[owner]) === "bow") {
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(x - d * 26, y);
+        ctx.lineTo(x + d * 8, y);
+        ctx.moveTo(x + d * 8, y);
+        ctx.lineTo(x - d * 2, y - 6);
+        ctx.moveTo(x + d * 8, y);
+        ctx.lineTo(x - d * 2, y + 6);
+        ctx.moveTo(x - d * 26, y);
+        ctx.lineTo(x - d * 32, y - 5);
+        ctx.moveTo(x - d * 26, y);
+        ctx.lineTo(x - d * 32, y + 5);
+        ctx.stroke();
+      } else {
+        for (let i = 3; i > 0; i--) {
+          ctx.globalAlpha = 0.45 - i * 0.1;
+          ctx.beginPath();
+          ctx.arc(x - d * i * 9, y, r * (1 - i * 0.18), 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = C.paper;
+        ctx.beginPath();
+        ctx.arc(x + d * r * 0.3, y - r * 0.3, r * 0.28, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (kind === "arrow") {
       ctx.strokeStyle = C.ink;
       ctx.lineWidth = 4;
       ctx.beginPath();
@@ -687,6 +791,18 @@ export class Renderer {
     const pad = 28;
     // On a phone the arena is drawn at ~0.4x; enlarge HUD text so it stays readable.
     const z = Math.min(1.9, Math.max(1, 560 / this.canvas.clientWidth));
+    // KO slow-mo cinema bars are ink-dark: lay paper plates under the HUD so names and timer stay readable.
+    if (s.slow > 0) {
+      ctx.fillStyle = C.paper;
+      for (const x of [pad - 12, ARENA.w - pad - barW - 12]) {
+        ctx.beginPath();
+        ctx.roundRect(x, 10, barW + 24, 98 + 8 * (z - 1), 12);
+        ctx.fill();
+      }
+      ctx.beginPath();
+      ctx.roundRect(ARENA.w / 2 - 50, 10, 100, 82 + 8 * (z - 1), 12);
+      ctx.fill();
+    }
 
     for (const slot of [0, 1] as Slot[]) {
       const f = s.fighters[slot];

@@ -85,14 +85,12 @@ export const STYLE_POWER = Object.fromEntries(
 // Damage factors found by simulation (`npx tsx scripts/balance.ts --tune`): each style
 // and special set so it wins about half its fights against a mixed pool of every
 // style x special with the same stats. Re-run the tuner after changing moves or specials.
-export const STYLE_TUNE: Record<Style, number> = { Boxing: 0.86, Taekwondo: 1.2, "Muay Thai": 1.05, Karate: 0.99, Street: 0.94, Systema: 0.8 };
-export const SPECIAL_TUNE: Record<SpecialKind, number> = {
-  bolt: 2, arrow: 1.51, orb: 1.62, slash: 1.2, charge: 0.63, uppercut: 1.41, beam: 1.03, spiral: 2.27, wave: 2.21, teleport: 1.2, barrage: 0.61, meteor: 1.91,
-};
+export const STYLE_TUNE: Record<Style, number> = { Boxing: 0.775, Taekwondo: 0.859, "Muay Thai": 0.922, Karate: 0.796, Street: 0.922, Systema: 0.754 };
+export const SPECIAL_TUNE: Record<SpecialKind, number> = { bolt: 1.26, arrow: 1.133, orb: 1.154, slash: 0.775, charge: 0.395, uppercut: 0.943, beam: 1.661, spiral: 1.703, wave: 1.661, teleport: 0.711, barrage: 0.69, meteor: 1.323 };
 
 // Damage factor per class, found by simulation like the two above (scripts/balance.ts --tune):
 // each class's usual stat line and kit wins about half its fights against every class.
-export const CLASS_TUNE: Record<string, number> = { Sword: 1, Mace: 1, Tank: 1, Attacker: 1, Fighter: 1 };
+export const CLASS_TUNE: Record<string, number> = { Sword: 1.052, Mace: 1.144, Tank: 1.303, Attacker: 1.251, Fighter: 1.089 };
 // Strength of each element's status effect (1 = as described in sim.ts), tuned the same way.
 export const ELEMENT_TUNE: Record<string, number> = { NONE: 1, FIRE: 1, ELECTRIC: 1, FROST: 1, POISON: 1, BLEED: 1, GRAVITY: 1 };
 
@@ -112,6 +110,10 @@ export const CLASS_STYLE: Record<string, Style> = {
   Attacker: "Karate",
   Fighter: "Boxing",
 };
+
+// What each class holds unless the drawing says otherwise (the item sets the look only).
+export const CLASS_ITEM: Record<string, string> = { Sword: "sword", Mace: "mace", Tank: "shield", Attacker: "book", Fighter: "nothing" };
+export const itemOf = (item: string | null | undefined, cls: string): string => item || CLASS_ITEM[normClass(cls)] || "nothing";
 
 export const specialOf = (kind: string | null | undefined, cls: string): SpecialKind =>
   (SPECIAL_KINDS as readonly string[]).includes(kind ?? "") ? (kind as SpecialKind) : (CLASS_SPECIAL[normClass(cls)] ?? "uppercut");

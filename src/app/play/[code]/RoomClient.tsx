@@ -3,6 +3,7 @@
 import type { Character } from "@prisma/client";
 import { Camera, Check, Copy, Loader2, Swords, Trophy } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ClassBadge } from "@/components/ClassBadge";
 import { FighterAvatar } from "@/components/FighterAvatar";
@@ -56,6 +57,7 @@ export function RoomClient({ code, initialFighter, userId }: { code: string; ini
 }
 
 function Room({ code, fighterId, userId, onChangeFighter }: { code: string; fighterId: string; userId: string; onChangeFighter: () => void }) {
+  const router = useRouter();
   const { lobby, error, status, snaps, matchOver, send, sendInput, retry } = useGameRoom(code, fighterId, userId);
   useLeaveGuard(lobby?.status === "playing", "The fight is still on. Leave in the middle of it?");
   const [q0, q1] = lobby?.players ?? [null, null];
@@ -96,12 +98,12 @@ function Room({ code, fighterId, userId, onChangeFighter }: { code: string; figh
     const me = lobby.players[lobby.you]!;
     return (
       <div className="relative grid gap-4">
+        <GameCanvas snaps={snaps} players={players} you={lobby.you} onInput={sendInput} onExit={() => router.push("/play")}>
         {lobby.notice && lobby.status === "playing" && (
-          <p data-notice className="pop-in rounded-xl bg-gold/20 px-4 py-2 text-center text-sm font-medium">
+          <p data-notice className="pop-in absolute inset-x-0 bottom-3 mx-auto w-fit max-w-[90%] rounded-xl bg-gold/90 px-4 py-2 text-center text-sm font-medium">
             {lobby.notice}
           </p>
         )}
-        <GameCanvas snaps={snaps} players={players} you={lobby.you} onInput={sendInput} />
         {lobby.status === "over" && winner !== null && (
           <div className="pop-in absolute inset-x-0 top-[12%] mx-auto w-[min(92%,26rem)] rounded-2xl bg-ink p-6 text-center text-white shadow-2xl">
             <Trophy className="mx-auto size-8 text-gold" />
@@ -125,6 +127,7 @@ function Room({ code, fighterId, userId, onChangeFighter }: { code: string; figh
             </div>
           </div>
         )}
+        </GameCanvas>
       </div>
     );
   }

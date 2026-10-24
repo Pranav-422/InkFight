@@ -49,7 +49,7 @@ export function classFromItems(items: string[]): CharacterClass {
 // class factors in moves.ts (CLASS_TUNE, found by scripts/balance.ts) even out the rest.
 const CLASS_BASE: Record<CharacterClass, Stats> = {
   Sword: { hp: HP, atk: 78, def: 62, spd: 78, agi: 74, iq: 58 },
-  Mace: { hp: HP, atk: 92, def: 88, spd: 56, agi: 54, iq: 60 },
+  Mace: { hp: HP, atk: 92, def: 80, spd: 60, agi: 58, iq: 60 }, // a heavy hitter, not a second tank: less DUR than the Tank, a step quicker
   Tank: { hp: HP, atk: 66, def: 100, spd: 56, agi: 56, iq: 72 },
   Attacker: { hp: HP, atk: 56, def: 54, spd: 72, agi: 76, iq: 92 },
   Fighter: { hp: HP, atk: 76, def: 70, spd: 76, agi: 74, iq: 54 },

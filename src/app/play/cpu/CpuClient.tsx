@@ -189,7 +189,7 @@ export function CpuFight({
           {exitLabel}
         </button>
       </div>
-      <GameCanvas snaps={snaps} players={players} you={0} onInput={sendInput} />
+      <GameCanvas snaps={snaps} players={players} you={0} onInput={sendInput} onExit={onExit}>
       {matchOver && matchOver.matchWinner !== null && (
         <div className="pop-in absolute inset-x-0 top-[12%] mx-auto w-[min(92%,26rem)] rounded-2xl bg-ink p-6 text-center text-white shadow-2xl">
           <Trophy className="mx-auto size-8 text-gold" />
@@ -210,6 +210,7 @@ export function CpuFight({
           </div>
         </div>
       )}
+      </GameCanvas>
     </div>
   );
 }
