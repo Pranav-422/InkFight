@@ -281,7 +281,7 @@ function offlineAnalysis(image: Buffer, note: string, facts: DrawingFacts | null
   const cls = classFromItems(items);
   const kind = pick(CLASS_SPECIAL_POOL[cls] ?? ["uppercut"], 6);
   const [name, description] = pick(SPECIAL_NAMES[kind], 7);
-  const element = picks.element ?? suggestElement(facts?.colors ?? features.dominant_colors);
+  const element = picks.element ?? suggestElement(facts?.colors ?? features.dominant_colors, facts?.penWidth);
   return build(
     "offline",
     `${first} ${last}`,
@@ -308,7 +308,7 @@ export async function analyzeDrawing(image: Buffer, mediaType: MediaType, facts:
     try {
       const v = ai === "gemini" ? await callGemini(image, mediaType) : await callClaude(image, mediaType);
       const seen = v.detected_items.map((i) => i.toLowerCase());
-      const element = picks.element ?? v.element ?? suggestElement(facts?.colors ?? v.detected_features.dominant_colors);
+      const element = picks.element ?? v.element ?? suggestElement(facts?.colors ?? v.detected_features.dominant_colors, facts?.penWidth);
       return build(
         ai,
         v.name,

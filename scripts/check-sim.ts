@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import { STYLE_INFO } from "../src/game/moves";
-import { createMatch, EMPTY_INPUT, step, TICK_HZ, type FighterStats, type Input, type Match } from "../src/game/sim";
+import { createMatch, EMPTY_INPUT, resumeMatch, snapshot, step, TICK_HZ, type FighterStats, type Input, type Match } from "../src/game/sim";
 import { CLASSES, ruleStats } from "../src/lib/stats";
 
 const neutral = { size: "medium", pose: "neutral", dominant_colors: [] } as const;
@@ -102,6 +102,23 @@ for (const [att, stays] of [["Fighter", true], ["Mace", false]] as const) {
   }
   assert.equal(x.m.fighters[0].move, STYLE_INFO.Boxing.mix, "no mix finisher");
   assert.ok(x.m.fighters[0].mix);
+}
+
+// resumeMatch restores an in-progress fight so the guest's local copy can be handed
+// back to a returning host. Verify: HP and phase carry over, and the fight can continue.
+{
+  const x = fight(fighter("Fighter"), fighter("Mace"), 120);
+  run(x, 30 * TICK_HZ); // run a full round's worth
+  const s = snapshot(x.m);
+  // Simulate the guest taking over (CPU plays host), then hand back to a new host match.
+  const resumed = resumeMatch(s, fighter("Fighter"), fighter("Mace"), [{ ...EMPTY_INPUT }, { ...EMPTY_INPUT }]);
+  assert.equal(resumed.fighters[0].hp, s.fighters[0].hp, "hp carried over");
+  assert.equal(resumed.fighters[1].hp, s.fighters[1].hp, "hp[1] carried over");
+  assert.equal(resumed.phase, s.phase, "phase carried over");
+  assert.equal(resumed.round, s.round, "round carried over");
+  // The resumed match can step without throwing.
+  step(resumed, [{ ...EMPTY_INPUT }, { ...EMPTY_INPUT }]);
+  assert.ok(true, "resumed match stepped without error");
 }
 
 console.log("check-sim: all good");

@@ -18,6 +18,8 @@ const TICK_MS = 1000 / TICK_HZ;
 const POLL_MS = 1200;
 const CONNECT_TIMEOUT_MS = 20000;
 
+// ICE servers: NEXT_PUBLIC_ICE_SERVERS (JSON array) wins; falls back to Google + Cloudflare STUN.
+// In dev, append ?relay=1 to the URL to force iceTransportPolicy:"relay" and test TURN paths.
 const ICE_SERVERS: RTCIceServer[] = (() => {
   try {
     const custom = process.env.NEXT_PUBLIC_ICE_SERVERS;
@@ -25,6 +27,11 @@ const ICE_SERVERS: RTCIceServer[] = (() => {
   } catch {}
   return [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302", "stun:stun.cloudflare.com:3478"] }];
 })();
+
+function iceConfig(): RTCConfiguration {
+  const relay = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("relay") === "1";
+  return { iceServers: ICE_SERVERS, ...(relay ? { iceTransportPolicy: "relay" as RTCIceTransportPolicy } : {}) };
+}
 
 type RoomInfo = {
   exists: boolean;
@@ -173,12 +180,21 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
         loop = null;
       };
 
-      const startMatch = () => {
+      // Start (or resume) the authoritative sim loop and stream snapshots to the guest.
+      // resumeSnap: if set, skip createMatch and resume from this snapshot (host reconnect).
+      const startMatch = (resumeSnap?: Snapshot) => {
         const guestSeat = seats[1];
         if (!guestSeat) return;
         status = "playing";
-        match = createMatch({ ...seats[0].fighter }, { ...guestSeat.fighter }, [seats[0].input, guestSeat.input]);
-        aiPlayed = false;
+        if (resumeSnap) {
+          // Host reconnect: resume from the guest's local copy (newest state).
+          // Mark unrecorded because the CPU played part of the fight.
+          match = resumeMatch(resumeSnap, { ...seats[0].fighter }, { ...guestSeat.fighter }, [seats[0].input, guestSeat.input]);
+          aiPlayed = true;
+        } else {
+          match = createMatch({ ...seats[0].fighter }, { ...guestSeat.fighter }, [seats[0].input, guestSeat.input]);
+          aiPlayed = false;
+        }
         seats[0].rematch = guestSeat.rematch = false;
         setMatchOver(null);
         broadcast();
@@ -233,7 +249,12 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
         const g = seats[1];
         if (!g) return;
         if (msg.t === "input") g.input = sanitize(msg.input);
-        else if (msg.t === "ready" && status === "lobby") {
+        else if (msg.t === "sync") {
+          // Host reconnect: the guest kept the fight going against the CPU and sends its snapshot; resume from it.
+          // The fight stays unrecorded. The snapshot comes from the guest, which is fine only because of that.
+          if (!msg.s || msg.s.phase === "matchEnd" || (status === "playing" && match)) return;
+          startMatch(msg.s);
+        } else if (msg.t === "ready" && status === "lobby") {
           g.ready = !!msg.ready;
           if (seats[0].ready && g.ready) startMatch();
           else broadcast();
@@ -280,7 +301,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
           broadcast(notice);
         }
 
-        pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+        pc = new RTCPeerConnection(iceConfig());
         const thisPc = pc;
         ctl = pc.createDataChannel("ctl", { ordered: true });
         game = pc.createDataChannel("game", { ordered: false, maxRetransmits: 0 });
@@ -293,7 +314,12 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
             seats[1].away = false;
             seats[1].input = { ...EMPTY_INPUT };
             broadcast(`${seats[1].fighter.name} is back in the fight!`);
-          } else broadcast(`${seats[1]?.fighter.name ?? "A challenger"} has entered the arena!`);
+          } else {
+            broadcast(`${seats[1]?.fighter.name ?? "A challenger"} has entered the arena!`);
+            // Ask the guest for its current match state. If the guest has been running
+            // the fight after the host dropped, it replies with a `sync` and we resume.
+            ctl!.send(JSON.stringify({ t: "reqsync" } satisfies HostMsg));
+          }
         };
         thisPc.onconnectionstatechange = () => {
           if (gen !== generation || cancelled) return;
@@ -360,7 +386,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
     // --------------------------------------------------------------- guest
     async function guest(info: RoomInfo) {
       if (!info.offer) return setError("That room isn't open yet. Ask your friend to create it again.");
-      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+      const pc = new RTCPeerConnection(iceConfig());
       let ctl: RTCDataChannel | null = null;
       let game: RTCDataChannel | null = null;
       cleanups.push(() => pc.close());
@@ -384,6 +410,10 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
       // The host left mid-fight: carry on in this browser from the last snapshot, with the
       // computer playing the host's fighter. Not recorded (only a host can report results).
       let taken = false;
+      let takenLoop: ReturnType<typeof setInterval> | null = null;
+      // Current snapshot while running in takeover mode, so we can hand it to a returning host.
+      let takenSnap: Snapshot | null = null;
+
       const takeOver = () => {
         const last = snaps.current.cur;
         const [p0, p1] = lobbyNow?.players ?? [null, null];
@@ -400,7 +430,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
         const lobby: Lobby = { ...lobbyNow, notice: `${p0.name}'s player left. The computer plays them now; this fight won't count.` };
         setLobby(lobby);
         let t0 = performance.now(), acc = 0;
-        const loop = setInterval(() => {
+        takenLoop = setInterval(() => {
           const now = performance.now();
           acc = Math.min(acc + now - t0, 250);
           t0 = now;
@@ -408,17 +438,92 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
             acc -= TICK_MS;
             cpuThink(m, 0, brain, them);
             step(m, [them, me]);
-            pushSnap(snapshot(m));
+            const s = snapshot(m);
+            takenSnap = s;
+            pushSnap(s);
             if (m.phase === "matchEnd") {
-              clearInterval(loop);
+              if (takenLoop) clearInterval(takenLoop);
+              takenLoop = null;
               setLobby({ ...lobby, status: "over" });
               return;
             }
           }
         }, 4);
-        cleanups.push(() => clearInterval(loop));
+        cleanups.push(() => { if (takenLoop) clearInterval(takenLoop); });
+
+        // Poll for the host to reopen the room so the guest can reconnect and hand the match back.
+        void (async () => {
+          let lastVersion = info.version;
+          while (!cancelled && taken && takenSnap?.phase !== "matchEnd") {
+            await sleep(POLL_MS * 2);
+            if (cancelled || !taken) break;
+            const r = await api<RoomInfo>(`/api/rooms/${code}`);
+            if (cancelled || !taken) break;
+            // A new offer means the host has come back.
+            if (r.exists && r.offer && r.version !== lastVersion && !r.answer) {
+              lastVersion = r.version;
+              await rejoinHost(r);
+              break;
+            }
+          }
+        })();
+
         return true;
       };
+
+      // Guest reconnects to the returned host and hands the current match snapshot over.
+      async function rejoinHost(r: RoomInfo) {
+        if (!r.offer || cancelled) return;
+        const newPc = new RTCPeerConnection(iceConfig());
+        cleanups.push(() => newPc.close());
+        let newCtl: RTCDataChannel | null = null;
+        let newGame: RTCDataChannel | null = null;
+
+        newPc.ondatachannel = (e) => {
+          if (e.channel.label === "ctl") {
+            newCtl = e.channel;
+            newCtl.onopen = () => {
+              setStatus("Connected");
+              // The host will send reqsync; nothing to do here until then.
+            };
+            newCtl.onmessage = (ev) => {
+              const msg = JSON.parse(ev.data) as HostMsg;
+              if (msg.t === "reqsync" && taken && takenSnap) {
+                // Host is back and asking for our match state. Send it, then hand control back.
+                newCtl!.send(JSON.stringify({ t: "sync", s: takenSnap } satisfies ClientMsg));
+                // Stop our local CPU loop — the host is now authoritative again.
+                if (takenLoop) { clearInterval(takenLoop); takenLoop = null; }
+                taken = false;
+                // From now on receive host snapshots normally.
+                sendRef.current = (msg2) => {
+                  if (msg2.t === "input") lastInput = msg2.input;
+                  const ch = msg2.t === "input" ? newGame : newCtl;
+                  if (ch?.readyState === "open") ch.send(JSON.stringify(msg2));
+                };
+              } else onHostMessage(ev.data);
+            };
+          } else {
+            newGame = e.channel;
+            newGame.onmessage = (ev) => onHostMessage(ev.data);
+          }
+        };
+
+        await newPc.setRemoteDescription({ type: "offer", sdp: r.offer });
+        await newPc.setLocalDescription(await newPc.createAnswer());
+        await gatherIce(newPc);
+        if (cancelled) return;
+        const res = await api<{ retry?: boolean }>(`/api/rooms/${code}/answer`, {
+          method: "POST",
+          body: JSON.stringify({ fighterId, answer: newPc.localDescription!.sdp, version: r.version }),
+        });
+        if (res.retry || res.status !== 200) {
+          newPc.close();
+          return;
+        }
+        // Reset sequence tracking for the rejoined connection.
+        lastSeq = 0;
+        setStatus("Reconnecting to host…");
+      }
 
       const onHostMessage = (raw: string) => {
         const msg = JSON.parse(raw) as HostMsg;
@@ -438,6 +543,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
           }
           if (msg.lobby.status === "lobby") snaps.current = { prev: null, cur: null, at: 0 };
         }
+        // reqsync is answered only by a guest that took over the fight (see rejoinHost); a normal guest ignores it.
       };
       pc.ondatachannel = (e) => {
         if (e.channel.label === "ctl") {

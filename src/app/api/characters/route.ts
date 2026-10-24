@@ -16,6 +16,7 @@ const Facts = z.object({
   aspect: ratio(5),
   stance: ratio(3),
   armSpread: ratio(3),
+  penWidth: ratio(30).optional(),
   colors: z.array(z.enum(["red", "blue", "green", "yellow", "black"])).max(5),
   item: z.enum(["sword", "mace", "book", "staff", "shield", "bow", "nothing"]),
 });
@@ -74,7 +75,7 @@ export async function POST(request: Request) {
   const facts = parseFacts(form.get("features"));
   const picks = parsePicks(form);
   const [imageUrl, a] = await Promise.all([saveDrawing(bytes, TYPES[type], type, "cut-"), analyzeDrawing(bytes, type, facts, picks)]);
-  const element = picks.element ?? a.element ?? suggestElement(facts?.colors ?? []);
+  const element = picks.element ?? a.element ?? suggestElement(facts?.colors ?? [], facts?.penWidth);
   const item = picks.item ?? facts?.item ?? null;
   const skill = form.get("pick_skill");
   const character = await db.character.create({

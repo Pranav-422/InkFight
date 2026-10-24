@@ -2,7 +2,7 @@
 
 import assert from "node:assert/strict";
 import { measureInk } from "../src/game/sprite";
-import { BUDGET, classFromItems, clampStats, featuresFromMeasurements, HP, ruleStats, STAT_CAPS, type StatKey } from "../src/lib/stats";
+import { BUDGET, classFromItems, clampStats, featuresFromMeasurements, HP, ruleStats, STAT_CAPS, suggestElement, type StatKey } from "../src/lib/stats";
 
 const thin = featuresFromMeasurements({ fill: 0.05, aspect: 0.35, stance: 0.2, armSpread: 0.3 }, ["black"]);
 const bulky = featuresFromMeasurements({ fill: 0.25, aspect: 1, stance: 0.5, armSpread: 0.5 }, ["red"]);
@@ -24,15 +24,34 @@ for (const s of [huge, ruleStats("Attacker", thin), clampStats({ hp: 60, atk: 90
   assert.equal(s.atk + s.def + s.spd + s.agi + s.iq, BUDGET, JSON.stringify(s));
 }
 
+// suggestElement: hue wins, pen width breaks ties for black-only drawings.
+// Coloured ink: hue takes priority regardless of width.
+assert.equal(suggestElement(["red"], 3), "FIRE", "red → FIRE even with thin pen");
+assert.equal(suggestElement(["blue"], 9), "ELECTRIC", "blue → ELECTRIC even with thick pen");
+assert.equal(suggestElement(["green"], 3), "POISON", "green → POISON even with thin pen");
+// Black-only: thickness decides.
+assert.equal(suggestElement(["black"], 9), "GRAVITY", "thick black pen → GRAVITY");
+assert.equal(suggestElement(["black"], 3), "ELECTRIC", "thin black pen → ELECTRIC");
+assert.equal(suggestElement(["black"], 6), "GRAVITY", "mid-width black pen → GRAVITY (default)");
+// No width provided: falls back to GRAVITY.
+assert.equal(suggestElement(["black"]), "GRAVITY", "black with no width → GRAVITY");
+// Mixed colours with black: hue wins.
+assert.equal(suggestElement(["black", "blue"], 3), "ELECTRIC", "blue + black → ELECTRIC (hue wins)");
+assert.equal(suggestElement(["black", "red"], 9), "FIRE", "red + black → FIRE (hue wins over thick)");
+
 // Synthetic drawings: ink strokes on white paper.
-function figure(extra?: (line: Line) => void) {
+// halfW = half-width of the stroke brush (dy/dx radius): 2 → 5px stroke, 4 → 9px stroke.
+function figure(extra?: (line: Line) => void, halfW = 2) {
   const W = 300, H = 400;
   const alpha = new Uint8ClampedArray(W * H);
   const line: Line = (x0, y0, x1, y1) => {
     const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0));
     for (let i = 0; i <= n; i++) {
       const x = Math.round(x0 + ((x1 - x0) * i) / n), y = Math.round(y0 + ((y1 - y0) * i) / n);
-      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) alpha[(y + dy) * W + x + dx] = 255;
+      for (let dy = -halfW; dy <= halfW; dy++) for (let dx = -halfW; dx <= halfW; dx++) {
+        const px = x + dx, py = y + dy;
+        if (px >= 0 && py >= 0 && px < W && py < H) alpha[py * W + px] = 255;
+      }
     }
   };
   for (let a = 0; a < Math.PI * 2; a += 0.02) line(150 + Math.cos(a) * 25, 60 + Math.sin(a) * 25, 150 + Math.cos(a + 0.02) * 25, 60 + Math.sin(a + 0.02) * 25);
@@ -53,7 +72,22 @@ const shield = figure((l) => {
   for (let a = 0; a < Math.PI * 2; a += 0.05) l(225 + Math.cos(a) * 35, 165 + Math.sin(a) * 50, 225 + Math.cos(a + 0.05) * 35, 165 + Math.sin(a + 0.05) * 50);
 });
 assert.ok(["shield", "book"].includes(shield.item), `shield drew as ${shield.item}`);
-console.log("check-stats: all good", { bare: figure(), shield: shield.item });
+
+// penWidth field is measured and in-range.
+const bare = figure();
+assert.ok(typeof bare.penWidth === "number" && bare.penWidth > 0, "penWidth is a positive number");
+
+// Thick stroke (halfW=4 → ~9px): suggestElement with that penWidth and black-only → GRAVITY.
+const thickFig = figure(undefined, 4);
+assert.ok(thickFig.penWidth >= 6, `thick pen (halfW=4) should have penWidth>=6, got ${thickFig.penWidth}`);
+assert.equal(suggestElement(["black"], thickFig.penWidth), "GRAVITY", "thick black drawing → GRAVITY");
+
+// Thin stroke (halfW=1 → ~3px): penWidth small, black-only → ELECTRIC.
+const thinFig = figure(undefined, 1);
+assert.ok(thinFig.penWidth <= 5, `thin pen (halfW=1) should have penWidth<=5, got ${thinFig.penWidth}`);
+assert.equal(suggestElement(["black"], thinFig.penWidth), "ELECTRIC", "thin black drawing → ELECTRIC");
+
+console.log("check-stats: all good", { bare: figure(), shield: shield.item, thickW: thickFig.penWidth, thinW: thinFig.penWidth });
 
 // Gemini path, with a canned API reply (no network, no key needed).
 async function checkGemini() {

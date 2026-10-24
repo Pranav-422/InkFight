@@ -196,6 +196,9 @@ function cutFigure(img: Source, deepen = true) {
   work.width = w;
   work.height = h;
   const ctx = work.getContext("2d", { willReadFrequently: true })!;
+  // Paper first: a transparent cut-out must read as paper, not as black ink (RGB of a clear pixel is 0).
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, w, h);
   ctx.drawImage(img, 0, 0, w, h);
   const data = ctx.getImageData(0, 0, w, h);
   const px = data.data;
@@ -226,6 +229,8 @@ function cutFigure(img: Source, deepen = true) {
   normal.width = Math.max(1, Math.round(ow * s2));
   normal.height = Math.max(1, Math.round(oh * s2));
   const nctx = normal.getContext("2d", { willReadFrequently: true })!;
+  nctx.fillStyle = "#fff"; // paper under a transparent cut-out (see above)
+  nctx.fillRect(0, 0, normal.width, normal.height);
   nctx.drawImage(img, ox, oy, ow, oh, 0, 0, normal.width, normal.height);
   const d2 = nctx.getImageData(0, 0, normal.width, normal.height);
   const px2 = d2.data;
@@ -255,7 +260,8 @@ function cutFigure(img: Source, deepen = true) {
 }
 
 // What gets uploaded and stored instead of the photo: the figure alone, upright, on
-// white paper with a margin. Nothing else from the photo (table, room, faces) is kept.
+// a transparent background with a margin. Nothing else from the photo (table, room,
+// faces) is kept. Transparent PNG so the card background shows through around the ink.
 export async function cleanDrawing(file: Blob, rotation = 0): Promise<Blob> {
   const { img } = rotated(await createImageBitmap(file), rotation);
   const { normal } = cutFigure(img, false);
@@ -264,8 +270,7 @@ export async function cleanDrawing(file: Blob, rotation = 0): Promise<Blob> {
   c.width = normal.width + pad * 2;
   c.height = normal.height + pad * 2;
   const g = c.getContext("2d")!;
-  g.fillStyle = "#fff";
-  g.fillRect(0, 0, c.width, c.height);
+  // No fillRect: leave alpha=0 so the ink sits on a transparent background.
   g.drawImage(normal, pad, pad);
   return new Promise((resolve, reject) => c.toBlob((b) => (b ? resolve(b) : reject(new Error("Couldn't read that image"))), "image/png"));
 }
@@ -420,6 +425,7 @@ export type Measured = {
   armSpread: number; // hand-to-hand span / height
   colors: string[]; // ink hues with a real share of the ink
   item: Item; // best guess at the held prop; the user can correct it
+  penWidth: number; // average stroke width (px at FIND_SIDE scale); thick marker vs thin pen
 };
 
 // Reads what's actually on the paper, before upload. Stats are built from these.
@@ -431,6 +437,8 @@ export async function measureDrawing(file: Blob, rotation = 0): Promise<Measured
   c.width = w;
   c.height = h;
   const g = c.getContext("2d", { willReadFrequently: true })!;
+  g.fillStyle = "#fff"; // paper under a transparent cut-out (see cutFigure)
+  g.fillRect(0, 0, w, h);
   g.drawImage(bmp, 0, 0, w, h);
   const px = g.getImageData(0, 0, w, h).data;
   const alpha = inkAlpha(px, w, h);
@@ -459,13 +467,14 @@ export function measureInk(px: ArrayLike<number>, alpha: ArrayLike<number>, w: n
     else if (hue < 4.6) hues.blue++;
     else hues.red++; // magenta/pink reads as red
   }
-  if (x1 < 0) return { fill: 0, aspect: 0.5, stance: 0, armSpread: 0, colors: ["black"], item: "nothing" };
+  if (x1 < 0) return { fill: 0, aspect: 0.5, stance: 0, armSpread: 0, colors: ["black"], item: "nothing", penWidth: 3 };
   const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
   const colors = Object.entries(hues).filter(([, n]) => n > ink * 0.12).map(([k]) => k);
 
   const rgba = new Uint8ClampedArray(w * h * 4);
   for (let p = 0; p < w * h; p++) rgba[p * 4 + 3] = alpha[p];
   const j = estimateJoints(rgba, w, h);
+  const penWidth = strokeWidth((x, y) => alpha[y * w + x] >= 64, w, h, j);
   return {
     fill: ink / (bw * bh),
     aspect: bw / bh,
@@ -473,6 +482,7 @@ export function measureInk(px: ArrayLike<number>, alpha: ArrayLike<number>, w: n
     armSpread: Math.abs(j.handF.x - j.handB.x) / bh,
     colors: colors.length ? colors : ["black"],
     item: guessItem(alpha, w, h, j, bh),
+    penWidth,
   };
 }
 

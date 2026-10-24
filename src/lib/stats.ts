@@ -59,11 +59,18 @@ const CLASS_BASE: Record<CharacterClass, Stats> = {
 // the player can pick any.
 export const ELEMENTS = ["NONE", "FIRE", "ELECTRIC", "FROST", "POISON", "BLEED", "GRAVITY"] as const;
 export type Element = (typeof ELEMENTS)[number];
-export function suggestElement(colors: string[]): Element {
+// penWidth: stroke width in draw pixels (from measureInk). Hue wins; for black-only drawings
+// thickness decides: thick (>=8) → GRAVITY, thin (<=4) → ELECTRIC.
+export function suggestElement(colors: string[], penWidth?: number): Element {
   const c = colors.map((x) => x.toLowerCase());
   if (c.some((x) => /red|orange/.test(x))) return "FIRE";
   if (c.some((x) => /blue|cyan|yellow/.test(x))) return "ELECTRIC";
   if (c.some((x) => /green|purple/.test(x))) return "POISON";
+  // Black-only drawing: use pen width to break the tie.
+  if (penWidth !== undefined && !c.some((x) => x !== "black")) {
+    if (penWidth >= 8) return "GRAVITY";
+    if (penWidth <= 4) return "ELECTRIC";
+  }
   return "GRAVITY";
 }
 
@@ -75,7 +82,7 @@ export type Features = {
   measured?: Measurements;
 };
 
-export type Measurements = { fill: number; aspect: number; stance: number; armSpread: number };
+export type Measurements = { fill: number; aspect: number; stance: number; armSpread: number; penWidth?: number };
 
 // Turn measured shape numbers into the size/pose words the rules use.
 export function featuresFromMeasurements(m: Measurements, colors: string[]): Features {
