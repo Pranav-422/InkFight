@@ -9,7 +9,7 @@ import { ceremonyPose, poseFor } from "./poses";
 import { resolvePose, type BoneName, type Vec } from "./skeleton";
 import type { Sprite } from "./sprite";
 import { ARENA, BEAM, BODY, SPECIAL_DURATION, TICK_HZ, WINS_NEEDED, type GameEvent, type Slot, type Snapshot, type SpecialKind } from "./sim";
-import { drawStick, solveStick, STICK_REST, type StickPose } from "./stickman";
+import { AVERAGE_BUILD, drawStick, solveStick, STICK_REST, type Build, type StickPose } from "./stickman";
 
 const C = {
   paper: "#f7f5f0",
@@ -53,6 +53,7 @@ export class Renderer {
   sprites: [Sprite | null, Sprite | null] = [null, null];
   classes: [string, string] = ["Fighter", "Fighter"];
   items: [string, string] = ["", ""]; // "" = the class's default item (see itemOf)
+  builds: [Build, Build] = [AVERAGE_BUILD, AVERAGE_BUILD]; // body proportions from DUR / SPD (stickman.ts buildFor)
   private limbs: [Record<BoneName, number> | null, Record<BoneName, number> | null] = [null, null];
   private trails: [StickPose[], StickPose[]] = [[], []];
   private smears: [Vec[], Vec[]] = [[], []];
@@ -461,7 +462,7 @@ export class Renderer {
       cur[name] = p0 + Math.atan2(Math.sin(target[name] - p0), Math.cos(target[name] - p0)) * k;
     }
     this.limbs[f.slot] = cur;
-    const pose = solveStick(cur);
+    const pose = solveStick(cur, this.builds[f.slot]);
     // Keep the lowest foot on the floor: bent legs crouch the body instead of sinking it.
     const lift = (f.grounded && f.action !== "ko" ? -Math.max(pose.joints.footF.y, pose.joints.footB.y) : 0) - (motion.hover ?? 0);
     const dir = motion.flip ? -f.facing : f.facing;
@@ -511,7 +512,7 @@ export class Renderer {
     const hurt = f.action === "hit" && f.t < 8;
     const nc = normClass(cls);
     const accent = nc === "Tank" || nc === "Attacker" ? C.guard : nc === "Fighter" ? C.hit : C.gold;
-    const look = { ink: hurt ? C.hit : (sprite?.ink ?? C.ink), head: sprite?.head ?? null, prop: sprite?.prop ?? null, cls, item: this.items[f.slot], accent, width: sprite?.width ?? 7 };
+    const look = { ink: hurt ? C.hit : (sprite?.ink ?? C.ink), head: sprite?.head ?? null, prop: sprite?.prop ?? null, cls, item: this.items[f.slot], accent, width: sprite?.width ?? 7, build: this.builds[f.slot], now };
 
     ctx.save();
     ctx.translate(f.x + dx, f.y + lift);
@@ -526,7 +527,7 @@ export class Renderer {
     const base = (f.action === "ko" ? 0.75 : 1) * motion.alpha;
     trail.slice(1).forEach((p, i) => {
       ctx.globalAlpha = (0.24 - i * 0.05) * Math.max(0.3, motion.alpha);
-      drawStick(ctx, p, { ...look, ink: C.hit, head: null, prop: null });
+      drawStick(ctx, p, { ...look, ink: C.hit, head: null, prop: null, plain: true });
     });
     ctx.globalAlpha = base;
     const skillOn = f.skillT > 0 && f.action !== "ko" ? skill : undefined;

@@ -11,15 +11,15 @@ import { poseFor } from "@/game/poses";
 import { resolvePose, type BoneName } from "@/game/skeleton";
 import type { Snapshot } from "@/game/sim";
 import { loadSpriteCached, type Sprite } from "@/game/sprite";
-import { drawStick, solveStick, STICK_REST } from "@/game/stickman";
+import { buildFor, drawStick, solveStick, STICK_REST } from "@/game/stickman";
 
-type AvatarFighter = { imageUrl: string; class: string; item?: string | null; pose?: string | null; rotation?: number; style?: string | null; flipItem?: boolean };
+type AvatarFighter = { imageUrl: string; class: string; item?: string | null; pose?: string | null; rotation?: number; style?: string | null; flipItem?: boolean; def?: number; spd?: number };
 
 const ACCENT: Record<string, string> = { Tank: "#2f5be0", Attacker: "#2f5be0", Fighter: "#e5482d" };
 
 export function FighterAvatar({ fighter, className = "", showcase = true }: { fighter: AvatarFighter; className?: string; showcase?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const { imageUrl, pose, rotation, class: cls, item, style, flipItem } = fighter;
+  const { imageUrl, pose, rotation, class: cls, item, style, flipItem, def, spd } = fighter;
 
   useEffect(() => {
     const canvas = ref.current!;
@@ -30,6 +30,7 @@ export function FighterAvatar({ fighter, className = "", showcase = true }: { fi
       .then((s) => alive && (sprite = s))
       .catch(() => {});
 
+    const build = buildFor(def ?? 70, spd ?? 70);
     const chain = STYLE_INFO[styleOf(style, cls)];
     const showMoves: MoveName[] = [...chain.punch, ...chain.kick];
     let limbs: Record<BoneName, number> | null = null;
@@ -76,7 +77,7 @@ export function FighterAvatar({ fighter, className = "", showcase = true }: { fi
         cur[name] = p0 + Math.atan2(Math.sin(target[name] - p0), Math.cos(target[name] - p0)) * k;
       }
       limbs = cur;
-      const body = solveStick(cur);
+      const body = solveStick(cur, build);
       const lift = -Math.max(body.joints.footF.y, body.joints.footB.y);
 
       ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -98,6 +99,8 @@ export function FighterAvatar({ fighter, className = "", showcase = true }: { fi
         item,
         accent: ACCENT[normClass(cls)] ?? "#f2b705",
         width: s?.width ?? 7,
+        build,
+        now,
       });
       raf = requestAnimationFrame(frame);
     }
@@ -107,7 +110,7 @@ export function FighterAvatar({ fighter, className = "", showcase = true }: { fi
       io.disconnect();
       cancelAnimationFrame(raf);
     };
-  }, [imageUrl, pose, rotation, cls, item, style, flipItem, showcase]);
+  }, [imageUrl, pose, rotation, cls, item, style, flipItem, showcase, def, spd]);
 
   return <canvas ref={ref} className={`block h-full w-full ${className}`} aria-hidden />;
 }

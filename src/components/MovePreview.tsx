@@ -9,7 +9,8 @@ import { CLASS_CHAIN, MOVES, STYLE_INFO } from "@/game/moves";
 import { Renderer } from "@/game/render";
 import { ARENA, createMatch, deriveDef, EMPTY_INPUT, snapshot, step, TICK_HZ, type FighterStats, type Input, type Match, type Snapshot } from "@/game/sim";
 import { loadSpriteCached } from "@/game/sprite";
-import { ruleStats } from "@/lib/stats";
+import { buildFor } from "@/game/stickman";
+import { clampStats, ruleStats } from "@/lib/stats";
 
 export type Demo = { kind: "style" | "special" | "ult" | "item" | "skill"; n: number };
 type Look = { imageUrl: string; class: string; item?: string | null; element?: string | null; style?: string | null; specialKind?: string | null; ultKind?: string | null; sideSkill?: string | null; pose?: string | null; rotation?: number; flipItem?: boolean };
@@ -72,6 +73,8 @@ export function MovePreview({ fighter, demo, className = "" }: { fighter: Look; 
     renderer.resize();
     renderer.classes = [cls, "Fighter"];
     renderer.items = [item ?? "", ""];
+    const own = clampStats(statsFor(fighter)); // the build follows the class line this fighter will get
+    renderer.builds = [buildFor(own.def, own.spd), buildFor(70, 70)];
     let alive = true;
     loadSpriteCached(imageUrl, pose, rotation ?? 0, flipItem ?? false)
       .then((s) => alive && (renderer.sprites[0] = s))

@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import { CLASS_ULT, SLOT1_COST, SPECIAL_KINDS, STYLE_INFO, ULT_COST } from "../src/game/moves";
 import { poseFor } from "../src/game/poses";
+import { AVERAGE_BUILD, buildFor, solveStick } from "../src/game/stickman";
 import { createMatch, deriveDef, snapshot, EMPTY_INPUT, step, TICK_HZ, type FighterStats, type Input, type Match } from "../src/game/sim";
 import { CLASSES, clampStats, ruleStats } from "../src/lib/stats";
 
@@ -307,6 +308,17 @@ for (const kind of ["bolt", "arrow", "orb", "wave"]) {
   assert.ok("rel" in high.head! && high.head.rel < -0.5 && "rel" in high.torso! && high.torso.rel < 0, "a head hit should snap the head back");
   assert.ok("rel" in low.torso! && low.torso.rel > 0.4 && "rel" in low.head! && low.head.rel > 0, "a body hit should fold the torso forward");
   assert.ok("abs" in low.upperF! && low.upperF.abs > 1 && "abs" in low.upperB! && low.upperB.abs > 1.5, "a body hit should drop the arms");
+}
+
+// Body proportions follow DUR and SPD, and an average fighter is drawn exactly as before.
+{
+  assert.deepEqual(buildFor(70, 70), { shoulder: 0, thick: 1, legs: 1 });
+  const bulky = buildFor(100, 40), lean = buildFor(40, 100);
+  assert.ok(bulky.shoulder > 8 && bulky.thick > 1.2 && bulky.legs < 1, "high DUR / low SPD should be broad, thick and short-legged");
+  assert.ok(lean.shoulder === 0 && lean.thick < 0.9 && lean.legs > 1.05, "low DUR / high SPD should be lean with longer legs");
+  const feet = (b: typeof AVERAGE_BUILD) => solveStick({} as never, b).joints.footF.y;
+  assert.ok(feet(lean) > feet(AVERAGE_BUILD) && feet(AVERAGE_BUILD) > feet(bulky), "longer legs reach lower (the renderer then lifts the body)");
+  assert.equal(solveStick({} as never).joints.footF.y, feet(AVERAGE_BUILD));
 }
 
 console.log("check-sim: all good");

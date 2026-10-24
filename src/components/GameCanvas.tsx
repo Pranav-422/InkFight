@@ -7,6 +7,8 @@ import type { LobbyPlayer } from "@/game/protocol";
 import { Renderer } from "@/game/render";
 import { ARENA, EMPTY_INPUT, TICK_HZ, type Input, type Slot } from "@/game/sim";
 import { loadSpriteCached } from "@/game/sprite";
+import { buildFor, type Build } from "@/game/stickman";
+import { clampStats } from "@/lib/stats";
 import type { SnapBuffer } from "@/game/useGameRoom";
 import { Controller, type Control } from "./Controller";
 import { InspectPanel } from "./InspectPanel";
@@ -185,6 +187,10 @@ export function GameCanvas({ snaps, players, you, onInput, onExit, children }: P
 
     let alive = true;
     renderer.classes = [players[0].class, players[1].class];
+    renderer.builds = players.map((p) => {
+      const s = clampStats(p); // old fighters are rebalanced into the shared budget in the sim, so draw them that way too
+      return buildFor(s.def, s.spd);
+    }) as [Build, Build];
     players.forEach((p, i) =>
       loadSpriteCached(p.imageUrl, p.pose, p.rotation, p.flipItem)
         .then((s) => alive && (renderer.sprites[i] = s))

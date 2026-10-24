@@ -50,7 +50,7 @@ function render(b: Build): HTMLCanvasElement {
   g.translate(300, 740);
   g.scale(3.6, 3.6);
   const pose = solveStick({} as Record<BoneName, number>);
-  drawStick(g, pose, { ink: b.ink, head: null, prop: null, cls: classFromItems(b.item === "nothing" ? [] : [b.item]), item: "nothing", accent: b.ink, width: 6 }); // the item is drawn as a vector from b.item, never baked into the drawing (a filled mace head fooled the joint finder)
+  drawStick(g, pose, { ink: b.ink, head: null, prop: null, cls: classFromItems(b.item === "nothing" ? [] : [b.item]), item: "nothing", accent: b.ink, width: 6, plain: true }); // the item is drawn as a vector from b.item, never baked into the drawing (a filled mace head fooled the joint finder)
   drawHead(g, b.head, pose.joints.head, b.ink);
   return c;
 }
