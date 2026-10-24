@@ -14,7 +14,7 @@ import { SPECIAL_INFO, SPECIAL_KINDS, STYLE_INFO, STYLES, type SpecialKind, type
 import type { BoneName } from "@/game/skeleton";
 import { ITEMS, measureDrawing, type Item } from "@/game/sprite";
 import { drawStick, HEAD_R, solveStick } from "@/game/stickman";
-import { classFromItems } from "@/lib/stats";
+import { classFromItems, ELEMENTS, suggestElement, type Element } from "@/lib/stats";
 
 const HEADS = ["round", "spiky", "cap", "helmet", "ninja", "square"] as const;
 type Head = (typeof HEADS)[number];
@@ -26,9 +26,17 @@ const INKS: [string, string][] = [
   ["Royal purple", "#5b2a9e"],
   ["Burnt orange", "#c25a0e"],
 ];
+const INK_COLOR_NAMES: Record<string, string> = {
+  "#17171a": "black",
+  "#1f3fb5": "blue",
+  "#c0281b": "red",
+  "#1d7a3a": "green",
+  "#5b2a9e": "purple",
+  "#c25a0e": "red",
+};
 const ITEM_NAME: Record<Item, string> = { sword: "Sword (Sword)", mace: "Mace (Mace)", book: "Spellbook (Attacker)", staff: "Staff (Attacker)", shield: "Shield (Tank)", bow: "Bow (Attacker)", nothing: "Bare fists (Fighter)" };
 
-type Build = { head: Head; ink: string; item: Item; style: Style; special: SpecialKind; name: string };
+type Build = { head: Head; ink: string; item: Item; style: Style; special: SpecialKind; element: Element; name: string };
 
 // Draw the build as a stick-figure "drawing": 720 x 800, white paper, ink lines. Wide
 // enough that a sword held out front stays on the page (ink touching the edge is ignored).
@@ -123,7 +131,7 @@ function Choice<T extends string>({ label, value, options, onChange, show }: { l
 
 export function BuildClient() {
   const router = useRouter();
-  const [b, setB] = useState<Build>({ head: "round", ink: INKS[0][1], item: "sword", style: "Karate", special: "slash", name: "" });
+  const [b, setB] = useState<Build>({ head: "round", ink: INKS[0][1], item: "sword", style: "Karate", special: "slash", element: "NONE", name: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -135,6 +143,7 @@ export function BuildClient() {
     setDemo((d) => ({ kind: k, n: d.n + 1 }));
   };
   const cls = useMemo(() => classFromItems(b.item === "nothing" ? [] : [b.item]), [b.item]);
+  const autoElement = suggestElement([INK_COLOR_NAMES[b.ink] ?? "black"]);
   useLeaveGuard(!busy, "Your fighter isn't saved yet. Leave without building it?");
 
   // Redraw the "drawing" when the look changes; the avatar extracts it like a scan.
@@ -156,6 +165,7 @@ export function BuildClient() {
       form.append("pick_item", b.item);
       form.append("pick_style", b.style);
       form.append("pick_special", b.special);
+      form.append("pick_element", b.element);
       if (b.name.trim()) form.append("name", b.name.trim());
       const res = await fetch("/api/characters", { method: "POST", body: form });
       const data = await res.json();
@@ -196,6 +206,8 @@ export function BuildClient() {
         <p className="-mt-2 px-1 text-xs text-muted">{STYLE_INFO[b.style].blurb}</p>
         <Choice label="Special move" value={b.special} options={SPECIAL_KINDS} onChange={pick("special")} show={(k) => k} />
         <p className="-mt-2 px-1 text-xs text-muted">{SPECIAL_INFO[b.special].looks}</p>
+        <Choice label="Element" value={b.element} options={ELEMENTS} onChange={set("element")} show={(e) => e} />
+        <p className="-mt-2 px-1 text-xs text-muted">auto from ink: {autoElement}</p>
         <label className="grid gap-1 text-sm font-semibold">
           Name <span className="font-normal text-muted">(optional)</span>
           <input
@@ -215,7 +227,7 @@ export function BuildClient() {
         {preview && <MovePreview fighter={{ imageUrl: preview, class: cls, style: b.style, specialKind: b.special }} demo={demo} />}
         <p className="-mt-1 text-center text-xs text-muted">Pick a style or special to try it on the dummy.</p>
         <p className="text-center text-sm">
-          <span className="font-semibold">{cls}</span> · {b.style} · {b.special}
+          <span className="font-semibold">{cls}</span> · {b.style} · {b.special} · {b.element}
         </p>
         <button onClick={create} disabled={busy} className="inline-flex items-center justify-center gap-2 rounded-xl bg-hit px-6 py-3 font-semibold text-white hover:brightness-110 disabled:opacity-50">
           {busy && <Loader2 className="size-4 animate-spin" />}

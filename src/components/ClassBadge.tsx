@@ -1,16 +1,16 @@
-import { BookOpen, Hand, Shield, Sword, Target, WandSparkles, type LucideIcon } from "lucide-react";
+import { Hammer, Hand, Shield, Sparkles, Sword, type LucideIcon } from "lucide-react";
+import { normClass, type CharacterClass } from "@/lib/stats";
 
-const ICONS: Record<string, LucideIcon> = {
-  Mage: BookOpen,
-  Warrior: Sword,
-  Brawler: Hand,
-  Caster: WandSparkles,
+const ICONS: Record<CharacterClass, LucideIcon> = {
+  Sword,
+  Mace: Hammer,
   Tank: Shield,
-  Ranger: Target,
+  Attacker: Sparkles,
+  Fighter: Hand,
 };
 
 export function ClassBadge({ cls, size = "sm" }: { cls: string; size?: "sm" | "md" }) {
-  const Icon = ICONS[cls] ?? Hand;
+  const Icon = ICONS[normClass(cls)] ?? Hand;
   const big = size === "md";
   return (
     <span

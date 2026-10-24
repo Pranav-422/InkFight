@@ -7,6 +7,7 @@ import { MAX_BYTES, sniff, TYPES } from "@/lib/imageType";
 import { saveDrawing } from "@/lib/storage";
 import { SPECIAL_KINDS, STYLES } from "@/game/moves";
 import { analyzeDrawing, type Picks } from "@/lib/vision";
+import { ELEMENTS, suggestElement } from "@/lib/stats";
 
 // Measurements from the browser. Untrusted: clamp every number, allow only known words.
 const ratio = (max: number) => z.number().finite().transform((v) => Math.min(max, Math.max(0, v)));
@@ -16,7 +17,7 @@ const Facts = z.object({
   stance: ratio(3),
   armSpread: ratio(3),
   colors: z.array(z.enum(["red", "blue", "green", "yellow", "black"])).max(5),
-  item: z.enum(["sword", "book", "staff", "shield", "bow", "nothing"]),
+  item: z.enum(["sword", "mace", "book", "staff", "shield", "bow", "nothing"]),
 });
 
 // Explicit choices from the correction panel / builder: known values only.
@@ -26,9 +27,10 @@ function parsePicks(form: FormData): Picks {
     return typeof v === "string" && (allowed as readonly string[]).includes(v) ? (v as T) : undefined;
   };
   return {
-    item: one("pick_item", ["sword", "book", "staff", "shield", "bow", "nothing"] as const),
+    item: one("pick_item", ["sword", "mace", "book", "staff", "shield", "bow", "nothing"] as const),
     style: one("pick_style", STYLES),
     special: one("pick_special", SPECIAL_KINDS),
+    element: one("pick_element", ELEMENTS),
     noAi: form.get("builder") === "1",
   };
 }
@@ -69,7 +71,11 @@ export async function POST(request: Request) {
   const bytes = Buffer.from(await file.arrayBuffer());
   const type = sniff(bytes);
   if (!type) return Response.json({ error: "That's not a JPG, PNG, WEBP or GIF." }, { status: 400 });
-  const [imageUrl, a] = await Promise.all([saveDrawing(bytes, TYPES[type], type, "cut-"), analyzeDrawing(bytes, type, parseFacts(form.get("features")), parsePicks(form))]);
+  const facts = parseFacts(form.get("features"));
+  const picks = parsePicks(form);
+  const [imageUrl, a] = await Promise.all([saveDrawing(bytes, TYPES[type], type, "cut-"), analyzeDrawing(bytes, type, facts, picks)]);
+  const element = picks.element ?? a.element ?? suggestElement(facts?.colors ?? []);
+  const item = picks.item ?? facts?.item ?? null;
   const character = await db.character.create({
     data: {
       name: cleanName(form.get("name")) ?? a.name,
@@ -77,7 +83,14 @@ export async function POST(request: Request) {
       ownerHandle: session.name,
       imageUrl,
       class: a.class,
-      ...a.stats,
+      hp: a.stats.hp,
+      atk: a.stats.atk,
+      def: a.stats.def,
+      spd: a.stats.spd,
+      agi: a.stats.agi,
+      iq: a.stats.iq,
+      element,
+      item,
       specialMove: a.specialMove.name,
       specialDesc: a.specialMove.description,
       specialKind: a.specialKind,

@@ -11,8 +11,10 @@ const STARTERS = [
   {
     name: "Sir Scribbles",
     imageUrl: "/samples/warrior.png",
-    class: "Warrior",
-    hp: 200, atk: 80, def: 72, spd: 58,
+    class: "Sword",
+    item: "sword",
+    element: "NONE",
+    hp: 200, atk: 80, def: 72, spd: 58, agi: 70, iq: 70,
     specialMove: "Ballpoint Rush",
     specialDesc: "Charges in with the sword drawn three times over",
     specialKind: "slash",
@@ -24,8 +26,10 @@ const STARTERS = [
   {
     name: "Margin Mage",
     imageUrl: "/samples/mage.png",
-    class: "Mage",
-    hp: 200, atk: 84, def: 54, spd: 72,
+    class: "Attacker",
+    item: "book",
+    element: "NONE",
+    hp: 200, atk: 84, def: 54, spd: 72, agi: 70, iq: 70,
     specialMove: "Ink-ame-hameha",
     specialDesc: "Cups the open book, screams, and fires a beam the width of the page",
     specialKind: "beam",
@@ -45,9 +49,31 @@ async function main() {
     });
     const s = STARTERS[i];
     const has = await db.character.findFirst({ where: { ownerId: user.id, imageUrl: s.imageUrl } });
-    // Starters made before moves were stored get their signature move once.
-    if (has && !has.specialKind) {
-      await db.character.update({ where: { id: has.id }, data: { specialKind: s.specialKind, style: s.style, specialMove: s.specialMove, specialDesc: s.specialDesc } });
+    if (has) {
+      await db.character.update({
+        where: { id: has.id },
+        data: {
+          class: s.class,
+          item: s.item,
+          element: s.element,
+          agi: s.agi,
+          iq: s.iq,
+          specialKind: s.specialKind,
+          style: s.style,
+          specialMove: s.specialMove,
+          specialDesc: s.specialDesc,
+          detectedItems: JSON.stringify({
+            source: "offline",
+            items: s.items,
+            features: s.features,
+            classReason: `Holding ${s.items.join(", ")} → ${s.class}`,
+            ruleStats: { hp: s.hp, atk: s.atk, def: s.def, spd: s.spd, agi: s.agi, iq: s.iq },
+            modelStats: null,
+            adjustments: [],
+            note: "Starter fighter for the demo account.",
+          }),
+        },
+      });
     }
     if (!has) {
       await db.character.create({
@@ -57,10 +83,14 @@ async function main() {
           ownerHandle: user.name,
           imageUrl: s.imageUrl,
           class: s.class,
+          item: s.item,
+          element: s.element,
           hp: s.hp,
           atk: s.atk,
           def: s.def,
           spd: s.spd,
+          agi: s.agi,
+          iq: s.iq,
           specialMove: s.specialMove,
           specialDesc: s.specialDesc,
           specialKind: s.specialKind,
@@ -71,7 +101,7 @@ async function main() {
             items: s.items,
             features: s.features,
             classReason: `Holding ${s.items.join(", ")} → ${s.class}`,
-            ruleStats: { hp: s.hp, atk: s.atk, def: s.def, spd: s.spd },
+            ruleStats: { hp: s.hp, atk: s.atk, def: s.def, spd: s.spd, agi: s.agi, iq: s.iq },
             modelStats: null,
             adjustments: [],
             note: "Starter fighter for the demo account.",

@@ -1,4 +1,4 @@
-import { BookOpen, Camera, Gamepad2, Hand, PenLine, Shield, Sword, Target, WandSparkles, type LucideIcon } from "lucide-react";
+import { Camera, Gamepad2, Hammer, Hand, PenLine, Shield, Sparkles, Sword, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { FighterAvatar } from "@/components/FighterAvatar";
@@ -14,12 +14,11 @@ const STEPS: [LucideIcon, string, string][] = [
 ];
 
 const CLASSES: [LucideIcon, string, string, string][] = [
-  [Sword, "Sword", "Warrior", "Dash slash"],
-  [BookOpen, "Book", "Mage", "Magic bolt"],
-  [WandSparkles, "Staff / wand", "Caster", "Heavy orb"],
+  [Sword, "Sword", "Sword", "Dash slash"],
+  [Hammer, "Mace", "Mace", "Cratering drop kick"],
   [Shield, "Shield", "Tank", "Shield charge + armor"],
-  [Target, "Bow", "Ranger", "Long-range arrow"],
-  [Hand, "Empty hands", "Brawler", "Launcher uppercut"],
+  [Sparkles, "Book, staff or bow", "Attacker", "Charged ink beam"],
+  [Hand, "Empty hands", "Fighter", "Rapid punch barrage"],
 ];
 
 export default async function Landing() {
@@ -113,14 +112,15 @@ export default async function Landing() {
         <div>
           <h2 className="font-display text-3xl font-extrabold">Draw it strong, it fights strong</h2>
           <p className="mt-3 text-muted">
-            Stats come from what&apos;s actually on the paper — not dice. A big figure gets more HP. An aggressive pose hits harder. Whatever it
+            Stats come from what&apos;s actually on the paper — not dice. A big figure gets more durability. An aggressive pose hits harder. Whatever it
             holds picks its class and special move.
           </p>
           <ul className="mt-5 grid gap-2 text-sm">
-            <li><span className="font-semibold">HP</span> → health</li>
-            <li><span className="font-semibold text-hit">ATK</span> → punch damage</li>
-            <li><span className="font-semibold text-guard">DEF</span> → less damage taken, stronger blocks</li>
-            <li><span className="font-semibold">SPD</span> → run speed, jump height, attack rate</li>
+            <li><span className="font-semibold text-hit">STR</span> → physical damage</li>
+            <li><span className="font-semibold text-guard">DUR</span> → less damage taken, stronger blocks</li>
+            <li><span className="font-semibold">SPD</span> → walk and combo tempo</li>
+            <li><span className="font-semibold">AGI</span> → jump height, air control, hit recovery</li>
+            <li><span className="font-semibold">IQ</span> → energy gain, magic damage</li>
           </ul>
         </div>
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">

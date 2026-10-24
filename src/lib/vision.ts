@@ -7,11 +7,13 @@ import {
   blendStats,
   CLASSES,
   classFromItems,
+  ELEMENTS,
+  featuresFromMeasurements,
   ruleAdjustments,
   ruleStats,
+  suggestElement,
   type Adjustment,
   type CharacterClass,
-  featuresFromMeasurements,
   type Features,
   type Measurements,
   type StatLine,
@@ -23,7 +25,7 @@ export type DrawingFacts = Measurements & { colors: string[]; item: string };
 
 // What the player chose explicitly (correction panel or the category builder). These
 // always win over the AI. noAi: the image is our own rendering (builder), skip vision.
-export type Picks = { item?: string; style?: Style; special?: SpecialKind; noAi?: boolean };
+export type Picks = { item?: string; style?: Style; special?: SpecialKind; element?: string; noAi?: boolean };
 
 // A special the player picked gets a generated name, unless the AI named that same kind.
 function pickSpecial(p: Picks, ai: { kind: SpecialKind; name: string; description: string }, roll: number) {
@@ -48,13 +50,14 @@ const Point = z.object({ x: z.number(), y: z.number() });
 const VisionSchema = z.object({
   name: z.string().describe("A short, punchy fighter name inspired by the drawing"),
   class: z.enum(CLASSES),
+  element: z.enum(ELEMENTS).describe("An elemental affinity (FIRE, ELECTRIC, FROST, POISON, BLEED, GRAVITY, or NONE) suggested by ink colors or weapon vibe"),
   detected_items: z.array(z.string()).describe("Held items/props, lowercase single nouns, e.g. ['book']"),
   detected_features: z.object({
     size: z.enum(["small", "medium", "large"]),
     pose: z.enum(["aggressive", "defensive", "neutral"]),
     dominant_colors: z.array(z.string()),
   }),
-  stats: z.object({ hp: z.number(), atk: z.number(), def: z.number(), spd: z.number() }),
+  stats: z.object({ hp: z.number(), atk: z.number(), def: z.number(), spd: z.number(), agi: z.number(), iq: z.number() }),
   special_move: z.object({
     kind: z.enum(SPECIAL_KINDS).describe("Which special-move building block fits this fighter"),
     name: z.string(),
@@ -85,6 +88,7 @@ export type Analysis = {
   name: string;
   class: CharacterClass;
   stats: Stats;
+  element: string;
   specialMove: { name: string; description: string };
   specialKind: SpecialKind;
   style: Style;
@@ -107,9 +111,10 @@ export type Analysis = {
 const SYSTEM = `You analyze photos of hand-drawn stick-figure characters for a friendly fighting game.
 Look only at what is actually drawn. Report:
 - held items/props as lowercase nouns (empty list if empty-handed). Check BOTH hands and the whole figure: a round, oval or spiral shape held at a hand or arm is usually a shield; a long straight line from a hand is a sword, staff or spear; hats/helmets are not items
-- the class implied by the items: book→Mage, sword/blade→Warrior, staff/wand→Caster, shield→Tank, bow→Ranger, nothing→Brawler
+- the class implied by the items: Sword: sword/blade; Mace: mace/club/hammer/axe; Tank: shield; Attacker: book/staff/wand/bow; Fighter: empty hands
+- elemental affinity (NONE, FIRE, ELECTRIC, FROST, POISON, BLEED, GRAVITY), suggested by ink colors or weapon vibe
 - size of the figure relative to the page (small/medium/large), pose (aggressive/defensive/neutral), and dominant ink colors
-- proposed stats. Every fighter has HP 200 (put 200). Split the rest between ATK (damage dealt), DEF (durability: damage taken) and SPD (movement and combo speed), each 40-100, about 210 points in total: bulky/armored → more DEF, big weapon or spiky → more ATK, thin/small/dynamic → more SPD. They are rebalanced to exactly 210
+- proposed stats. Every fighter has HP 200 (put 200). Split the rest between STR (physical damage), DUR (damage taken), SPD (walking and combo speed), AGI (jump / air control / recovery) and IQ (energy gain and magic damage), each 40-100, about 350 in total: bulky/armored → more DUR, big weapon or spiky → more STR, thin/small/dynamic → more SPD/AGI, smart/magical → more IQ. They are rebalanced to exactly 350
 - a special move. First pick its kind, the one that best matches the drawing's vibe:
 ${SPECIAL_KINDS.map((k) => `  - ${k}: ${SPECIAL_INFO[k].looks}`).join("\n")}
   Then name it like an over-the-top anime finisher that only THIS drawing could have: riff on something specific you see (the hair, a scribble, a hat, the item, the ink colour, the paper). Puns, fake-Japanese-sounding names and homages to famous anime moves are welcome (e.g. "Ink-ame-hameha", "Scribble-gan"), but make it fresh, never a straight copy. Description: one vivid sentence of what it looks like
@@ -207,6 +212,7 @@ function build(
   pose: PoseKeypoints | null,
   note?: string,
   rotation = 0,
+  element = "NONE",
 ): Analysis {
   // Class is decided by the item rule, not trusted from the model.
   const cls = classFromItems(items);
@@ -215,6 +221,7 @@ function build(
     name: name.trim().slice(0, 40) || "Nameless Scribble",
     class: cls,
     stats: blendStats(rule, modelStats),
+    element,
     specialMove: { name: special.name.slice(0, 40), description: special.description.slice(0, 160) },
     specialKind: special.kind,
     style,
@@ -260,7 +267,7 @@ function offlineAnalysis(image: Buffer, note: string, facts: DrawingFacts | null
   const h = createHash("sha256").update(image).digest();
   const pick = <T,>(arr: readonly T[], i: number) => arr[h[i] % arr.length];
   // No measurements (an old client): fall back to guesses, and say so.
-  const items = picks.item ? itemList({ item: picks.item } as DrawingFacts) : facts ? itemList(facts) : pick([[], ["sword"], ["book"], [], ["shield"], ["staff"], ["bow"]], 0);
+  const items = picks.item ? itemList({ item: picks.item } as DrawingFacts) : facts ? itemList(facts) : pick([[], ["sword"], ["mace"], ["book"], [], ["shield"], ["staff"], ["bow"]], 0);
   const features: Features = facts
     ? featuresFromMeasurements(facts, facts.colors)
     : {
@@ -274,6 +281,7 @@ function offlineAnalysis(image: Buffer, note: string, facts: DrawingFacts | null
   const cls = classFromItems(items);
   const kind = pick(CLASS_SPECIAL_POOL[cls] ?? ["uppercut"], 6);
   const [name, description] = pick(SPECIAL_NAMES[kind], 7);
+  const element = picks.element ?? suggestElement(facts?.colors ?? features.dominant_colors);
   return build(
     "offline",
     `${first} ${last}`,
@@ -285,6 +293,8 @@ function offlineAnalysis(image: Buffer, note: string, facts: DrawingFacts | null
     "Drawn in thirty seconds, fights like it took thirty years.",
     null, // the browser estimates the skeleton from the ink
     note,
+    0,
+    element,
   );
 }
 
@@ -298,6 +308,7 @@ export async function analyzeDrawing(image: Buffer, mediaType: MediaType, facts:
     try {
       const v = ai === "gemini" ? await callGemini(image, mediaType) : await callClaude(image, mediaType);
       const seen = v.detected_items.map((i) => i.toLowerCase());
+      const element = picks.element ?? v.element ?? suggestElement(facts?.colors ?? v.detected_features.dominant_colors);
       return build(
         ai,
         v.name,
@@ -311,6 +322,7 @@ export async function analyzeDrawing(image: Buffer, mediaType: MediaType, facts:
         validPose(v.pose),
         undefined,
         ({ up: 0, left: 90, down: 180, right: 270 } as const)[v.head_points] ?? 0,
+        element,
       );
     } catch (err) {
       lastError = err;

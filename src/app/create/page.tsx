@@ -8,7 +8,7 @@ const TIPS = [
   ["Dark lines", "Pen or marker beats a faint pencil."],
   ["Good light", "No phone shadow across the page."],
   ["Plain paper", "One figure, nothing busy behind it."],
-  ["Give it gear", "Book → Mage. Sword → Warrior. Nothing → Brawler."],
+  ["Give it gear", "Sword → Sword. Mace → Mace. Shield → Tank. Book, staff or bow → Attacker. Nothing → Fighter."],
 ];
 
 export default async function CreatePage({ searchParams }: PageProps<"/create">) {

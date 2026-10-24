@@ -27,14 +27,19 @@ export default async function CharacterPage({ params, searchParams }: PageProps<
   const owns = session?.userId === me.ownerId;
   const canEdit = isAdmin(session) || (owns && !me.imageUrl.startsWith("/samples/"));
   const def = deriveDef(me);
-  const power = [
+  const power: [string, string, string][] = [
     ["Health", `${def.maxHp} HP`, "same for everyone"],
-    ["Punch damage", def.punch.toFixed(1), "from ATK"],
+    ["Punch damage", def.punch.toFixed(1), "from STR"],
     ["Damage taken", `${Math.round(def.armor * 100)}%`, "from DUR"],
     ["Block absorbs", `${Math.round(def.blockReduce * 100)}%`, "from DUR"],
     ["Run speed", `${Math.round(def.speed * TICK_HZ)} px/s`, "from SPD"],
     ["Attack rate", `${(TICK_HZ / def.cooldown).toFixed(1)}/s`, "from SPD"],
+    ["Jump height", def.jump ? def.jump.toFixed(1) : `${me.agi}`, "from AGI"],
+    ["Energy gain", `${me.iq}`, "from IQ"],
   ];
+  if (me.element && me.element !== "NONE") {
+    power.push(["Element", me.element, "special hits"]);
+  }
 
   let breakdown: Analysis["breakdown"] | null = null;
   try {
@@ -95,7 +100,7 @@ export default async function CharacterPage({ params, searchParams }: PageProps<
                 </ul>
               )}
               <p className="text-xs text-muted">
-                Everyone has 200 HP and the same 210 points across ATK, DUR and SPD. The class and the drawing rules
+                Everyone has 200 HP and the same 350 points across STR, DUR, SPD, AGI and IQ. The class and the drawing rules
                 set the split (70%),{" "}
                 {breakdown.source === "claude" ? "Claude's read of your art" : breakdown.source === "gemini" ? "Gemini's read of your art" : "with no AI read this time"}
                 {breakdown.source === "offline" ? "" : " sets the other 30%"}, so nobody gets a 9000-power scribble.
@@ -117,7 +122,9 @@ export default async function CharacterPage({ params, searchParams }: PageProps<
             ))}
           </div>
           <p className="mt-3 text-sm">
-            <span className="font-semibold text-hit">{me.specialMove}</span>: {SPECIAL_INFO[def.special].how}, usable when the meter is
+            <span className="font-semibold text-hit">{me.specialMove}</span>
+            {me.element && me.element !== "NONE" && ` (${me.element})`}
+            : {SPECIAL_INFO[def.special].how}, usable when the meter is
             full.
           </p>
         </section>

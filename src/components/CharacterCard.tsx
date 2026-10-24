@@ -23,6 +23,8 @@ export function CharacterCard({ character: c, variant = "full" }: Props) {
           <StatBar stat="atk" value={c.atk} compact={!full} />
           <StatBar stat="def" value={c.def} compact={!full} />
           <StatBar stat="spd" value={c.spd} compact={!full} />
+          <StatBar stat="agi" value={c.agi} compact={!full} />
+          <StatBar stat="iq" value={c.iq} compact={!full} />
         </div>
 
         {full && (

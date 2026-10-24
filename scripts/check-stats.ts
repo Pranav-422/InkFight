@@ -8,19 +8,20 @@ const thin = featuresFromMeasurements({ fill: 0.05, aspect: 0.35, stance: 0.2, a
 const bulky = featuresFromMeasurements({ fill: 0.25, aspect: 1, stance: 0.5, armSpread: 0.5 }, ["red"]);
 assert.equal(thin.size, "small");
 assert.equal(bulky.size, "large");
-assert.ok(ruleStats("Brawler", bulky).def > ruleStats("Brawler", thin).def, "bigger fill → more durability");
-assert.ok(ruleStats("Brawler", thin).spd > ruleStats("Brawler", bulky).spd, "thin → faster");
+assert.ok(ruleStats("Fighter", bulky).def > ruleStats("Fighter", thin).def, "bigger fill → more durability");
+assert.ok(ruleStats("Fighter", thin).spd > ruleStats("Fighter", bulky).spd, "thin → faster");
 assert.equal(featuresFromMeasurements({ fill: 0.1, aspect: 0.6, stance: 0.2, armSpread: 0.8 }, []).pose, "aggressive");
 assert.equal(featuresFromMeasurements({ fill: 0.1, aspect: 0.6, stance: 0.6, armSpread: 0.3 }, []).pose, "defensive");
 assert.equal(classFromItems(["shield"]), "Tank");
-assert.equal(classFromItems([]), "Brawler");
+assert.equal(classFromItems([]), "Fighter");
+assert.equal(classFromItems(["mace"]), "Mace");
 // Caps hold even for absurd input.
 const huge = ruleStats("Tank", featuresFromMeasurements({ fill: 1, aspect: 5, stance: 3, armSpread: 0 }, ["blue"]));
 for (const k of Object.keys(STAT_CAPS) as StatKey[]) assert.ok(huge[k] >= STAT_CAPS[k][0] && huge[k] <= STAT_CAPS[k][1], k);
 // Fairness: every line, however lopsided, ends at 200 HP and exactly the budget.
-for (const s of [huge, ruleStats("Ranger", thin), clampStats({ hp: 60, atk: 90, def: 90, spd: 90 }), clampStats({ hp: 140, atk: 1, def: 1, spd: 1 }), clampStats({ hp: 100, atk: 100, def: 40, spd: 40 })]) {
+for (const s of [huge, ruleStats("Attacker", thin), clampStats({ hp: 60, atk: 90, def: 90, spd: 90 }), clampStats({ hp: 140, atk: 1, def: 1, spd: 1 }), clampStats({ hp: 100, atk: 100, def: 40, spd: 40 })]) {
   assert.equal(s.hp, HP);
-  assert.equal(s.atk + s.def + s.spd, BUDGET, JSON.stringify(s));
+  assert.equal(s.atk + s.def + s.spd + s.agi + s.iq, BUDGET, JSON.stringify(s));
 }
 
 // Synthetic drawings: ink strokes on white paper.
@@ -58,9 +59,10 @@ console.log("check-stats: all good", { bare: figure(), shield: shield.item });
 async function checkGemini() {
   process.env.GEMINI_API_KEY = "test-key";
   const reply = {
-    name: "Inky Supreme", class: "Mage", detected_items: ["book"],
+    name: "Inky Supreme", class: "Attacker", detected_items: ["book"],
     detected_features: { size: "medium", pose: "neutral", dominant_colors: ["blue"] },
-    stats: { hp: 90, atk: 70, def: 50, spd: 70 },
+    stats: { hp: 90, atk: 70, def: 50, spd: 70, agi: 70, iq: 70 },
+    element: "ELECTRIC",
     special_move: { kind: "beam", name: "Ink-ame-hameha", description: "A beam the width of the page" },
     fighting_style: "Systema", flavor_text: "Reads the rules, then ignores them.", head_points: "up",
     pose: Object.fromEntries(["head", "shoulder", "hip", "left_elbow", "left_hand", "right_elbow", "right_hand", "left_knee", "left_foot", "right_knee", "right_foot"].map((k) => [k, { x: 0.5, y: 0.5 }])),
@@ -75,7 +77,8 @@ async function checkGemini() {
   assert.equal(a.breakdown.source, "gemini");
   assert.equal(a.specialKind, "beam");
   assert.equal(a.style, "Systema");
-  assert.equal(a.class, "Mage"); // class still comes from the item rule
+  assert.equal(a.class, "Attacker"); // class still comes from the item rule
+  assert.equal(a.element, "ELECTRIC");
   assert.ok(sent!.url.includes(":generateContent") && sent!.body.generationConfig.responseMimeType === "application/json");
   console.log("check-gemini: all good", a.specialMove.name);
 }

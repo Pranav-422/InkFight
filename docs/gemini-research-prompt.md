@@ -41,10 +41,14 @@ You are the research lead for **InkFight**, a browser fighting game.
 - **Specials** are "building blocks" with fixed gameplay; the name and look vary per fighter.
   - Current blocks: `bolt`, `arrow`, `orb`, `beam` (Kamehameha-style), `wave` (ground shockwave), `slash`, `charge` (armored), `uppercut`, `spiral` (Rasengan-style sphere ram), `teleport` (vanish, strike from behind), `barrage` (punch flurry), `meteor` (leap + dive kick).
   - Effects available: glow, afterimages, smear trails, impact rings, sparks, screen flash, speed lines, camera zoom, hit-stop, slow motion.
-- **Current stats** (being redesigned):
-  - Each fighter has HP 60–140, ATK 40–90, DEF 40–90, SPD 40–90.
-  - These map to physics: SPD sets walk speed and jump, ATK sets base hit damage, DEF sets damage taken and how much a block absorbs, SPD also sets the combo cooldown.
-- **Planned change:** everyone gets **200 HP**. The drawing should instead change *durability* (damage taken) and *attack power*, plus speed, inside a fixed point budget, so fights stay fair whatever someone draws.
+- **Stats system**:
+  - Everyone gets **200 HP** and a fixed point **BUDGET of 350** split across 5 stats (each 40–100, averaging 70):
+    - `atk` / STR: physical damage
+    - `def` / DUR: durability (damage taken, block absorption)
+    - `spd` / SPD: walk speed, combo tempo/cooldown
+    - `agi` / AGI: jump height, air control, hit recovery
+    - `iq` / IQ: energy gain, magic damage
+  - The drawing's features (size, pose, aspect ratio, stance, arm spread, ink colours, held item) decide how the 350 budget is split, so fights stay fair whatever someone draws.
 - **Fighting styles in the game:** Boxing, Taekwondo, Muay Thai, Karate, Street, Systema. More can be added.
 
 **Rules for your answers:**
@@ -64,7 +68,7 @@ Research how fighting games, and combat games in general, define and balance fig
 - how "frame data" (startup / active / recovery, advantage on hit/block) creates the feel of fast vs heavy characters
 - archetypes: rushdown, zoner, grappler, tank, all-rounder
 - how designers keep wildly different characters fair: budgets, trade-offs, matchup spreads
-- a concrete proposal for InkFight with 200 HP for everyone and a fixed budget over durability, attack and speed
+- a concrete proposal for InkFight with 200 HP for everyone and a fixed budget of 350 over 5 stats (STR, DUR, SPD, AGI, IQ)
   - formulas from stat → damage taken, damage dealt, walk speed, combo cooldown
   - the min/max per stat
   - how a drawing's look (bulky, thin, armed, wide stance) should map onto it
