@@ -321,4 +321,32 @@ for (const kind of ["bolt", "arrow", "orb", "wave"]) {
   assert.equal(solveStick({} as never).joints.footF.y, feet(AVERAGE_BUILD));
 }
 
+// Tension: below 30% health it rises by the tick and with every blow taken, and speeds the meter up; above it, nothing.
+{
+  const x = fight(fighter("Fighter"), fighter("Fighter"), 500);
+  const [a, b] = x.m.fighters;
+  a.hp = 59;
+  b.hp = 150;
+  run(x, 120);
+  assert.ok(a.tension > 0.45 && a.tension < 0.55, `tension after 2 s below 30%: ${a.tension}`);
+  assert.equal(b.tension, 0, "a healthy fighter built tension");
+  const energyPerSec = (tension: number) => {
+    const y = fight(fighter("Fighter"), fighter("Fighter"), 500);
+    const f = y.m.fighters[0];
+    f.hp = 200;
+    f.tension = tension;
+    f.energy = 0;
+    run(y, 60);
+    return f.energy;
+  };
+  const ratio = energyPerSec(1) / energyPerSec(0);
+  assert.ok(Math.abs(ratio - 1.8) < 0.05, `full tension should earn ${1.8}x the energy, got ${ratio}`);
+  const z = fight(fighter("Fighter"), fighter("Fighter", { agi: 40 }), 100);
+  z.m.fighters[1].hp = 50;
+  const before = z.m.fighters[1].tension;
+  z.ia.attack++;
+  for (let i = 0; i < 20 && z.m.fighters[1].hp === 50; i++) run(z, 1);
+  assert.ok(z.m.fighters[1].hp < 50 && z.m.fighters[1].tension >= before + 0.1, "a blow taken while hurt should add tension");
+}
+
 console.log("check-sim: all good");

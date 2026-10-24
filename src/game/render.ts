@@ -540,6 +540,9 @@ export class Renderer {
     } else if (f.status) {
       ctx.shadowColor = STATUS_COLOR[f.status.kind] ?? C.muted; // a faint halo in the element's colour
       ctx.shadowBlur = 7;
+    } else if (f.tension > 0.1 && f.action !== "ko") {
+      ctx.shadowColor = C.hit; // tension: a red aura that swells with it and pulses
+      ctx.shadowBlur = 5 + f.tension * 10 + Math.sin(now / 90) * 2 * f.tension;
     }
     if (base > 0.02) drawStick(ctx, pose, look);
     ctx.restore();
@@ -547,6 +550,10 @@ export class Renderer {
 
     if (f.action === "special") this.specialFx(f, special, pose, toWorld, now);
     if (skillOn) this.skillFx(f, skillOn, f.x + dx, f.y + lift, now);
+    // Embers rising off a fighter whose tension is up.
+    if (f.tension > 0.3 && f.action !== "ko" && Math.random() < f.tension * 0.3) {
+      this.particles.push({ x: f.x + dx + (Math.random() - 0.5) * 50, y: f.y + lift - Math.random() * BODY.h * 0.6, vx: (Math.random() - 0.5) * 0.8, vy: -1.4 - Math.random(), life: 0, max: 26, color: Math.random() < 0.5 ? C.hit : C.gold, size: 3 + Math.random() * 3 });
+    }
     if (f.status && f.action !== "ko") this.statusFx(f.status.kind, f.x + dx - f.facing * 38, f.y + lift - 150, now);
 
     if (f.blocking) {
@@ -971,8 +978,9 @@ export class Renderer {
         ctx.fill();
       }
 
-      // HP bar
+      // HP bar, and a thin tension bar under it once the fighter is hurt badly enough for it to start filling.
       this.bar(x, 52, barW, 16, hpPct, hpPct > 0.5 ? C.ink : hpPct > 0.25 ? C.gold : C.hit, !left);
+      if (f.tension > 0) this.bar(x, 70, barW, 4, f.tension, f.tension >= 1 && Math.floor(now / 160) % 2 ? C.gold : C.hit, !left);
       if (z < 1.2) {
         ctx.font = `600 12px ${this.fontBody}`;
         ctx.fillStyle = C.muted;

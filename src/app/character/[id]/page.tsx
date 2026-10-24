@@ -6,7 +6,7 @@ import { FightButtons } from "@/components/FightButtons";
 import { OwnerActions } from "@/components/OwnerActions";
 import { RotateControl } from "@/components/RotateControl";
 import { CLASS_CHAIN, MOVES, SKILL_INFO, SKILL_TUNE, SLOT1_COST, SPECIAL_INFO, STYLE_INFO, ULT_COST, ultTitle, type MoveName } from "@/game/moves";
-import { deriveDef, TICK_HZ } from "@/game/sim";
+import { deriveDef, TICK_HZ, TRAIT } from "@/game/sim";
 import { getSession, isAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import type { Analysis } from "@/lib/vision";
@@ -135,6 +135,9 @@ export default async function CharacterPage({ params, searchParams }: PageProps<
             <span className="font-semibold text-hit">{ultTitle(me.ultName, me.ultKind, me.class)}</span> (ultimate, S+L): {SPECIAL_INFO[def.ult].how}, then locks the
             opponent in place while it pounds them and launches them. Needs a full meter ({ULT_COST}%).
             {me.ultDesc && <span className="text-muted"> {me.ultDesc}</span>}
+          </p>
+          <p className="mt-1 text-sm">
+            <span className="font-semibold text-hit">Tension:</span> below 30% health a red gauge fills over a few seconds (faster as you take hits) and speeds your meter up by as much as {Math.round(TRAIT.TENSION_ENERGY * 100)}%. A comeback tool, not a damage boost.
           </p>
           <p className="mt-1 text-sm">
             <span className="font-semibold text-guard">{SKILL_INFO[def.skill].name}</span> (side skill, U): {SKILL_INFO[def.skill].how}. Lasts{" "}

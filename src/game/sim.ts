@@ -65,7 +65,7 @@ export type FighterDef = {
 // Spans per stat (see scripts/balance.ts: one stat alone should win 50-60% against an all-70 fighter).
 export const TUNE = { SPEED_SPAN: 3, AGI_SPEED: 1, STR_EXP: 1.2093, DUR_EXP: 0.9269, IQ_EXP: 1.8058, SPD_COOLDOWN: 8, TEMPO_GAIN: 0.0047, JUMP_SPAN: 6, AIR_SPAN: 0.5, STUN_SPAN: 8, BLOCK_SPAN: 0.05, IQ_ENERGY: 0.01, DODGE_SPAN: 0.4648 };
 // Class traits (see the class list in src/lib/stats.ts), tuned with scripts/balance.ts like TUNE.
-export const TRAIT = { SWORD_REACH: 20, MACE_STUN: 6, TANK_BLOCK: 0.7, TANK_PUSH: 6, TANK_GUARD_WALK: 0.4, MACE_ARMOR_LEAD: 2, MACE_BREAK: 0.625, ATTACKER_ENERGY: 1, SPECIAL_IQ: 1, BACKWALK: 0.8, MACE_POISE: 0, BLAST_MULT: 0.6, FIGHTER_TEMPO: 1.15, BLADE: 1.15, BUBBLE_PUSH: 7, BUBBLE_HITS: 2, REFLECT: 0.5, SLOT1_SCALE: 0.55, ULT_SCALE: 1, ECHO_MULT: 0.35, FINALE_MULT: 1 };
+export const TRAIT = { SWORD_REACH: 20, MACE_STUN: 6, TANK_BLOCK: 0.7, TANK_PUSH: 6, TANK_GUARD_WALK: 0.4, MACE_ARMOR_LEAD: 2, MACE_BREAK: 0.625, ATTACKER_ENERGY: 1, SPECIAL_IQ: 1, BACKWALK: 0.8, MACE_POISE: 0, BLAST_MULT: 0.6, FIGHTER_TEMPO: 1.15, BLADE: 1.15, BUBBLE_PUSH: 7, BUBBLE_HITS: 2, REFLECT: 0.5, SLOT1_SCALE: 0.55, ULT_SCALE: 1, ECHO_MULT: 0.35, FINALE_MULT: 1, TENSION_HP: 0.3, TENSION_RISE: 1 / 240, TENSION_HIT: 0.1, TENSION_ENERGY: 0.8 };
 // Admin buff (set by the server, see buffOn in src/lib/auth.ts): deals more, takes less.
 const BUFF = { dealt: 1.3, taken: 0.75 };
 
@@ -158,6 +158,7 @@ export type Fighter = {
   ult: boolean; // the special in progress is the ultimate (S + L), not slot 1
   ultEnd: number; // attacker: special tick at which a hit-lock ends (0: the move's own length)
   locked: boolean; // victim: held in place by an ultimate until it ends
+  tension: number; // 0..1: builds while below TENSION_HP of max health and speeds the energy meter up (see energyGain)
   hitHigh: boolean; // the blow that put them in hit-stun landed above 70% of body height (head snaps back; else the torso folds)
   skillQ: boolean; // a skill press made while reeling: used the moment it can be, not lost
   seen: { jump: number; attack: number; kick: number; special: number; skill: number };
@@ -232,6 +233,7 @@ function spawn(slot: Slot, def: FighterDef, seen: Fighter["seen"]): Fighter {
     ultEnd: 0,
     locked: false,
     hitHigh: false,
+    tension: 0,
     skillQ: false,
     seen: { jump: seen.jump, attack: seen.attack, kick: seen.kick, special: seen.special, skill: seen.skill ?? 0 },
   };
@@ -288,6 +290,9 @@ function roll(m: Match, salt: number) {
 const STATUS_TICKS: Record<string, number> = { FIRE: 180, ELECTRIC: 30, FROST: 120, POISON: 180, BLEED: 180, GRAVITY: 30 };
 const POISON_CUT = 0.15; // poisoned fighters deal 15% less
 const FROST_SLOW = 0.3; // frozen fighters walk 30% slower
+
+// Energy a fighter earns from `base`: their IQ multiplier, plus up to TENSION_ENERGY more at full tension.
+const energyGain = (m: Match, f: Fighter, base: number) => base * m.defs[f.slot].energyMul * (1 + TRAIT.TENSION_ENERGY * f.tension);
 
 function infect(att: Fighter, vic: Fighter, kind: string, dir: number) {
   const k = ELEMENT_TUNE[kind] ?? 1;
@@ -377,8 +382,10 @@ function applyHit(
   vic.hp = Math.max(0, vic.hp - dealt);
   m.damage[att.slot] += dealt;
   // A special's own hits don't build meter: a multi-hit (barrage, beam) would refill itself and loop.
-  if (!opts.special) att.energy = Math.min(100, att.energy + (blocked ? 5 : 12) * ad.energyMul);
-  vic.energy = Math.min(100, vic.energy + 7 * def.energyMul);
+  if (!opts.special) att.energy = Math.min(100, att.energy + energyGain(m, att, blocked ? 5 : 12));
+  vic.energy = Math.min(100, vic.energy + energyGain(m, vic, 7));
+  // Tension builds with every blow taken while hurt (and by the tick, in updateFighter).
+  if (vic.hp / def.maxHp < TRAIT.TENSION_HP) vic.tension = Math.min(1, vic.tension + TRAIT.TENSION_HIT);
 
   // Mace: its heavy finisher doesn't flinch from normal hits (a heavy trades blows instead of being out-paced).
   const mv = vic.move ? MOVES[vic.move] : null;
@@ -847,7 +854,11 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
     f.x = pinned(opp);
     f.vx = 0;
   }
-  if (canAct) f.energy = Math.min(100, f.energy + PASSIVE_ENERGY * def.energyMul);
+  if (canAct) {
+    f.energy = Math.min(100, f.energy + energyGain(m, f, PASSIVE_ENERGY));
+    // Tension: below 30% health it rises by the tick, so a fighter on the ropes fills the meter for a comeback.
+    if (f.hp / def.maxHp < TRAIT.TENSION_HP && f.action !== "ko") f.tension = Math.min(1, f.tension + TRAIT.TENSION_RISE);
+  }
 }
 
 function separate(a: Fighter, b: Fighter) {
@@ -880,7 +891,7 @@ function clash(m: Match, a: Fighter, b: Fighter) {
   const dir = b.x >= a.x ? 1 : -1;
   a.vx = -dir * 5;
   b.vx = dir * 5;
-  for (const f of [a, b]) f.energy = Math.min(100, f.energy + (m.defs[f.slot].cls === "Fighter" ? 15 : 12) * m.defs[f.slot].energyMul);
+  for (const f of [a, b]) f.energy = Math.min(100, f.energy + energyGain(m, f, m.defs[f.slot].cls === "Fighter" ? 15 : 12));
   emit(m, { type: "clash", x: (a.x + b.x) / 2, y: Math.min(a.y, b.y) - BODY.h * 0.65 });
 }
 

@@ -33,7 +33,7 @@ function play(r: Room, f: Look, kind: Demo["kind"]) {
   const { m, input } = r;
   m.defs[0] = deriveDef(statsFor(f));
   m.projectiles = [];
-  m.fighters.forEach((x, i) => Object.assign(x, { x: HOME[i], y: ARENA.ground, vx: 0, vy: 0, grounded: true, hp: 200, action: "idle", t: 0, cooldown: 0, combo: 0, comboT: 0, buffer: null, energy: 0, status: null, skillCd: 0, skillT: 0, bubble: 0, skillQ: false, mix: false, ult: false }));
+  m.fighters.forEach((x, i) => Object.assign(x, { x: HOME[i], y: ARENA.ground, vx: 0, vy: 0, grounded: true, hp: 200, action: "idle", t: 0, cooldown: 0, combo: 0, comboT: 0, buffer: null, energy: 0, status: null, skillCd: 0, skillT: 0, bubble: 0, skillQ: false, mix: false, ult: false, ultEnd: 0, locked: false, tension: 0 }));
   r.ultPress = r.guard = false;
   input.block = false;
   if (kind === "special") {
