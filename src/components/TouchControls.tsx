@@ -4,6 +4,7 @@ import { Settings2, X } from "lucide-react";
 import { useRef, useState } from "react";
 import type { Control } from "./Controller";
 import { Joystick } from "./Joystick";
+import { ReduceFlashes } from "./ReduceFlashes";
 
 type Prefs = { lefty: boolean; size: number };
 const KEY = "inkfight.touch";
@@ -113,6 +114,7 @@ export function TouchControls({ press, lit, energy, skill, onExit }: { press: (k
             Control size
             <input type="range" min={0.8} max={1.3} step={0.05} value={s} onChange={(e) => save({ ...prefs, size: Number(e.target.value) })} />
           </label>
+          <ReduceFlashes className="justify-between" />
         </div>
       )}
     </>

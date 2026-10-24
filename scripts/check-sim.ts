@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { CLASS_ULT, SLOT1_COST, SPECIAL_KINDS, STYLE_INFO, ULT_COST } from "../src/game/moves";
 import { createMatch, deriveDef, EMPTY_INPUT, step, TICK_HZ, type FighterStats, type Input, type Match } from "../src/game/sim";
-import { CLASSES, ruleStats } from "../src/lib/stats";
+import { CLASSES, clampStats, ruleStats } from "../src/lib/stats";
 
 const neutral = { size: "medium", pose: "neutral", dominant_colors: [] } as const;
 const fighter = (cls: string, extra: Partial<FighterStats> = {}): FighterStats => ({ ...ruleStats(cls, { ...neutral, dominant_colors: [] }), class: cls, ...extra });
@@ -248,6 +248,44 @@ for (const kind of ["bolt", "arrow", "orb", "wave"]) {
   Object.assign(a, { action: "hit", t: 0, stun: 10 }); // the attacker is knocked out of it
   run(x, 10); // (the hit-stop of the blow that locked has to play out first)
   assert.ok(!b.locked && b.vy > -3, "the victim wasn't let go (or was launched anyway)");
+}
+
+// Ink Flash: chain finishers (only) crit with 0.03 + 0.003 per IQ point over 60, rolled from the match clock.
+{
+  // (stats are rebalanced into the shared budget first, so a 100 IQ asked for is what clampStats leaves of it)
+  for (const iq of [40, 60, 75, 100]) {
+    const asked = fighter("Fighter", { iq });
+    assert.ok(Math.abs(deriveDef(asked).crit - (0.03 + Math.max(0, clampStats(asked).iq - 60) * 0.003)) < 1e-9, `crit at IQ ${iq}`);
+  }
+  assert.equal(deriveDef(fighter("Fighter", { iq: 40 })).crit, 0.03);
+  const crits = () => {
+    const x = fight(fighter("Fighter", { iq: 100, atk: 70, style: "Boxing" }), fighter("Fighter"), 100);
+    const [a, b] = x.m.fighters;
+    const seen = new Set<number>();
+    const out: number[] = [];
+    let finishers = 0;
+    for (let i = 0; i < 9000; i++) {
+      b.hp = 200;
+      b.action = "idle";
+      if (a.action === "idle" && a.cooldown === 0 || (a.action === "attack" && a.t > 12)) x.ia.attack++;
+      run(x, 1);
+      for (const e of x.m.events) {
+        if (e.type !== "hit" || e.by !== 0 || seen.has(e.id)) continue;
+        seen.add(e.id);
+        if (a.combo === 3 && a.move === "uppercutP") finishers++;
+        if (e.crit) {
+          out.push(e.id);
+          assert.ok(a.combo === 3 && a.move === "uppercutP", `crit on ${a.move} (combo ${a.combo}): only a chain finisher may crit`);
+          assert.ok(!e.special && !e.blocked);
+        }
+      }
+    }
+    assert.ok(finishers > 20, `only ${finishers} finishers landed`);
+    return { out, finishers };
+  };
+  const one = crits(), two = crits();
+  assert.ok(one.out.length >= 1, `no Ink Flash in ${one.finishers} finishers`);
+  assert.deepEqual(one.out, two.out, "crits aren't deterministic");
 }
 
 console.log("check-sim: all good");

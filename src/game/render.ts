@@ -3,6 +3,7 @@
 // impact FX (smears, rings, ink splats, hit-stop shake) and the HUD.
 
 import { normClass } from "../lib/stats";
+import { getReduceFlashes } from "./flashes";
 import { itemOf, MOVES, SKILL_INFO, STYLE_INFO, type SideSkill } from "./moves";
 import { ceremonyPose, poseFor } from "./poses";
 import { resolvePose, type BoneName, type Vec } from "./skeleton";
@@ -42,6 +43,8 @@ export class Renderer {
   private shake = 0;
   private flash = 0; // white screen flash, frames left
   private dim: { slot: Slot; life: number } | null = null; // special start: darken + speed lines
+  private impact: { x: number; y: number; until: number } | null = null; // impact frame: where (world) and until when
+  private view = { cx: ARENA.w / 2, cy: ARENA.h / 2, z: 1 }; // the camera as drawn this frame (world → screen)
   private cine = 0; // 0..1: how far into the ultimate's blackout we are (eased)
   private banner: { text: string; color: string; life: number } | null = null;
   private lastEventId = 0;
@@ -158,6 +161,13 @@ export class Renderer {
         for (let i = 0; i < 8; i++) this.particles.push({ x: e.x + (Math.random() - 0.5) * 50, y: ARENA.ground - 4, vx: (Math.random() - 0.5) * 6, vy: -2 - Math.random() * 4, life: 0, max: 20, color: C.muted, size: 3 + Math.random() * 3 });
       }
       if (e.special) this.flash = Math.max(this.flash, 3);
+      // Impact frame on ultimate blows and Ink Flash crits: two ticks of inverted screen with speed lines from the
+      // hit point. "Reduce flashes" swaps it for a soft ring.
+      if (e.ult || e.crit) {
+        if (getReduceFlashes()) this.rings.push({ x: e.x, y: e.y, r: 14, grow: 9, life: 0, max: 22, color: C.gold, width: 9 });
+        else this.impact = { x: e.x, y: e.y, until: performance.now() + (2 * 1000) / TICK_HZ };
+      }
+      if (e.crit) this.particles.push({ x: e.x, y: e.y - 56, vx: 0, vy: -1, life: 0, max: 44, text: "INK FLASH!", color: C.gold, size: 26 });
     } else if (e.type === "special") {
       const name = (e.ult && hud.ultNames?.[e.by]) || hud.specialNames[e.by];
       this.banner = { text: `${name}!`, color: C.hit, life: e.ult ? 100 : 60 };
@@ -239,6 +249,7 @@ export class Renderer {
     this.cam.y += (ty - this.cam.y) * ease;
     const z = this.cam.z, hw = ARENA.w / 2 / z, hh = ARENA.h / 2 / z;
     const cx = Math.min(ARENA.w - hw, Math.max(hw, this.cam.x)), cy = Math.min(ARENA.h - hh, Math.max(hh, this.cam.y));
+    this.view = { cx, cy, z };
 
     ctx.save();
     ctx.translate(ARENA.w / 2, ARENA.h / 2);
@@ -268,9 +279,15 @@ export class Renderer {
     ctx.restore();
 
     if (this.flash > 0) {
-      ctx.fillStyle = `rgba(255,255,255,${0.35 * this.flash})`;
-      ctx.fillRect(0, 0, ARENA.w, ARENA.h);
+      if (!getReduceFlashes()) {
+        ctx.fillStyle = `rgba(255,255,255,${0.35 * this.flash})`;
+        ctx.fillRect(0, 0, ARENA.w, ARENA.h);
+      }
       this.flash--;
+    }
+    if (this.impact) {
+      if (now < this.impact.until) this.impactFrame(this.impact.x, this.impact.y);
+      else this.impact = null;
     }
     // KO slow-motion: cinema bars.
     if (cur.slow > 0) {
@@ -282,6 +299,29 @@ export class Renderer {
     if (this.preview) return;
     this.hud(cur, hud, now);
     this.phaseText(cur);
+  }
+
+  // The manga impact frame: the arena inverted, black and white wedges fanning out from the point of impact.
+  private impactFrame(wx: number, wy: number) {
+    const { ctx } = this;
+    const { cx, cy, z } = this.view;
+    const x = (wx - cx) * z + ARENA.w / 2, y = (wy - cy) * z + ARENA.h / 2;
+    ctx.save();
+    ctx.globalCompositeOperation = "difference";
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, ARENA.w, ARENA.h);
+    ctx.globalCompositeOperation = "source-over";
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2 + 0.07 * (i % 3);
+      const r0 = 24 + (i % 4) * 14, half = 0.012 + 0.014 * (i % 3);
+      ctx.fillStyle = i % 2 ? "#000" : "#fff";
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(a) * r0, y + Math.sin(a) * r0);
+      ctx.lineTo(x + Math.cos(a - half) * 1400, y + Math.sin(a - half) * 1400);
+      ctx.lineTo(x + Math.cos(a + half) * 1400, y + Math.sin(a + half) * 1400);
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
   private background() {

@@ -51,6 +51,7 @@ export type FighterDef = {
   tempo: number; // SPD → speed of punches/kicks (1 = normal)
   energyMul: number; // IQ (and Attacker) → faster special meter
   dodge: number; // AGI → chance to slip a normal hit (not while reeling or airborne)
+  crit: number; // IQ → chance that a chain finisher is an Ink Flash (×1.5 damage)
   special: SpecialKind; // slot 1 (L)
   ult: SpecialKind; // slot 2 (S + L)
   skill: SideSkill;
@@ -93,6 +94,7 @@ export function deriveDef(s: FighterStats): FighterDef {
     blockReduce: cls === "Tank" ? TRAIT.TANK_BLOCK : 0.55 + t(f.def) * TUNE.BLOCK_SPAN,
     cooldown: Math.round(26 - t(f.spd) * TUNE.SPD_COOLDOWN),
     dodge: t(f.agi) * TUNE.DODGE_SPAN,
+    crit: 0.03 + Math.max(0, f.iq - 60) * 0.003,
     // Bounded: a meter that fills 2-3x faster than the opponent's turns every fight into a special spam.
     energyMul: Math.min(1.2, Math.max(0.85, 1 + (f.iq - 70) * TUNE.IQ_ENERGY)) * (cls === "Attacker" ? TRAIT.ATTACKER_ENERGY : 1),
     special: specialOf(s.specialKind, s.class),
@@ -163,7 +165,7 @@ export type Fighter = {
 export type Projectile = { id: number; owner: Slot; kind: SpecialKind | "blast"; x: number; y: number; vx: number; r: number; dmg: number; life: number; ult?: boolean };
 
 export type GameEvent =
-  | { id: number; type: "hit"; x: number; y: number; dmg: number; blocked: boolean; special: boolean; by: Slot; ult?: boolean }
+  | { id: number; type: "hit"; x: number; y: number; dmg: number; blocked: boolean; special: boolean; by: Slot; ult?: boolean; crit?: boolean }
   | { id: number; type: "special"; by: Slot; kind: SpecialKind; ult: boolean }
   | { id: number; type: "ko"; loser: Slot }
   | { id: number; type: "round"; round: number }
@@ -361,6 +363,9 @@ function applyHit(
 
   let dmg = raw * def.armor * (blade ? TRAIT.BLADE : 1); // raw already carries the attacker's STR/IQ (see deriveDef)
   if (att.status?.kind === "POISON") dmg *= 1 - POISON_CUT * (ELEMENT_TUNE.POISON ?? 1);
+  // Ink Flash: a chain finisher that lands clean sometimes hits half again as hard (the roll comes from the match clock).
+  const crit = !!opts.finisher && !opts.special && !blocked && roll(m, 10 + att.slot) < ad.crit;
+  if (crit) dmg *= 1.5;
   if (vic.armorTicks > 0) dmg *= ad.cls === "Mace" ? TRAIT.MACE_BREAK : 0.5; // a mace cracks armor: ×1.25 on the halving (×1.5 made Tank vs Mace 35%)
   const full = dmg;
   // Specials punch through a block harder than normal hits.
@@ -416,7 +421,7 @@ function applyHit(
     // element-less sword, refreshed each hit, was a permanent burn).
     else if (blade && vic.hp > 0 && !vic.status && ad.element !== "NONE") infect(att, vic, ad.element, dir);
   }
-  emit(m, { type: "hit", x: opts.at.x, y: opts.at.y, dmg: dealt, blocked, special: opts.special, by: att.slot, ...(opts.ult && { ult: true }) });
+  emit(m, { type: "hit", x: opts.at.x, y: opts.at.y, dmg: dealt, blocked, special: opts.special, by: att.slot, ...(opts.ult && { ult: true }), ...(crit && { crit: true }) });
   // Hit-stop sells the impact: bigger hits hold a little longer.
   m.freeze = Math.max(m.freeze, blocked ? 2 : held ? 3 : opts.special ? 6 : Math.min(6, 2 + Math.round(dealt / 4)));
 
