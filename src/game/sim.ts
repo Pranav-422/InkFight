@@ -158,6 +158,7 @@ export type Fighter = {
   ult: boolean; // the special in progress is the ultimate (S + L), not slot 1
   ultEnd: number; // attacker: special tick at which a hit-lock ends (0: the move's own length)
   locked: boolean; // victim: held in place by an ultimate until it ends
+  hitHigh: boolean; // the blow that put them in hit-stun landed above 70% of body height (head snaps back; else the torso folds)
   skillQ: boolean; // a skill press made while reeling: used the moment it can be, not lost
   seen: { jump: number; attack: number; kick: number; special: number; skill: number };
 };
@@ -230,6 +231,7 @@ function spawn(slot: Slot, def: FighterDef, seen: Fighter["seen"]): Fighter {
     ult: false,
     ultEnd: 0,
     locked: false,
+    hitHigh: false,
     skillQ: false,
     seen: { jump: seen.jump, attack: seen.attack, kick: seen.kick, special: seen.special, skill: seen.skill ?? 0 },
   };
@@ -403,11 +405,13 @@ function applyHit(
       applyHit(m, vic, att, back, { knock: 8, special: false, at: { x: att.x + dir * 20, y: att.y - BODY.h * 0.6 } });
     }
   } else if (vic.locked) {
-    // held: the blows land, but nothing flinches or shoves
+    vic.hitHigh = (vic.y - opts.at.y) / BODY.h > 0.7; // held: the blows land, but nothing flinches or shoves
   } else if (lockIt) {
+    vic.hitHigh = (vic.y - opts.at.y) / BODY.h > 0.7;
     lockOn(m, att, vic);
     if (opts.special && ad.element !== "NONE") infect(att, vic, ad.element, dir);
   } else if (!armored) {
+    vic.hitHigh = (vic.y - opts.at.y) / BODY.h > 0.7;
     vic.action = "hit";
     vic.t = 0;
     vic.stun = def.stun + (ad.cls === "Mace" && opts.finisher ? TRAIT.MACE_STUN : 0) + (opts.down ?? 0); // Mace: only a chain finisher, a reward, not a lock

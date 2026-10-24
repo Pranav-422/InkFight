@@ -4,7 +4,8 @@
 
 import assert from "node:assert/strict";
 import { CLASS_ULT, SLOT1_COST, SPECIAL_KINDS, STYLE_INFO, ULT_COST } from "../src/game/moves";
-import { createMatch, deriveDef, EMPTY_INPUT, step, TICK_HZ, type FighterStats, type Input, type Match } from "../src/game/sim";
+import { poseFor } from "../src/game/poses";
+import { createMatch, deriveDef, snapshot, EMPTY_INPUT, step, TICK_HZ, type FighterStats, type Input, type Match } from "../src/game/sim";
 import { CLASSES, clampStats, ruleStats } from "../src/lib/stats";
 
 const neutral = { size: "medium", pose: "neutral", dominant_colors: [] } as const;
@@ -286,6 +287,26 @@ for (const kind of ["bolt", "arrow", "orb", "wave"]) {
   const one = crits(), two = crits();
   assert.ok(one.out.length >= 1, `no Ink Flash in ${one.finishers} finishers`);
   assert.deepEqual(one.out, two.out, "crits aren't deterministic");
+}
+
+// Spine recoil: a blow above 70% of body height sets hitHigh (hook = head, jab = body), and the hit pose follows it.
+{
+  const land = (style: string) => {
+    const x = fight(fighter("Fighter", { style }), fighter("Fighter", { agi: 40 }), 100); // (no agility: nothing is slipped)
+    x.ia.attack++;
+    for (let i = 0; i < 20 && x.m.fighters[1].hp === 200; i++) run(x, 1);
+    assert.ok(x.m.fighters[1].hp < 200, `${style}: the first punch didn't land`);
+    return x.m.fighters[1].hitHigh;
+  };
+  assert.equal(land("Street"), true, "a hook to the head should be a high hit");
+  assert.equal(land("Boxing"), false, "a jab to the body should be a low hit");
+  const x = fight(fighter("Fighter"), fighter("Fighter"));
+  const f = snapshot(x.m).fighters[1];
+  const at = (hitHigh: boolean) => poseFor({ ...f, action: "hit", t: 4, hitHigh }, "bolt", 0, "Fighter").pose;
+  const high = at(true), low = at(false);
+  assert.ok("rel" in high.head! && high.head.rel < -0.5 && "rel" in high.torso! && high.torso.rel < 0, "a head hit should snap the head back");
+  assert.ok("rel" in low.torso! && low.torso.rel > 0.4 && "rel" in low.head! && low.head.rel > 0, "a body hit should fold the torso forward");
+  assert.ok("abs" in low.upperF! && low.upperF.abs > 1 && "abs" in low.upperB! && low.upperB.abs > 1.5, "a body hit should drop the arms");
 }
 
 console.log("check-sim: all good");
