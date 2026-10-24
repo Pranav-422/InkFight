@@ -1,0 +1,379 @@
+{
+  "meta": {
+    "topic": "InkFight stickman animation: keyframes, principles, idles, recoil, cosmetics, mocap",
+    "date": "2026-10-24",
+    "units": {
+      "time": "ticks (sim runs 60 ticks/s, 1 tick = 16.7 ms; film references at 24 fps convert x2.5)",
+      "angles": "radians in body space facing +x, canvas y-down: 0 = forward, -PI/2 = up, PI/2 = down, PI = behind (same as poses.ts abs()); rel() = offset from rest. torso rel(+) leans forward, rel(-) leans back",
+      "length": "px in stickman world units (rest figure is ~180 tall, BODY.h = 170, HEAD_R = 20)"
+    },
+    "current_state": {
+      "MOVE_POSES": "2 static poses per move: wind shown for t < mv.from, hit for t <= mv.to + 3, then FIGHT. No in-betweens, so every move pops between 3 poses.",
+      "move_timing": "MOVES has dur/from/to; startup (from) ranges 4 (jab) to 16 (axeKick) ticks; active (to - from) 3-8; recovery (dur - to) 7-13",
+      "hitstop": "sim.ts: m.freeze = blocked ? 2 : special ? 6 : min(6, 2 + round(dealt/4)); SUPER_FREEZE 16 on special start; KO slow-mo every 3rd tick",
+      "shake": "render.ts: random jitter, amplitude special 13 / blocked 2 / normal 4 + dmg/3 / KO 20, decays x0.85 per frame",
+      "smear": "render.ts keeps the last 7 tip points from mv.from-2 to mv.to+2 and strokes a trail (width 18, specials 26)",
+      "idle": "single sine, period 2*PI*160 ms (~60 ticks), torso +-0.03, head +-0.03, upperF +-0.08; walk = sine period ~40 ticks"
+    }
+  },
+
+  "keyframe_model": {
+    "shape": {
+      "typescript": "type Ease = 'linear' | 'snap' | 'outQuad' | 'inQuad' | 'inOutSine' | 'inOutCubic' | 'outCubic' | 'inExpo' | 'outExpo' | 'outBack' | [number, number, number, number];\ntype Anchor = 'start' | 'from' | 'to' | 'end';\ntype Key = { at: [Anchor, number]; pose: PoseTargets; ease?: Ease; lunge?: number; flip?: boolean; stretch?: number };\ntype MoveAnim = { keys: Key[]; spin?: boolean };\nconst MOVE_ANIM: Record<MoveName, MoveAnim>;",
+      "why_anchors": "at = [anchor, offsetTicks] ties each key to the sim's own phases (start=0, from=mv.from, to=mv.to, end=mv.dur). When balance.ts retunes startup/recovery, the art retimes itself instead of desyncing from the hitbox. Resolve once per move to absolute ticks and clamp to [0, dur], monotonic.",
+      "ease_semantics": "A key's ease shapes the segment that ENDS at that key (like CSS keyframes). Default 'inOutSine'.",
+      "missing_bones": "A bone absent from a key inherits the previous key's value (first key inherits FIGHT). Same as the existing spread {...FIGHT, ...}.",
+      "interpolation": "Resolve abs/rel to local angles with resolvePose for both keys, then lerp each bone on the shortest arc: d = ((b - a + PI) mod 2PI) - PI; v = a + d * ease(u). Exception: spinKick/flip keys may need the long way; mark with flip so the renderer mirrors instead of lerping 2PI.",
+      "sub_tick": "Evaluate with fractional t = f.t + render alpha so 120/144 Hz monitors stay smooth. During m.freeze f.t does not advance, so the pose freezes automatically (that is the hit-stop impact frame).",
+      "lunge": "lunge is keyed like a bone (scalar lerp) so body shift peaks with the strike and eases back during recovery, instead of jumping 0 to 12 px.",
+      "stretch": "optional per-key multiplier on the striking limb's bone length (1.0 = rest), see principles squash_stretch."
+    },
+    "easings": [
+      { "name": "outQuad", "bezier": [0.5, 1, 0.89, 1], "use": "into the anticipation pose: fast start, slows into the coil so the eye reads the wind-up", "source": "S2, S13" },
+      { "name": "inOutSine", "bezier": [0.37, 0, 0.63, 1], "use": "moving hold / coil drift (last ticks of startup), idle loops", "source": "S13" },
+      { "name": "inExpo", "bezier": [0.7, 0, 0.84, 0], "use": "the strike segment (anticipation to overshoot): almost no motion then all of it in the last tick; with 1-3 tick strike segments this reads as a snap", "source": "S1, S13" },
+      { "name": "snap", "bezier": null, "use": "strike segments of 1 tick: jump straight to the target (step). Fighting games commonly use 1-2 drawings between anticipation and contact and fill the gap with a smear", "source": "S1, S8" },
+      { "name": "outBack", "bezier": [0.34, 1.56, 0.64, 1], "use": "settle from overshoot back to the hit pose, landing squash recovery, getup end, idle re-entry", "source": "S13" },
+      { "name": "outCubic", "bezier": [0.33, 1, 0.68, 1], "use": "follow-through after active frames: the limb keeps going and decelerates", "source": "S2" },
+      { "name": "inOutCubic", "bezier": [0.65, 0, 0.35, 1], "use": "recovery back to FIGHT: slow out of the extended pose, slow into guard (slow-in/slow-out)", "source": "S2, S13" },
+      { "name": "outExpo", "bezier": [0.16, 1, 0.3, 1], "use": "hit reactions: victim snaps to recoil within 1-2 ticks, then drifts", "source": "S13" }
+    ],
+    "auto_convert_wind_hit": {
+      "summary": "Generate 6 keys from each existing {wind, hit, lunge} so no move needs hand re-authoring; hand-tune only the showcase moves later.",
+      "helpers": "extrap(a, b, k) = per-bone a + (b - a) * k on resolved local angles (k > 1 overshoots past b). FIGHT is the neutral pose.",
+      "keys": [
+        { "at": ["start", 0], "pose": "FIGHT", "ease": "linear", "note": "current pose; in practice blend from whatever pose the fighter was in (chain/cancel)" },
+        { "at": ["from", "-max(1, round(from*0.4))"], "pose": "wind", "ease": "outQuad", "lunge": 0, "note": "anticipation reached at 60% of startup (jab from=4: tick 2)" },
+        { "at": ["from", -1], "pose": "extrap(FIGHT, wind, 1.08)", "ease": "inOutSine", "lunge": "-0.15*lunge", "note": "coil: moving hold 8% deeper, body draws back slightly. Skip when from <= 4 (no room)" },
+        { "at": ["from", 1], "pose": "extrap(wind, hit, 1.12)", "ease": "snap if from-1 to from+1 is 2 ticks else inExpo", "lunge": "1.15*lunge", "stretch": 1.12, "note": "overshoot / impact frame, aligned with first active tick" },
+        { "at": ["to", 2], "pose": "hit with distal bones (fore*, shin*, head) pushed +0.15 rad further along hit-wind direction", "ease": "outCubic", "lunge": "lunge", "stretch": 1.0, "note": "follow-through; proximal bones settle to hit, distal ones keep travelling" },
+        { "at": ["end", 0], "pose": "FIGHT", "ease": "inOutCubic", "lunge": 0, "note": "recovery; blend idle loop weight 0 to 1 over the last 40% so there is no pop into idle" }
+      ],
+      "spin_moves": "keep spin: flip = true on keys from the coil until to+2; renderer mirrors instead of lerping.",
+      "specials": "specialPose already branches on t thresholds (t < 10 etc). Convert each branch boundary to a key at the same tick with ease inExpo for the release and outBack for holds; leave looping parts (beam wobble, spiral run, barrage) procedural.",
+      "check": "assert every move's resolved keys are strictly increasing and the overshoot key lands inside [from, to]; scripts/check-stats.ts style self-check."
+    }
+  },
+
+  "principles": [
+    {
+      "id": "anticipation_vs_startup",
+      "rule": "Anticipation (reaching the wind pose) takes ~60% of startup; the last 1-2 startup ticks are the strike. Never less than 1 tick of anticipation: even one frame makes a move readable. For our moves: jab (from 4) = 2 ticks wind + 2 strike; cross (6) = 4 + 2; roundhouse (11) = 7 wind incl. 2 coil + 2 strike; axeKick (16) = 10 + 2-3 coil + 2.",
+      "numbers": { "anticipation_fraction": 0.6, "min_ticks": 1, "strike_ticks": "1-2 (3 for startup >= 14)" },
+      "source": "S1 (Cartwright, Skullgirls GDC 2014: 'even a frame of anticipation'), S2 (anticipation is a design/animation trade-off in games)"
+    },
+    {
+      "id": "anticipation_direction",
+      "rule": "Wind-up moves opposite to the strike: torso rel -0.1 to -0.3 for punches, striking limb drawn back 0.3-0.6 rad past guard, body lunge -0.15x before +lunge. The bigger the move's mult, the bigger the counter-motion (scale wind offset by mult: jab 0.7x, spinKick 1.9x).",
+      "numbers": { "torso_rel": [-0.3, -0.1], "body_pullback_px": [1, 3] },
+      "source": "S2, S5 (Illusion of Life principles via Game Developer)"
+    },
+    {
+      "id": "overshoot_on_impact",
+      "rule": "On the first active tick the striking chain goes 8-15% past the hit pose (stretch limb length x1.10-1.15), holds through hit-stop, then settles back to the hit pose in 3-4 ticks with outBack. One overshoot frame is enough.",
+      "numbers": { "overshoot_k": [1.08, 1.15], "settle_ticks": [3, 4] },
+      "source": "S1 (one frame overshooting the target then pulling back adds power)"
+    },
+    {
+      "id": "follow_through_overlap",
+      "rule": "After active ends, distal bones (forearm, shin, head, held item) lag their parents by 2 ticks and travel 0.15-0.3 rad further before returning. Heavy items (mace, big sword) lag 3-4 ticks and 0.3-0.45 rad. Use follow-through to fill gaps when there are no in-betweens.",
+      "numbers": { "lag_ticks_light": 2, "lag_ticks_heavy": [3, 4], "extra_rad": [0.15, 0.45] },
+      "source": "S1, S2"
+    },
+    {
+      "id": "recovery_settle",
+      "rule": "Recovery returns to FIGHT with inOutCubic over (dur - to) ticks; the final 15-20% uses a small outBack (1.03-1.05 overshoot into guard) so the fighter 'lands' in stance. Fade idle-loop weight in over the last 40% of recovery.",
+      "numbers": { "settle_fraction": [0.15, 0.2], "settle_overshoot": [1.03, 1.05] },
+      "source": "S2 (slow-in/slow-out), S9 (Rosen: blend procedural layers over few keys)"
+    },
+    {
+      "id": "moving_holds",
+      "rule": "No pose is fully static for more than ~6 ticks (except intentional hit-stop). During holds (beam hold, block, charge) keep 30% of the archetype idle amplitude running plus 1-2% drift toward the next key.",
+      "numbers": { "max_static_ticks": 6, "idle_weight_in_hold": 0.3 },
+      "source": "S2, S9"
+    },
+    {
+      "id": "smear_frames",
+      "rule": "Draw a smear only on ticks where the striking tip moves more than ~20 px/tick (about one head radius), typically the 1-2 strike ticks and the first active tick. Life 2-4 ticks, alpha 0.9 -> 0. Draw it as a tapered filled polygon (width = 3x pen width at the tip, 0 at the tail) along the arc from the anticipation tip position to the overshoot position, so it shows start, motion and end. Keep it visible (frozen) during hit-stop. For spins use 2-3 ghost limbs at 35%/20% alpha (multiples) instead of a ribbon.",
+      "numbers": { "min_tip_speed_px_tick": 20, "life_ticks": [2, 4], "width_x_pen": 3, "ghost_alpha": [0.35, 0.2] },
+      "source": "S1 (smear shows start, motion, end), S8 (smear = stylized motion blur; Overwatch uses them for fast motion and weight)"
+    },
+    {
+      "id": "hitstop_by_weight",
+      "rule": "Freeze both fighters on contact, scaled by hit weight. Suggested: blocked 3, light (jab, low kick) 5-6, medium (cross, hook, front kick) 7-9, heavy (roundhouse, spinKick, axeKick, uppercut) 10-13, special connect 14-16, KO hit 18-20 then slow-mo. Formula: freeze = clamp(round(4 + dealt * 0.35), 4, 13), special 15. Our current cap of 6 is short of genre norms (SF2 ~10 frames; Smash Ultimate floor(d*0.65 + 6), cap 30). Note: freeze changes sim timing (authoritative host), so tune with scripts/balance.ts.",
+      "numbers": { "blocked": 3, "light": [5, 6], "medium": [7, 9], "heavy": [10, 13], "special": [14, 16], "ko": [18, 20] },
+      "source": "S3 (critpoints: SF2 ~10 frames hitstop, hitstop helps the eye register impact), S4 (SSBWiki hitlag formulas and caps), S6 (Sakurai on hitstop)"
+    },
+    {
+      "id": "hitstop_victim_shake",
+      "rule": "During hit-stop the attacker holds still; the victim vibrates along the hit direction: offset alternates sign every tick, amplitude 3 px light / 5 px heavy, decaying linearly to 0 over the freeze. Ground hits shake horizontally, air hits vertically.",
+      "numbers": { "amp_px_light": 3, "amp_px_heavy": 5, "period_ticks": 2 },
+      "source": "S3, S4 (Smash characters vibrate during hitlag: horizontal on ground, vertical in air)"
+    },
+    {
+      "id": "screen_shake",
+      "rule": "Replace per-frame Math.random jitter with a trauma model: trauma += hit amount (cap 1), decays 0.03/tick; offset = maxShake * trauma^2 * noise(t), noise = sum of 2 sines with incommensurate frequencies (e.g. 0.9 and 1.37 rad/tick) per axis. maxShake = 16 px, optional rotation 0.015 rad. Trauma: blocked 0.15, light 0.25 (1 px), medium 0.4 (2.6 px), heavy 0.55 (4.8 px), special 0.75 (9 px), KO 1.0 (16 px). Add a 1-tick directional kick of 2-4 px along the hit direction first. Squaring makes small hits subtle and big hits strong.",
+      "numbers": { "max_px": 16, "decay_per_tick": 0.03, "trauma": { "blocked": 0.15, "light": 0.25, "medium": 0.4, "heavy": 0.55, "special": 0.75, "ko": 1.0 }, "kick_px": [2, 4] },
+      "source": "S7 (Eiserloh GDC 2016 trauma^2 + noise shake), S10 (Nijman 'Art of Screenshake': camera kick back plus quickly decaying shake)"
+    },
+    {
+      "id": "squash_stretch_stickman",
+      "rule": "Bones are fixed length, so fake volume with bone-length and stroke-width scale: striking limb length x1.10-1.15 and stroke width x0.85 on the overshoot tick; jump take-off whole-body scaleY 1.08 / scaleX 0.95 for 2-3 ticks; landing scaleY 0.88 / scaleX 1.10 for 3-4 ticks then outBack to 1; victim torso length x0.92 for 1 tick on a body hit. Scale about the feet (y = 0) so the floor contact holds. Keep scaleX * scaleY ~ 1.",
+      "numbers": { "strike_stretch": [1.1, 1.15], "takeoff": { "sy": 1.08, "sx": 0.95, "ticks": [2, 3] }, "landing": { "sy": 0.88, "sx": 1.1, "ticks": [3, 4] } },
+      "source": "S2, S5 (squash and stretch, volume preservation)"
+    },
+    {
+      "id": "impact_frame_contrast",
+      "rule": "On the first hit-stop tick of heavy/special hits draw one inverted or ink-flood frame (or 1-2 tick white flash at alpha 0.6-0.8) and the impact ring at max size; resume normal render on tick 2. Never more than 2 ticks (photosensitivity), and not for light hits.",
+      "numbers": { "ticks": [1, 2], "flash_alpha": [0.6, 0.8] },
+      "source": "S1, S3 (hitsparks/impact feedback show contact point)"
+    },
+    {
+      "id": "key_count_budget",
+      "rule": "Few strong keys plus procedural layers beat many keys: 4-6 keys per normal move, 6-10 per special, procedural idle/breath/secondary motion on top. Overgrowth reportedly animated whole characters from a handful of keys plus physics/procedural blending.",
+      "numbers": { "keys_normal": [4, 6], "keys_special": [6, 10] },
+      "source": "S9 (Rosen GDC 2014 'An Indie Approach to Procedural Animation')"
+    },
+    {
+      "id": "silhouette_readability",
+      "rule": "The overshoot key must read in silhouette: striking limb near full extension (angle between upper and fore < 0.25 rad for straights), torso rotated toward the target, back arm pulled to the chest. Check by rendering keys as black silhouettes at 50% size.",
+      "numbers": { "extension_max_bend_rad": 0.25 },
+      "source": "S1 (attacks must read through silhouette)"
+    }
+  ],
+
+  "idle_loops": {
+    "method": "Each bone value = base + A * sin(2PI * (t/period + phase)) + 0.3 * A * sin(2PI * (t/(period*1.618) + phase2)). The second, non-integer-period sine stops the loop looking mechanical. Phase is a fraction of the cycle; a positive phase lag on child bones = overlapping action. Body bob is done by bending thighs/shins (the renderer keeps the lowest foot on the floor), float is a root y offset that needs a new BodyMotion field (e.g. lift: px). Randomize the global phase per fighter so two idles never sync.",
+    "archetypes": [
+      {
+        "id": "heavy_tank",
+        "classes": ["Tank"],
+        "period_ticks": 120,
+        "feel": "slow heavy breathing, almost planted",
+        "bones": [
+          { "bone": "torso", "amp_rad": 0.025, "phase": 0.0 },
+          { "bone": "head", "amp_rad": 0.02, "phase": 0.12 },
+          { "bone": "upperF", "amp_rad": 0.04, "phase": 0.05 },
+          { "bone": "upperB", "amp_rad": 0.04, "phase": 0.05 },
+          { "bone": "thighF/thighB (knee bend)", "amp_rad": 0.03, "phase": 0.0, "note": "~1.5 px body drop" }
+        ],
+        "extra": "shoulder pads rise 1 px on inhale; no foot shuffle; every 6-9 s a 30-tick 'shoulder roll' accent (upper* +0.15 rad)"
+      },
+      {
+        "id": "bouncy_fighter",
+        "classes": ["Fighter", "Attacker (boxing/street styles)"],
+        "period_ticks": 36,
+        "feel": "on the toes, rhythmic boxer bounce",
+        "bones": [
+          { "bone": "thighF", "amp_rad": 0.12, "phase": 0.0 },
+          { "bone": "thighB", "amp_rad": 0.12, "phase": 0.0 },
+          { "bone": "shinF", "amp_rad": 0.15, "phase": 0.5, "note": "opposite to thigh = knee flex, ~4 px bob" },
+          { "bone": "shinB", "amp_rad": 0.15, "phase": 0.5 },
+          { "bone": "torso", "amp_rad": 0.03, "phase": 0.05 },
+          { "bone": "upperF", "amp_rad": 0.08, "phase": 0.1 },
+          { "bone": "foreF", "amp_rad": 0.1, "phase": 0.2 },
+          { "bone": "upperB", "amp_rad": 0.06, "phase": 0.15 },
+          { "bone": "head", "amp_rad": 0.04, "phase": 0.15 }
+        ],
+        "extra": "weight shift: lunge +-2 px at period 72 (every 2nd bounce); lead fist pumps (foreF +0.2) every ~3 s"
+      },
+      {
+        "id": "floaty_mage",
+        "classes": ["Attacker (orb/beam/bolt specials)", "mage-like builds"],
+        "period_ticks": 150,
+        "feel": "weightless hover, limbs drifting like underwater",
+        "bones": [
+          { "bone": "root lift (new field)", "amp_px": 5, "phase": 0.0, "note": "base lift 6-10 px off floor with a soft ink shadow ellipse that shrinks as lift grows" },
+          { "bone": "upperF", "amp_rad": 0.08, "phase": 0.15 },
+          { "bone": "foreF", "amp_rad": 0.12, "phase": 0.35 },
+          { "bone": "upperB", "amp_rad": 0.08, "phase": 0.65 },
+          { "bone": "foreB", "amp_rad": 0.12, "phase": 0.85 },
+          { "bone": "thighF", "amp_rad": 0.06, "phase": 0.25, "note": "legs dangle, toes pointed (shins DOWN+0.15)" },
+          { "bone": "shinF", "amp_rad": 0.08, "phase": 0.45 },
+          { "bone": "head", "amp_rad": 0.03, "phase": 0.2 }
+        ],
+        "extra": "distal amplitude > proximal and growing lag = drag; orbs orbit at period 90 (see cosmetics)"
+      },
+      {
+        "id": "steady_swordsman",
+        "classes": ["Sword"],
+        "period_ticks": 90,
+        "feel": "composed, blade tip barely moving, calm breathing",
+        "bones": [
+          { "bone": "torso", "amp_rad": 0.015, "phase": 0.0 },
+          { "bone": "head", "amp_rad": 0.01, "phase": 0.1 },
+          { "bone": "upperF", "amp_rad": 0.02, "phase": 0.05 },
+          { "bone": "foreF", "amp_rad": 0.03, "phase": 0.25, "note": "blade tip drifts ~2-3 px" },
+          { "bone": "upperB", "amp_rad": 0.02, "phase": 0.05 }
+        ],
+        "extra": "slow weight shift lunge +-1.5 px at period 180; every 4-6 s a 20-tick grip adjust (foreF -0.12 then back, outBack)"
+      },
+      {
+        "id": "low_heavy_mace",
+        "classes": ["Mace"],
+        "period_ticks": 100,
+        "feel": "wide low crouch, weapon hanging like a pendulum",
+        "bones": [
+          { "bone": "base stance", "note": "thighF abs(DOWN-0.6), thighB abs(DOWN+0.6), torso rel(0.12) forward lean" },
+          { "bone": "torso", "amp_rad": 0.04, "phase": 0.0 },
+          { "bone": "thighF/thighB (knee bend)", "amp_rad": 0.05, "phase": 0.0, "note": "~3 px body drop" },
+          { "bone": "upperF", "amp_rad": 0.06, "phase": 0.3, "note": "mace arm swings as pendulum, lagging the body" },
+          { "bone": "foreF", "amp_rad": 0.05, "phase": 0.4 },
+          { "bone": "head", "amp_rad": 0.03, "phase": 0.15 }
+        ],
+        "extra": "item angle lags foreF by 4 ticks (spring k 0.15, damping 0.8) so the mace head swings after the arm"
+      }
+    ]
+  },
+
+  "recoil": {
+    "timing": "Snap into the recoil pose in 1-2 ticks (outExpo), hold through hit-stop (with victim shake), drift 10% further during hitstun, recover to FIGHT with outBack over the last 30% of hitstun. Pick the variant from the hit height (sim already has top/bot per move) and scale offsets by min(1.5, 0.6 + knock/10).",
+    "head_hit": {
+      "when": "contact above the shoulder line (high hits, uppercuts, headbutt, roundhouse/axe to head)",
+      "pose": { "head": "rel(-0.6)", "torso": "rel(-0.3)", "upperF": "rel(0.6)", "foreF": "rel(0.4)", "upperB": "rel(-0.7)", "foreB": "rel(0.3)", "thighF": "rel(0.1)", "thighB": "rel(0.05)" },
+      "lunge_px": -8,
+      "note": "head snaps back first, torso follows 1 tick later (overlap); arms fling forward relative to the body. Uppercut variant: head rel(-0.9), torso rel(-0.5), small lift 6-10 px."
+    },
+    "body_hit": {
+      "when": "contact between shoulder and hip (crosses, palms, knees, front kicks)",
+      "pose": { "torso": "rel(0.32)", "head": "rel(0.18)", "upperF": "abs(1.3)", "foreF": "abs(-0.4)", "upperB": "abs(1.4)", "foreB": "abs(-0.3)", "thighF": "abs(DOWN-0.15)", "thighB": "abs(DOWN+0.45)" },
+      "lunge_px": -10,
+      "note": "folds over the gut, hips pushed back, arms clutch the stomach; torso length x0.92 for 1 tick (squash)"
+    },
+    "low_hit": {
+      "when": "low kicks, sweeps (no knockdown)",
+      "pose": { "thighF": "rel(0.5)", "shinF": "rel(0.3)", "torso": "rel(0.15)", "upperF": "rel(-0.5)", "upperB": "rel(0.5)", "head": "rel(0.1)" },
+      "lunge_px": -4,
+      "note": "front leg knocked back, arms out for balance"
+    },
+    "blocked": {
+      "pose": "block pose plus torso rel(-0.08), head rel(-0.1), forearms pushed back 0.15",
+      "lunge_px": -4,
+      "note": "1-tick snap, 3-tick return; blue spark already drawn"
+    },
+    "knockdown": {
+      "launch": "torso rel(-0.7), head rel(-0.5), limbs trail (upper* rel(+-1.0)); whole-body fall angle rises toward -1.45 like the KO topple, root follows the sim's arc",
+      "fall": "fall angle 0 to -1.45 over 14-20 ticks with inQuad (gravity look)",
+      "ground_contact": "1 tick squash (scaleY 0.85), bounce 6-10 px up over 6 ticks, second contact without bounce; limbs flop with 1-2 tick lag (or a cheap verlet on hands/feet); dust/ink splat",
+      "lie_ticks": [30, 40],
+      "getup": [
+        { "at_tick": 0, "pose": "lying (fall -1.45)", "ease": "linear" },
+        { "at_tick": 8, "pose": "roll to side, fall -0.9, thighF abs(DOWN-1.2), shinF abs(DOWN+0.8), handB on floor", "ease": "outQuad" },
+        { "at_tick": 16, "pose": "kneeling: fall 0, thighF abs(-0.2), shinF abs(DOWN), thighB abs(DOWN+0.3), shinB abs(BACK-0.2), torso rel(0.3)", "ease": "inOutSine" },
+        { "at_tick": 26, "pose": "FIGHT", "ease": "outBack" }
+      ],
+      "gameplay_note": "getup length and invulnerability are sim rules (not cosmetic); 24-30 ticks matches the animation above."
+    },
+    "ko": "existing topple is good; add a 1-tick ground squash, a 4 px bounce, the head drawing rolling 0.3 rad, and the held item dropping with a simple gravity + spin arc (it detaches at contact)."
+  },
+
+  "cosmetics": {
+    "general": "All are render-only (never in the sim, never synced), drawn in the fighter's ink colour with the drawing's pen width, so they look hand-drawn. Seed per-fighter jitter from the character id so strokes do not boil every frame; optionally re-seed every 6-8 ticks for a deliberate 'line boil' look. Verlet state lives in the Renderer per slot; reset it on teleport, round start and facing flip (mirror stored points across the hip x).",
+    "items": [
+      {
+        "id": "sheath",
+        "for": "Sword class",
+        "approach": "Anchor at hip joint, angle = torso world angle + 2.4 rad (pointing back-down), length = 0.7 x sword length. ctx.save; translate(hip); rotate(angle); draw a rounded rect (roundRect, w 8 px) filled with paper colour then stroked in ink; 2 short cross strokes for the throat. Draw before the back leg so it sits behind. Optional: angle follows torso through a 1-float spring (k 0.2, damping 0.75) for a small swing on lunges.",
+        "cost": "1 path + 2 lines, negligible"
+      },
+      {
+        "id": "hand_wraps",
+        "for": "Fighter / boxing, Muay Thai, street styles",
+        "approach": "On foreF/foreB, over the last 25% of the bone: 3-4 short strokes perpendicular to the bone (length = 1.6 x pen width), each rotated a seeded +-0.15 rad and spaced 4 px, plus one loop around the fist (arc r = pen width * 1.4). White or accent fill under ink outline. Trailing tape tail (2-point verlet, 6 px) optional.",
+        "cost": "about 8 lines per fighter per frame"
+      },
+      {
+        "id": "floating_orbs",
+        "for": "Attacker / mage-like builds, orb/bolt/beam specials",
+        "approach": "N = 2-3 orbs around the head or back hand: pos = anchor + (cos(w t + phi_i) * rx, sin(w t + phi_i) * ry), rx 34 px, ry = 0.35 rx (pseudo-3D ellipse), w = 2PI/90 per tick, phi_i = i * 2PI/N. depth z = sin(w t + phi_i): draw orbs with z < 0 before the body and z >= 0 after; radius x (0.85 + 0.15 z). Trail: keep last 6 positions, stroke a tapered line. Glow: drawImage a pre-rendered radial-gradient sprite (offscreen canvas, made once per colour), never shadowBlur per frame. On special charge, shrink rx and speed w x3 so orbs spiral into the hand.",
+        "cost": "3 drawImage + 3 short paths; shadowBlur avoided (it is the expensive part)"
+      },
+      {
+        "id": "short_cape",
+        "for": "any class, cosmetic unlock",
+        "approach": "Verlet chain of 5 points (4 segments, L = 11 px). p0 pinned each tick to the shoulder joint offset 6 px behind (facing-aware). Integrate per tick at fixed 60 Hz: next = p + (p - prev) * 0.92 + (0, 0.35) gravity + wind, where wind = -facing * |body vx| * 0.4 plus sin noise 0.1. Then 3 constraint passes: move each pair to distance L (half each, p0 fixed). Body collision: in body-local space clamp points to stay behind the spine line (x <= shoulder.x + 2). Draw a ribbon: offset each point perpendicular by half-width growing 6 to 10 px root to tip, fill with accent at 0.85 alpha, stroke the outline with quadraticCurveTo through midpoints. On hit-stop, skip integration (cape freezes too).",
+        "cost": "5 points x 3 passes per tick, one filled path; well under 0.05 ms"
+      },
+      {
+        "id": "shoulder_pads",
+        "for": "Tank (and Mace)",
+        "approach": "Half-dome at the shoulder joint: ellipse rx 14, ry 9 px, rotation = 0.5 * (torso world angle + PI/2) + 0.5 * upper arm world angle so it follows the arm partly. Back pad drawn before the back arm, front pad after the front arm. Fill paper, stroke ink, 2-3 seeded hatch strokes for shading. Lift 1 px with the idle inhale.",
+        "cost": "2 ellipses + up to 6 lines"
+      },
+      {
+        "id": "headband",
+        "for": "Fighter / Karate, Taekwondo styles",
+        "approach": "Band: two parallel arcs across the head circle at 40% from the top, rotated with the head bone, clipped to the head circle (ctx.clip on an arc) so it wraps the drawn head. Knot at the back: 2 tails, each a 3-point verlet (L 9 px, gravity 0.15, damping 0.9) pinned at the knot; add sin flutter (amp 2 px, period 20 ticks) scaled by body speed when walking/dashing.",
+        "cost": "clip + 2 arcs + 2 tiny verlet chains"
+      }
+    ],
+    "verlet_reference": "Position-based Verlet with iterative distance constraints (Jakobsen, Hitman: Codename 47) is stable at fixed timesteps and needs no velocities; 2-4 passes are enough for short chains.",
+    "source": "S11, S12"
+  },
+
+  "references": {
+    "mocap": [
+      {
+        "name": "CMU Graphics Lab Motion Capture Database",
+        "url": "https://mocap.cs.cmu.edu",
+        "license": "Free for research and commercial use; acknowledgment line requested (not a legal condition). BVH conversions (Bruce Hahne / cgspeed) add no restrictions. Some aggregators tag it CC BY 4.0, so keep the acknowledgment.",
+        "commercial_ok": true,
+        "fit": "has boxing / martial-arts and general motion; 120 fps BVH/ASF-AMC; needs cleanup (foot plants)"
+      },
+      {
+        "name": "Quaternius Universal Animation Library 1 and 2",
+        "url": "https://quaternius.com/packs/universalanimationlibrary.html",
+        "license": "CC0 (public domain dedication); free Standard tiers on OpenGameArt (45 and 130+ anims), paid Pro/Source tiers",
+        "commercial_ok": true,
+        "fit": "UAL2 includes melee and armed combos; humanoid rig, glTF/FBX (export to BVH from Blender)"
+      },
+      {
+        "name": "Adobe Mixamo",
+        "url": "https://www.mixamo.com",
+        "license": "Royalty-free for personal/commercial projects including games; NOT allowed: redistributing raw character/animation files, reselling, using for ML training. Requires Adobe login; FBX.",
+        "commercial_ok": true,
+        "flag": "grey area: baking angles into our shipped TS is derived data, not raw files, but stay conservative; prefer CC0/CMU",
+        "fit": "large fighting set (punches, kicks, hit reactions, getups)"
+      },
+      {
+        "name": "Bandai Namco Research Motiondataset 1 and 2",
+        "url": "https://github.com/BandaiNamcoResearchInc/Bandai-Namco-Research-Motiondataset",
+        "license": "CC BY-NC-ND 4.0",
+        "commercial_ok": false,
+        "flag": "NON-COMMERCIAL and NO-DERIVATIVES: do not convert or ship. Fine only for private study.",
+        "fit": "includes fighting content, BVH"
+      }
+    ],
+    "animation_sources": [
+      { "id": "S1", "title": "Mariel Cartwright, 'Fluid and Powerful Animation within Frame Restrictions' (Skullgirls), GDC 2014 Animation Bootcamp", "url": "https://gdcvault.com/play/1020575/Animation-Bootcamp-Fluid-and-Powerful", "summary_url": "https://80.lv/articles/tips-on-making-fluid-and-powerful-animations" },
+      { "id": "S2", "title": "The 12 principles of animation in video games (Game Developer)", "url": "https://gamedeveloper.com/production/the-12-principles-of-animation-in-video-games" },
+      { "id": "S3", "title": "critpoints: Hitstop/Hitfreeze/Hitlag/Hitpause", "url": "https://critpoints.net/2017/05/17/hitstophitfreezehitlaghitpausehitshit/" },
+      { "id": "S4", "title": "SmashWiki: Hitlag (formulas, caps, vibration)", "url": "https://www.ssbwiki.com/Hitlag" },
+      { "id": "S5", "title": "Thomas and Johnston, The Illusion of Life (1981), the 12 principles (via S2)", "url": "https://gamedeveloper.com/production/the-12-principles-of-animation-in-video-games" },
+      { "id": "S6", "title": "Sakurai Famitsu column vol. 490 on hitstop (Source Gaming translation)", "url": "https://sourcegaming.info/2015/11/11/thoughts-on-hitstop-sakurais-famitsu-column-vol-490-1/" },
+      { "id": "S7", "title": "Squirrel Eiserloh, 'Math for Game Programmers: Juicing Your Cameras With Math', GDC 2016 (trauma shake); Bevy implementation", "url": "https://www.gamedeveloper.com/programming/video-sprucing-up-cameras-with-math", "impl_url": "https://bevy.org/examples/camera/2d-screen-shake/" },
+      { "id": "S8", "title": "Smear frame (Wikipedia); Overwatch smear frames (Kotaku); Lendenfeld thesis on smears", "url": "https://en.wikipedia.org/wiki/Smear_frame", "extra": ["https://kotaku.com/this-is-not-an-overwatch-glitch-1777612546", "https://theses.fh-hagenberg.at/index.php/system/files/pdf/Lendenfeld18.pdf"] },
+      { "id": "S9", "title": "David Rosen, 'An Indie Approach to Procedural Animation', GDC 2014", "url": "https://gamedeveloper.com/design/video-an-indie-approach-to-procedural-animation" },
+      { "id": "S10", "title": "Jan Willem Nijman (Vlambeer), 'The Art of Screenshake' (summary)", "url": "https://infovore.org/?p=5275" },
+      { "id": "S11", "title": "Ragdoll physics / Jakobsen Verlet in Hitman (Wikipedia)", "url": "https://en.wikipedia.org/wiki/Ragdoll_physics" },
+      { "id": "S12", "title": "Simulate tearable cloth and ragdolls with simple Verlet integration (Tuts+)", "url": "https://code.tutsplus.com/simulate-tearable-cloth-and-ragdolls-with-simple-verlet-integration--gamedev-519t" },
+      { "id": "S13", "title": "Easing functions cheat sheet (Penner easings with cubic-bezier values)", "url": "https://easings.net" },
+      { "id": "S14", "title": "Frame data example: SF4 Ryu standing HK = 9 startup / 4 active / 20 recovery at 60 fps", "url": "https://www.millenium.org/guide/370075.html" }
+    ],
+    "bvh_to_2d": {
+      "summary": "Offline script (e.g. scripts/bvh-to-keys.ts), outputs TS key constants; ship no raw mocap files.",
+      "steps": [
+        "Parse HIERARCHY (joint OFFSETs, CHANNELS with per-joint rotation order such as 'Zrotation Xrotation Yrotation') and MOTION (Frames, Frame Time; CMU is 120 fps, resample to 60 by taking every 2nd frame or interpolating).",
+        "3D forward kinematics per frame: local R = product of axis rotations in the listed channel order (degrees to radians); global_j = global_parent * Translate(offset_j) * R_j; root also applies its Xposition/Yposition/Zposition channels. Collect world joint positions.",
+        "Pick the side-view plane: up = world Y (BVH convention). Facing per clip: fwd = normalize(cross(up, rightHip - leftHip)) averaged over the clip (or flip sign so the strike moves +fwd). Project: x2 = dot(p - hips, fwd), y2 = -dot(p - hips, up) (canvas y-down).",
+        "Map joints: hip = Hips; shoulder = midpoint of L/R shoulder (or Spine top/Neck); head = Head (end site); F limbs = lead side (the hand/foot with the larger mean x2 over the active frames, i.e. the striking or nearer-to-opponent side), B = the other.",
+        "Angles: for limb bones emit abs(atan2(child.y - parent.y, child.x - parent.x)), which already matches poses.ts (0 forward, -PI/2 up). torso = atan2(shoulder - hip) emitted as rel(angle + PI/2). head = rel((shoulder->head angle) - (torso angle)) relative to its rest.",
+        "Foreshortening guard: if a bone's projected length < 30% of its 3D length, its 2D angle is unstable; hold the previous frame's angle or blend toward it by (1 - ratio/0.3).",
+        "Unwrap each angle curve (add +-2PI so consecutive frames differ by < PI) before reduction.",
+        "Key reduction: Ramer-Douglas-Peucker on all bone curves jointly (tolerance ~0.05 rad) or keep extremes (velocity zero crossings) plus contact frame; fit each segment's ease by least error against the easing set above.",
+        "Retime: map the clip's contact frame to MOVES[name].from, its end of follow-through to .to + 2 and the return to stance to .dur, i.e. emit at = [anchor, offset] keys so the sim stays authoritative.",
+        "Mirroring is free: the renderer already flips by facing. Validate by rendering the keys next to the projected mocap skeleton."
+      ]
+    }
+  }
+}

@@ -1,0 +1,489 @@
+{
+  "meta": {
+    "file": "docs/research/v2/bosses.json",
+    "purpose": "10 dungeon bosses for /play/dungeon (plan Phase D). Source data for src/game/dungeon.ts BOSSES[10]. Every title, epithet and line here is original. The 'archetype' lines describe a fighting-game role in plain words and name no existing character.",
+    "date": "2026-10-24",
+    "engine_refs": {
+      "stats": "src/lib/stats.ts: atk=STR, def=DUR, spd=SPD, agi=AGI, iq=IQ; 40..cap each; HP 200 for everyone",
+      "classes": ["Sword", "Mace", "Tank", "Attacker", "Fighter"],
+      "styles": ["Boxing", "Taekwondo", "Muay Thai", "Karate", "Street", "Systema"],
+      "elements": ["NONE", "FIRE", "ELECTRIC", "FROST", "POISON", "BLEED", "GRAVITY"],
+      "existing_special_kinds": ["bolt", "arrow", "orb", "slash", "charge", "uppercut", "beam", "spiral", "wave", "teleport", "barrage", "meteor"],
+      "new_special_kinds": ["shatter", "counter", "dash_slash", "pull", "remote_detonation"],
+      "cpu_knobs": "src/game/cpu.ts LEVELS: react (ticks of delay before it sees your action), block (chance to guard a noticed attack), aggro (chance to press in range), dodge (projectile dodge factor), think (ticks between decisions, plus up to the same again at random). NEW knob 'special': chance to fire a full meter when in range (today this reuses aggro).",
+      "budget_rule": "budget(f) = 350 + 15*(f-1); cap = 100 for floors 1-5, 115 for floors 6-10; floor 40 per stat",
+      "tick": "60 ticks = 1 s"
+    }
+  },
+
+  "difficulty_curve": {
+    "target_clear_rate_mid_skill": { "1": 0.85, "2": 0.78, "3": 0.70, "4": 0.62, "5": 0.54, "6": 0.46, "7": 0.38, "8": 0.30, "9": 0.22, "10": 0.15 },
+    "clear_rate_definition": "Chance a mid-skill player wins the best-of-3 match on the first attempt. scripts/dungeon.ts estimates it with a 'mid-skill' proxy: the player slot driven by cpu.ts 'normal' with the player's average kit (all-70 Fighter/Boxing, all 5 classes rotated), 400 matches per floor, fixed seeds.",
+    "levers_in_order_of_use": [
+      "1. Stat budget: +15 per floor (about +4.3% total stats per floor). Smooth, invisible, easy to tune. The cap rise to 115 on floor 6 lets the boss's signature stat exceed any player stat, which is the clearest 'this is a boss' signal.",
+      "2. AI knobs: base curve below, plus a per-boss personality offset of at most +-0.15 on block/aggro so each boss feels different at the same strength.",
+      "3. Passive: one learnable rule per boss. It changes HOW you must fight, not only how hard. Passives grow from one-condition rules (floors 1-3) to two-condition rules (floors 7-9) to a two-phase exam (floor 10).",
+      "4. Tuning order in scripts/dungeon.ts: keep the passive fixed, bisect the stat budget offset first, then the react knob, until the measured clear rate is within +-5% of target."
+    ],
+    "base_knob_curve": {
+      "formula": "knob(f) = lerp(normal, beyond_hard, (f-1)/9) with normal = {react 14, block 0.42, aggro 0.6, dodge 0.5, think 8, special 0.6} and beyond_hard = {react 4, block 0.8, aggro 0.9, dodge 0.9, think 3, special 0.95}",
+      "floor_1_exception": "Floor 1 sits slightly BELOW normal (react 15, block 0.38). A brand-new boss passive plus 'normal' knobs measured from the CPU mode would land under the 85% target; the first floor must be a confidence win."
+    },
+    "rationale": [
+      "Flow channel: challenge should rise with the player's skill so play stays between boredom and anxiety. A steady ~7-8 point drop in clear rate per floor keeps every floor winnable for someone who learned the last one (Csikszentmihalyi via Schell; Game Developer 'Understanding the flow channel').",
+      "Sawtooth, not a ramp: each reward is a power spike that makes the NEXT floor feel easier (it is chosen to counter the next boss, the classic weapon-chain ladder). Difficulty climbs, the player's kit climbs, and the felt difficulty saw-tooths even though the measured curve is monotonic.",
+      "Boss as exam: a boss tests a skill the game already taught. So each floor 'teaches' one mechanic and later floors combine earlier ones; floor 10 is the final exam and asks for all of them. No floor demands a skill nothing earlier introduced.",
+      "Telegraphing is what makes hard fair: every passive has a visual tell (glow, crack, mark, stance) that is always the same, starts at least 18 ticks before it matters, and never relies on a subtle pose change alone. Late floors shorten tells (45 -> 18 ticks) instead of removing them.",
+      "Phase change: a phase-2 swap at a health threshold gives a mid-fight milestone, forces adaptation and is marked by a freeze, a banner and a reset of positions and hazards. The triggering hit's overkill is clamped so a big combo cannot skip phase 2.",
+      "No cheating AI: the CPU still only drives the same Input a human sends and still reacts with a delay. Bosses get stronger via stats, decisions and passives, never by reading the player's input on the same tick or by turning invincible without a tell. Players widely resent input-reading arcade bosses."
+    ]
+  },
+
+  "bosses": [
+    {
+      "floor": 1,
+      "title": "Smudge",
+      "epithet": "the Margin Runner",
+      "archetype": "a very fast assassin who wins with speed and dodges, not power",
+      "class": "Fighter",
+      "style": "Systema",
+      "item": "nothing",
+      "element": "BLEED",
+      "special": "teleport",
+      "tint": "#6b6b73",
+      "budget": 350,
+      "cap": 100,
+      "stats": { "atk": 62, "def": 48, "spd": 96, "agi": 92, "iq": 52 },
+      "cpu": { "react": 15, "block": 0.38, "aggro": 0.55, "dodge": 0.4, "think": 9, "special": 0.5 },
+      "passive": {
+        "name": "Afterimage",
+        "rule": "Once every 360 ticks, the first unblocked hit that would land while Smudge is walking (f.moving) misses: no damage, no hit-stun. Smudge slides 60 px away from the attacker and leaves a grey smear.",
+        "hook": "applyHit (before damage)",
+        "implementation": "pv = { cd: 0 }. onTick: pv.cd = max(0, pv.cd - 1). onBeforeHit(vic = boss): if (pv.cd === 0 && vic.moving && !blocked) { vic.x = clampToArena(vic.x + dir * 60); pv.cd = 360; emit {type:'passive', name:'afterimage', x, y}; return 'negate'; }",
+        "telegraph": "While the afterimage is ready (pv.cd === 0) a faint grey copy trails 1 frame behind Smudge's body. When it is spent, the trail disappears until it recharges."
+      },
+      "ai_personality": "Circles in and out at max walk speed. Walks forward, pokes once with a palm, then backs off. Rarely blocks. Fires its teleport special whenever the meter is full and the player is within 400 px. Telegraph: before the teleport it stops walking for 10 ticks (the normal super-freeze follows).",
+      "counterplay": "Do not swing at Smudge while it is walking with the grey trail on. Wait for it to attack and punish the recovery (it is standing still then, so no afterimage). After the teleport, turn and block: it always reappears behind you.",
+      "teaches": "Whiff punishing and patience: hit an opponent in its recovery, not while it is moving.",
+      "reward": {
+        "type": "element_variant",
+        "name": "Smudge Step",
+        "kind": "teleport",
+        "element": "BLEED",
+        "description": "Vanish, reappear behind them, and leave a paper cut that bleeds while they walk.",
+        "helps_against_next": "Floor 2's brawler walks you down all fight; bleed punishes exactly that."
+      },
+      "intro_taunt": "Blink and you miss me. Do not blink and you still miss me."
+    },
+    {
+      "floor": 2,
+      "title": "Cinder Knuckle",
+      "epithet": "the Scorched Doodle",
+      "archetype": "a hot-headed brawler with burning fists who rushes you down",
+      "class": "Fighter",
+      "style": "Street",
+      "item": "nothing",
+      "element": "FIRE",
+      "special": "shatter",
+      "tint": "#e5482d",
+      "budget": 365,
+      "cap": 100,
+      "stats": { "atk": 98, "def": 78, "spd": 72, "agi": 60, "iq": 57 },
+      "cpu": { "react": 13, "block": 0.44, "aggro": 0.68, "dodge": 0.45, "think": 8, "special": 0.6 },
+      "passive": {
+        "name": "Heat Stacks",
+        "rule": "Each unblocked normal hit Cinder lands adds 1 heat (max 3). Heat fades after 90 ticks without a landed hit. Any blocked Cinder hit resets heat to 0. A normal hit landed at 3 heat applies FIRE (burn, as an element special would) and resets heat to 0.",
+        "hook": "applyHit (after damage) + updateFighter (decay)",
+        "implementation": "pv = { stacks: 0, t: 0 }. onAfterHit(att = boss): if (blocked) pv.stacks = 0; else if (!special) { if (pv.stacks >= 3) { infect(att, vic, 'FIRE', dir); pv.stacks = 0; } else pv.stacks++; pv.t = 90; } onTick: if (pv.t > 0 && --pv.t === 0) pv.stacks = 0.",
+        "telegraph": "The fists glow brighter per stack: 0 plain ink, 1 orange rim, 2 orange fill, 3 flames plus a flicker. The 3-stack hit is always the next punch, so flames mean 'block now'."
+      },
+      "ai_personality": "Pure rushdown. Walks forward almost constantly, chains its hook-hook-headbutt string, and jumps in about twice as often as the base CPU. When the player blocks two strings in a row it fires shatter (a grab that beats block) if the meter is full. Telegraph: shatter always starts from a 16-tick super-freeze with an open-hand pose, never from a walk.",
+      "counterplay": "Block the strings to keep heat at 0. When the fists show flames, block for sure. When the open-hand super-flash appears, jump or walk back: shatter cannot be blocked but misses airborne targets and has 30 ticks of recovery to punish.",
+      "teaches": "Blocking, and the one exception to it: grabs beat block, so jump the grab.",
+      "reward": {
+        "type": "new_special_kind",
+        "kind": "shatter",
+        "name": "Knuckle Crumple",
+        "description": "A short-range grab (reach 60 px, startup 12, active 4, recovery 30). Cannot be blocked. Misses airborne targets. Damage multiplier is set in the SPECIAL_TUNE pass.",
+        "helps_against_next": "Floor 3's swordsman stands still in a sheath stance before his dash; grab him out of it."
+      },
+      "intro_taunt": "I only have two settings: on fire and about to set you on fire."
+    },
+    {
+      "floor": 3,
+      "title": "Volt Nib",
+      "epithet": "Swordsman of the Charged Line",
+      "archetype": "a lightning swordsman whose single dashing draw-cut is his whole game",
+      "class": "Sword",
+      "style": "Karate",
+      "item": "sword",
+      "element": "ELECTRIC",
+      "special": "slash",
+      "tint": "#2f5be0",
+      "budget": 380,
+      "cap": 100,
+      "stats": { "atk": 92, "def": 62, "spd": 94, "agi": 72, "iq": 60 },
+      "cpu": { "react": 12, "block": 0.5, "aggro": 0.62, "dodge": 0.52, "think": 7, "special": 0.65 },
+      "passive": {
+        "name": "Sheathed Draw",
+        "rule": "If Volt Nib has stood still (no walking, no attack) for 20 ticks or more, his next punch-chain opener is a draw-cut: lunge x3, damage x1.5, then +12 recovery ticks. The charge is spent on hit, block or whiff.",
+        "hook": "updateFighter (stillness counter) + startMove + applyHit (damage multiplier)",
+        "implementation": "pv = { still: 0, armed: false }. onTick: pv.still = (f.action === 'idle' && !f.moving) ? pv.still + 1 : 0; if (pv.still >= 20) pv.armed = true. onMoveStart(f, type = 'attack', comboStep 0): if (pv.armed) { f.drawCut = true; pv.armed = false; lunge x3 for this move; f.cooldown += 12 at move end; } onBeforeHit(att = boss): if (att.drawCut) dmg *= 1.5; clear drawCut when the move ends.",
+        "telegraph": "Blue sparks crawl along the blade from tick 1 of stillness; at tick 20 the blade flashes white and stays lit. A lit blade means the next swing dashes."
+      },
+      "ai_personality": "Spacer. Holds 180-240 px away, stops to arm the draw-cut, then dashes when the player walks into range or presses a button. Its specials are electric crescent slashes that stun. It almost never chains past the first hit after a draw-cut.",
+      "counterplay": "When the blade is lit, do not walk in and do not throw a button at range. Block the dash (or jump it), then punish the 12 extra recovery ticks. Or grab him with Knuckle Crumple while he is standing still arming it.",
+      "teaches": "Reacting to a telegraph: block on a visual cue, then punish a long recovery.",
+      "reward": {
+        "type": "element_variant",
+        "name": "Static Crescent",
+        "kind": "slash",
+        "element": "ELECTRIC",
+        "description": "A dashing crescent that adds the electric stun on hit.",
+        "helps_against_next": "Floor 4 punishes long block strings; a special that dashes through the guard and stuns ends the fight on your terms."
+      },
+      "intro_taunt": "I draw once. The page does the rest."
+    },
+    {
+      "floor": 4,
+      "title": "Whiteout",
+      "epithet": "the Correction-Fluid Ghost",
+      "archetype": "a pale, calm tank-fighter who turtles behind a guard and counters",
+      "class": "Tank",
+      "style": "Muay Thai",
+      "item": "shield",
+      "element": "FROST",
+      "special": "counter",
+      "tint": "#dfe6ee",
+      "budget": 395,
+      "cap": 100,
+      "stats": { "atk": 76, "def": 100, "spd": 62, "agi": 67, "iq": 90 },
+      "cpu": { "react": 11, "block": 0.62, "aggro": 0.45, "dodge": 0.5, "think": 7, "special": 0.6 },
+      "passive": {
+        "name": "Whiteout Guard",
+        "rule": "Each hit Whiteout blocks adds a crack. At 3 cracks within 120 ticks, the guard bursts: the attacker is shoved back 14 px/tick and gets FROST for 60 ticks (half the normal frost time). Cracks reset after the burst or after 120 ticks with no blocked hit.",
+        "hook": "applyHit (after damage, blocked branch) + updateFighter (crack decay)",
+        "implementation": "pv = { cracks: 0, t: 0 }. onAfterHit(vic = boss, blocked): pv.cracks++; pv.t = 120; if (pv.cracks >= 3) { att.vx = -dir * 14; infect(vic, att, 'FROST', -dir); att.status.t = 60; pv.cracks = 0; emit {type:'passive', name:'whiteout'}; } onTick: if (pv.t > 0 && --pv.t === 0) pv.cracks = 0.",
+        "telegraph": "Hairline cracks appear on the shield, one per blocked hit. At 2 cracks the shield frosts over and gives off a white mist."
+      },
+      "ai_personality": "Turtle. Walks forward slowly behind its guard, blocks a lot, and only attacks right after a burst or after the player whiffs. With a full meter it waits in counter stance when the player is in melee range. Telegraph: the counter stance is a raised-shield pose with a white outline, held 24 ticks.",
+      "counterplay": "Hit the guard at most twice, then stop, wait, or jump over. Use specials (they push 40% through a block) and low sweeps. When the white counter outline is up, do not attack: walk back and punish its 30-tick whiff recovery.",
+      "teaches": "Not mashing into a guard: pace your pressure and bait the counter.",
+      "reward": {
+        "type": "new_special_kind",
+        "kind": "counter",
+        "name": "Whiteout Parry",
+        "description": "A 24-tick stance. If a melee hit lands on you in that window, it deals no damage and you strike back for 1.5x your punch damage. Projectiles go through. A whiffed stance leaves 30 ticks of recovery.",
+        "helps_against_next": "Floor 6's endless combo starts with a predictable first hit; parry it. Against floor 5's projectiles it does nothing, so it is a choice, not a free win."
+      },
+      "intro_taunt": "Write whatever you like. I am the part that goes over it."
+    },
+    {
+      "floor": 5,
+      "title": "Prince Vellum",
+      "epithet": "Heir to the Hardcover",
+      "archetype": "a proud royal zoner who fires energy blasts and a huge beam",
+      "class": "Attacker",
+      "style": "Boxing",
+      "item": "nothing",
+      "element": "GRAVITY",
+      "special": "beam",
+      "tint": "#7b4fd6",
+      "budget": 410,
+      "cap": 100,
+      "stats": { "atk": 70, "def": 66, "spd": 82, "agi": 92, "iq": 100 },
+      "cpu": { "react": 10, "block": 0.55, "aggro": 0.66, "dodge": 0.7, "think": 6, "special": 0.8 },
+      "passive": {
+        "name": "Royal Pride",
+        "rule": "Below 40% HP, the Prince's energy gain doubles and each Attacker punch blast fires a second blast 8 ticks after the first (same damage, same height).",
+        "hook": "updateFighter (def mutation on threshold) + projectile spawn",
+        "implementation": "pv = { proud: false, echo: [] }. onTick: if (!pv.proud && f.hp <= 0.4 * def.maxHp) { pv.proud = true; m.defs[slot].energyMul *= 2; emit {type:'passive', name:'pride'}; } onProjectile(p.kind === 'blast', owner = boss): if (pv.proud) pv.echo.push({ at: m.phaseT + 8, y: p.y }); onTick: spawn each due echo blast from the Prince's current hand. Restore energyMul in resetRound.",
+        "telegraph": "At the threshold, a 'banner' crown of ink appears above the head and the body outline thickens. Doubled blasts have a faint second ring."
+      },
+      "ai_personality": "Zoner: holds 140-260 px out, fires blasts, hops back when the player closes in, and fires the beam whenever the player is in a straight line within 650 px. Once proud, it stops backing off and spams blasts. Telegraph: the beam always charges for 30 ticks with cupped hands before it fires.",
+      "counterplay": "Approach in hops: jump over a blast, walk while it recovers, block the beam (chip only). Once you are close he is the weakest boss in melee. Finish him fast once the crown appears; do not trade blasts at range.",
+      "teaches": "Approaching a zoner: jump projectiles, close distance, and push the advantage at low HP.",
+      "reward": {
+        "type": "element_variant",
+        "name": "Crown Pressure Beam",
+        "kind": "beam",
+        "element": "GRAVITY",
+        "description": "A charged beam whose hits slam the target to the floor with gravity.",
+        "helps_against_next": "Floor 6's dancer has to come to you; a beam out-ranges every dash."
+      },
+      "intro_taunt": "Kneel. It saves you the trouble of being knocked down."
+    },
+    {
+      "floor": 6,
+      "title": "Dawnstroke",
+      "epithet": "the Sunline Dancer",
+      "archetype": "a graceful sun-themed swordsman whose combos flow without pause",
+      "class": "Sword",
+      "style": "Taekwondo",
+      "item": "sword",
+      "element": "FIRE",
+      "special": "dash_slash",
+      "tint": "#f2b705",
+      "budget": 425,
+      "cap": 115,
+      "stats": { "atk": 98, "def": 66, "spd": 112, "agi": 89, "iq": 60 },
+      "cpu": { "react": 8, "block": 0.62, "aggro": 0.8, "dodge": 0.68, "think": 5, "special": 0.8 },
+      "passive": {
+        "name": "Endless Dance",
+        "rule": "When Dawnstroke's combo chain ends and its last move hit (not blocked), the chain restarts at step 0 with no cooldown. At most 2 restarts per chain. If any hit of the dance is blocked, the dance stops and Dawnstroke takes +12 cooldown ticks.",
+        "hook": "updateFighter (chain end / cooldown) + applyHit (after damage)",
+        "implementation": "pv = { loops: 0, lastLanded: false }. onAfterHit(att = boss): pv.lastLanded = !blocked; if (blocked) { pv.loops = 0; att.cooldown += 12; att.comboT = 0; }. onChainEnd(f): if (pv.lastLanded && pv.loops < 2) { pv.loops++; f.cooldown = 0; f.comboStep = 0; f.comboT = COMBO_WINDOW; return 'restart'; } pv.loops = 0.",
+        "telegraph": "Gold footwork trails on the floor, brighter with each loop. The loop restart always begins with the same roundhouse, so the first kick of each loop is the cue."
+      },
+      "ai_personality": "Rushdown with footwork. Dashes in, kick-chains, and loops on hit. Uses dash_slash to pass through the player when they turtle. Telegraph: dash_slash is preceded by a 14-tick crouch with the blade drawn back low.",
+      "counterplay": "Block the first kick of any string: a blocked hit ends the dance and opens a 12-tick punish window. Parry the predictable restart roundhouse with Whiteout Parry. After dash_slash it ends behind you; turn and block.",
+      "teaches": "Block-then-punish: finding the gap in a long combo instead of trading into it.",
+      "reward": {
+        "type": "new_special_kind",
+        "kind": "dash_slash",
+        "name": "Sunline Pass",
+        "description": "Dash 220 px straight through the opponent (startup 10, active 8, recovery 22) and hit once as you pass. You end up behind them.",
+        "helps_against_next": "Floor 7 is vulnerable while swapping weapons; a dash that covers the arena reaches that window from anywhere."
+      },
+      "intro_taunt": "The sun never stops between steps. Neither will I."
+    },
+    {
+      "floor": 7,
+      "title": "Ferrule",
+      "epithet": "the Pencil-Case Armory",
+      "archetype": "a weapon genius who switches weapons mid-fight and masters each one",
+      "class": "Mace",
+      "style": "Karate",
+      "item": "mace",
+      "element": "POISON",
+      "special": "arrow",
+      "tint": "#3f8f5a",
+      "budget": 440,
+      "cap": 115,
+      "stats": { "atk": 104, "def": 92, "spd": 78, "agi": 70, "iq": 96 },
+      "cpu": { "react": 7, "block": 0.65, "aggro": 0.72, "dodge": 0.72, "think": 5, "special": 0.82 },
+      "passive": {
+        "name": "Pencil Case",
+        "rule": "Every 480 ticks Ferrule swaps weapon in the cycle mace -> sword -> shield -> mace. The swap takes 50 ticks: it cannot attack or block and takes x1.25 damage. After the swap its class trait matches the weapon (Mace: +6 hit-stun and armor break; Sword: +32 reach; Shield/Tank: 0.7 block). Stats, style and the CLASS_TUNE damage factor stay fixed at Mace's.",
+        "hook": "updateFighter (timer, def swap) + applyHit (damage multiplier during swap)",
+        "implementation": "pv = { next: m.phaseT + 480, swapT: 0, i: 0 }. onTick: if (f.action === 'idle' && m.phaseT >= pv.next) { pv.swapT = 50; } if (pv.swapT > 0 && --pv.swapT === 0) { pv.i = (pv.i + 1) % 3; m.defs[slot] = deriveBossDef({ ...base, class: ['Mace','Sword','Tank'][pv.i], item: ['mace','sword','shield'][pv.i] }, { tuneClass: 'Mace' }); pv.next = m.phaseT + 480; } While swapT > 0: block input ignored, attacks ignored. onBeforeHit(vic = boss): if (pv.swapT > 0) dmg *= 1.25. Reset to mace in resetRound.",
+        "telegraph": "A pencil case pops open above Ferrule 60 ticks before the swap, and the next weapon's icon spins in it. During the 50-tick swap Ferrule rummages with both hands, which is clearly not a fighting pose."
+      },
+      "ai_personality": "Adapts its spacing to the weapon: with the sword it keeps 120 px and pokes; with the mace it walks in for stunning hits; with the shield it turtles and pushes. It throws poison compass needles (arrow special) from range. Telegraph: the needle throw always starts with a 12-tick wind-up arm pull.",
+      "counterplay": "Watch the pencil case: dash in during the swap with Sunline Pass or any combo for x1.25 damage. Respect the sword's reach, block the mace (it stuns longer on hit), and do not hit the shield phase more than twice in a row.",
+      "teaches": "Reading a changing opponent and punishing a scheduled weakness window.",
+      "reward": {
+        "type": "element_variant",
+        "name": "Compass Needle Volley",
+        "kind": "arrow",
+        "element": "POISON",
+        "description": "A fast needle that poisons: the target deals 15% less while poisoned.",
+        "helps_against_next": "Floor 8's armor ignores normal hits but not specials, and poison cuts his huge damage."
+      },
+      "intro_taunt": "Pick your favourite weapon. I own that one too."
+    },
+    {
+      "floor": 8,
+      "title": "Hardcover Atlas",
+      "epithet": "the Strongest Page in the Book",
+      "archetype": "the mightiest pure fighter: no tricks, overwhelming strength and toughness",
+      "class": "Fighter",
+      "style": "Boxing",
+      "item": "nothing",
+      "element": "NONE",
+      "special": "pull",
+      "tint": "#17171a",
+      "budget": 455,
+      "cap": 115,
+      "stats": { "atk": 115, "def": 112, "spd": 88, "agi": 76, "iq": 64 },
+      "cpu": { "react": 6, "block": 0.7, "aggro": 0.86, "dodge": 0.7, "think": 4, "special": 0.85 },
+      "passive": {
+        "name": "Unbending Spine",
+        "rule": "While Atlas is in the startup of a punch or kick (action attack/kick and t < move.from), normal hits do not interrupt him: he takes x0.8 damage and keeps attacking. Specials, projectile specials and any hit with launch interrupt him normally.",
+        "hook": "applyHit (before and after damage: damage scale and hit-stun skip)",
+        "implementation": "onBeforeHit(vic = boss): const armored = (vic.action === 'attack' || vic.action === 'kick') && vic.move && vic.t < vic.move.from && !opts.special && !opts.launch; if (armored) { dmg *= 0.8; ctx.noStun = true; emit {type:'passive', name:'armor'}; } applyHit then skips the 'hit' state, knockback and element infection when ctx.noStun.",
+        "telegraph": "Every armored startup flashes a thick dark outline on the body (the same outline every time). A hit absorbed by armor sparks grey instead of red."
+      },
+      "ai_personality": "Walks straight at you and throws heavy single punches into your attacks on purpose, trading thanks to armor. Uses pull (reel) when the player keeps distance, then follows with a hook chain. Rarely jumps. Telegraph: the reel throw is a 14-tick arm wind-up with an ink chain drawn in the hand.",
+      "counterplay": "Do not trade jabs with him. Block his heavy punch, then punish in his recovery (no armor there). Use specials or launchers (sweep, knee, uppercut) to break armor, and poison him to cut his damage. Jump the reel.",
+      "teaches": "Not trading: block, then punish recovery; know which of your moves beat armor.",
+      "reward": {
+        "type": "new_special_kind",
+        "kind": "pull",
+        "name": "Iron Reel",
+        "description": "A slow, short projectile (range 300 px). On hit it does light damage, pulls the target to 80 px in front of you and steals 25 energy. Blockable.",
+        "helps_against_next": "Floor 9 keeps away and teleports off; reel him back into melee."
+      },
+      "intro_taunt": "I was not drawn. I was carved into the cover."
+    },
+    {
+      "floor": 9,
+      "title": "Asymptote",
+      "epithet": "the Page That Never Ends",
+      "archetype": "a near-untouchable mage whose barrier stops attacks before they reach him",
+      "class": "Attacker",
+      "style": "Systema",
+      "item": "book",
+      "element": "FROST",
+      "special": "orb",
+      "tint": "#8fd3e8",
+      "budget": 470,
+      "cap": 115,
+      "stats": { "atk": 64, "def": 86, "spd": 100, "agi": 105, "iq": 115 },
+      "cpu": { "react": 5, "block": 0.74, "aggro": 0.7, "dodge": 0.88, "think": 4, "special": 0.9 },
+      "passive": {
+        "name": "Infinite Margin",
+        "rule": "Part 1: projectile hits on Asymptote deal x0.4 (blasts) or x0.6 (projectile specials), unless he is in hit-stun or doing a special. Part 2 (Blink): if the player stays within 110 px of him for 90 ticks in total, he blinks to 600 px away (clamped inside the arena) after an 18-tick shimmer. Cooldown 300 ticks. Hitting him during the shimmer cancels the blink and resets the 90-tick count.",
+        "hook": "applyHit (before damage) + updateFighter (proximity timer, blink)",
+        "implementation": "pv = { near: 0, shimmer: 0, cd: 0 }. onBeforeHit(vic = boss): if (opts.proj && vic.action !== 'hit' && vic.action !== 'special') dmg *= (projKind === 'blast' ? 0.4 : 0.6); if (pv.shimmer > 0) { pv.shimmer = 0; pv.near = 0; }. onTick: pv.cd = max(0, pv.cd - 1); if (dist(f, opp) < 110) pv.near++; if (pv.near >= 90 && pv.cd === 0 && pv.shimmer === 0) pv.shimmer = 18; if (pv.shimmer > 0 && --pv.shimmer === 0) { f.x = farSide(opp.x, 600); pv.near = 0; pv.cd = 300; emit {type:'passive', name:'blink'}; }",
+        "telegraph": "A ruled-line grid shimmers around him while projectiles slow near his body (render-only effect). The blink shimmer is an 18-tick ink-blot ripple centred on him: the only tell, short on purpose for floor 9, but always the same."
+      },
+      "ai_personality": "Kiting zoner. Holds 260-400 px out, throws slow frost orbs that launch, and only melees when cornered. Dodges projectiles very well. Telegraph: orbs always come from a two-handed 20-tick charge, and the shimmer before each blink.",
+      "counterplay": "Zoning loses here, so walk him into a corner instead. Use Iron Reel to drag him in. Keep up close pressure, but hit him as soon as the ripple appears to cancel the blink. Frost slows your walk, so block the orb rather than eat it.",
+      "teaches": "Committed rushdown and cornering: keep the pressure on an opponent who wants to escape.",
+      "reward": {
+        "type": "element_variant",
+        "name": "Stillwater Orb",
+        "kind": "orb",
+        "element": "FROST",
+        "description": "A heavy orb that launches and slows the target's walk.",
+        "helps_against_next": "Floor 10 phase 2 draws cut lines you must walk off; slowing his approach buys you that space."
+      },
+      "intro_taunt": "You can get closer. You just cannot arrive."
+    },
+    {
+      "floor": 10,
+      "title": "The Redline Regent",
+      "epithet": "King of the Red Margin",
+      "archetype": "a cursed king who marks his victims and, at half health, unseals a second, deadlier form",
+      "class": "Fighter",
+      "style": "Street",
+      "item": "nothing",
+      "element": "POISON",
+      "special": "spiral",
+      "tint": "#9e1b1b",
+      "budget": 485,
+      "cap": 115,
+      "stats": { "atk": 110, "def": 96, "spd": 98, "agi": 86, "iq": 95 },
+      "cpu": { "react": 5, "block": 0.76, "aggro": 0.82, "dodge": 0.82, "think": 4, "special": 0.9 },
+      "passive": {
+        "name": "Curse Marks",
+        "rule": "Each unblocked Regent hit adds a red mark on the player (max 5). One mark fades every 120 ticks without a new mark. At 5 marks they detonate: 16 flat damage (after armor, ignores block), POISON for 180 ticks, and the marks reset to 0.",
+        "hook": "applyHit (after damage) + updateFighter (mark decay on the victim)",
+        "implementation": "pv lives on the boss but tracks the victim: pv = { marks: 0, fade: 0 }. onAfterHit(att = boss, !blocked): pv.marks++; pv.fade = 120; if (pv.marks >= 5) { vic.hp = max(0, vic.hp - 16); infect(att, vic, 'POISON', dir); pv.marks = 0; emit {type:'passive', name:'curse'}; KO check as in applyHit }. onTick: if (pv.marks > 0 && --pv.fade <= 0) { pv.marks--; pv.fade = 120; }",
+        "telegraph": "Red tally strokes are drawn on the player's body, one per mark, like a counted score. At 4 marks the strokes pulse."
+      },
+      "ai_personality": "Phase 1: a rushdown brawler. Pressure strings, frequent spiral specials up close, and it backs off when the player has 4 marks so they get nervous. Telegraph: spiral charges for 16 ticks with a red sphere in the palm.",
+      "counterplay": "Phase 1: block well, the marks only grow on unblocked hits. When you have 4 marks, play pure defense until one fades (120 ticks). Bait the spiral and punish its recovery.",
+      "teaches": "The final exam: block discipline (floors 2, 4), punishing recovery (1, 3, 6, 8), approaching and cornering (5, 9) and adapting to a form change (7).",
+      "phase2": {
+        "trigger": "The first time in each round that the Regent's HP falls to 100 (50%) or below. The triggering hit's damage is clamped so HP becomes exactly 100: a big combo cannot skip phase 2. Each round is a full two-phase fight.",
+        "transition": {
+          "freeze": 40,
+          "event": "{ type: 'phase', slot, n: 2 }",
+          "banner": "THE MARGIN TEARS",
+          "effects": [
+            "m.defs[boss] = deriveBossDef(phase2 stats/kit) with the same budget/cap",
+            "boss statuses cleared, boss energy set to 50",
+            "Curse Marks on the player cleared",
+            "both fighters pushed apart to 300 px and all projectiles and hazards removed",
+            "the page background tints red (render only)"
+          ]
+        },
+        "title": "The Redline Regent, Unbound",
+        "class": "Sword",
+        "style": "Street",
+        "item": "sword",
+        "element": "BLEED",
+        "special": "remote_detonation",
+        "stats": { "atk": 112, "def": 80, "spd": 102, "agi": 80, "iq": 111 },
+        "cpu": { "react": 4, "block": 0.8, "aggro": 0.9, "dodge": 0.88, "think": 3, "special": 0.95 },
+        "passive": {
+          "name": "Red Margin Lines",
+          "rule": "Every 240 ticks a red ruled line is drawn at the player's current x (40 px wide). After 45 ticks it cuts: 12 damage plus BLEED if the player is still inside it and grounded. A block halves it. Jumping or walking off avoids it. Curse Marks stay active in phase 2.",
+          "hook": "step (hazard list) + updateFighter (spawn timer)",
+          "implementation": "m.hazards: { x, w: 40, at, dmg: 12, owner, element: 'BLEED' }[]. onTick(boss): if (m.phaseT % 240 === 0) m.hazards.push({ x: opp.x, w: 40, at: m.phaseT + 45, ... }). step: for each due hazard, if the target overlaps x +- w/2 and is grounded, call applyHit(owner, target, dmg, { knock: 4, special: true, at }); then remove it.",
+          "telegraph": "A thin red pen line appears on the floor and slowly darkens over 45 ticks. It flashes for the last 8 ticks before the cut."
+        },
+        "ai_personality": "Mixes the lines with pressure: it times its attacks so that blocking keeps you standing on a line. Fires remote_detonation (a delayed cut at your position) when you stand still to block. Telegraph for remote_detonation: a red crosshair drawn on you for 40 ticks.",
+        "counterplay": "Never block on top of a red line: walk or jump off first, then block. Keep moving when the crosshair appears. Stillwater Orb slows his approach while you reposition. He has less durability in phase 2 (DUR 80), so your punishes hit harder."
+      },
+      "reward": {
+        "type": "new_special_kind",
+        "kind": "remote_detonation",
+        "name": "Red Margin",
+        "description": "Mark the opponent's current x. 40 ticks later a vertical cut lands there (40 px wide). Blockable; avoided by moving. Damage is set in the SPECIAL_TUNE pass.",
+        "helps_against_next": "Last floor: the reward is the trophy, plus the 'Dungeon Cleared' badge."
+      },
+      "intro_taunt": "Every page has a margin. You have been living in mine.",
+      "phase2_taunt": "Fine. I will stop writing politely."
+    }
+  ],
+
+  "new_special_kinds_summary": [
+    { "kind": "shatter", "floor": 2, "name": "Knuckle Crumple", "sim": "melee grab; reach 60, startup 12, active 4, recovery 30; ignores block; misses if target !grounded" },
+    { "kind": "counter", "floor": 4, "name": "Whiteout Parry", "sim": "24-tick stance; an incoming non-projectile hit is negated and answered with 1.5x punch damage; 30-tick recovery on whiff" },
+    { "kind": "dash_slash", "floor": 6, "name": "Sunline Pass", "sim": "dash 220 px through the opponent (no collision while active), one hit on overlap; startup 10, active 8, recovery 22" },
+    { "kind": "pull", "floor": 8, "name": "Iron Reel", "sim": "slow projectile, range 300; on hit set target x to 80 px in front, vx = 0, steal 25 energy; blockable" },
+    { "kind": "remote_detonation", "floor": 10, "name": "Red Margin", "sim": "pushes a hazard at the target's x, cuts 40 ticks later; uses the same m.hazards list as the phase-2 passive" }
+  ],
+
+  "sim_hooks_needed": [
+    { "hook": "FighterDef.passive + Fighter.pv", "where": "createMatch(a, b, inputs, { boss })", "why": "boss-only passive id and its per-fighter state; never set from user data; balance.ts asserts no player kit has one", "used_by": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
+    { "hook": "onBeforeHit(m, att, vic, ctx) -> 'negate' | dmg scale | ctx.noStun", "where": "applyHit, before damage", "why": "negate a hit, scale damage, or skip hit-stun", "used_by": [1, 3, 7, 8, 9] },
+    { "hook": "onAfterHit(m, att, vic, { blocked, dealt, special, proj })", "where": "applyHit, after damage", "why": "stacks, cracks, marks, shove, passive infection", "used_by": [2, 4, 6, 10] },
+    { "hook": "onTick(m, f, opp)", "where": "updateFighter, after timers", "why": "cooldowns, decay, thresholds, scheduled swaps, proximity, hazard spawns", "used_by": [1, 2, 3, 4, 5, 7, 9, 10] },
+    { "hook": "onMoveStart(f, type, comboStep)", "where": "startMove", "why": "turn the next opener into a special version (draw-cut)", "used_by": [3] },
+    { "hook": "onChainEnd(f) -> 'restart'", "where": "updateFighter, where a finished chain sets the cooldown", "why": "loop a combo chain with no cooldown", "used_by": [6] },
+    { "hook": "onProjectile(p)", "where": "where blasts/projectiles are pushed", "why": "echo a blast", "used_by": [5] },
+    { "hook": "infect() on non-special hits", "where": "export/call infect from passives (today it is only called for special hits)", "why": "passive-driven FIRE, FROST and POISON", "used_by": [2, 4, 10] },
+    { "hook": "runtime def swap: m.defs[slot] = deriveBossDef(...)", "where": "passives + phase change; restore in resetRound", "why": "weapon/class swap, energy multiplier, phase-2 kit", "used_by": [5, 7, 10] },
+    { "hook": "deriveBossDef(stats, { budget, cap, tuneClass })", "where": "sim.ts, next to deriveDef", "why": "deriveDef calls clampStats with the player BUDGET/caps, so boss stats above 100 or 350 would be clamped back; also lets the floor-7 swap keep one CLASS_TUNE factor", "used_by": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
+    { "hook": "m.hazards[] + resolution in step", "where": "Match type + step, after projectiles; cleared in resetRound and on phase change", "why": "delayed ground cuts", "used_by": [10] },
+    { "hook": "phase change at an HP threshold", "where": "applyHit, after damage (clamp HP to the threshold, then swap the def, freeze 40, emit 'phase')", "why": "floor 10 phase 2", "used_by": [10] },
+    { "hook": "GameEvent types 'passive' { name, slot, x, y } and 'phase' { slot, n }", "where": "GameEvent union; read by render.ts for tells, banners and sounds", "why": "telegraphs and feedback", "used_by": [1, 4, 5, 8, 9, 10] },
+    { "hook": "passive state reset", "where": "resetRound", "why": "each round starts clean (stacks, marks, swaps, energyMul, phase 1)", "used_by": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] }
+  ],
+
+  "cpu_hooks_needed": [
+    { "knob": "special (number)", "why": "a separate chance to fire a full meter; today the special check reuses aggro" },
+    { "knob": "zone: [min, max] px", "why": "keep-away band for floors 3, 5 and 9 (today hard-coded 140-260 for Attacker only)" },
+    { "knob": "personality flags per boss", "why": "floor 2 shatter after 2 blocked strings, floor 3 stand still to arm the draw-cut, floor 4 attack only after a burst or a whiff, floor 7 spacing per weapon, floor 8 deliberate armored trades, floor 9 kite to 260-400, floor 10 bait on lines" },
+    { "knob": "boss brain input", "why": "the brain reads f.pv (stacks, armed, swapT) to time its own telegraphed moves; it must not read the player's current-tick input" }
+  ],
+
+  "balance_concerns": [
+    "deriveDef clamps every line to BUDGET 350 and a 100 cap, so boss stats need deriveBossDef. At 115 the stat maps extrapolate (t = 1.25): walk 7.25 px/tick, hit-stun 4.75 ticks, cooldown 16 ticks. Check that none of these break the feel.",
+    "Floor 8 (armor + STR 115 / DUR 112) may measure harder than floor 9. If scripts/dungeon.ts shows that, lower Atlas's budget offset rather than weakening the passive.",
+    "Floor 9's projectile reduction punishes players whose fighter is an Attacker. The x0.4 / x0.6 values are chosen so zoning is weak but still possible; re-measure with an Attacker player kit.",
+    "Floor 7's class swap must keep CLASS_TUNE fixed at Mace (1.32), or the Tank phase drops its damage and the Sword phase gains some.",
+    "Floor 1 uses knobs below 'normal' to reach the 85% target; the 'blend from normal' rule in the plan starts at floor 2.",
+    "The 5 new special kinds become PvP options after unlock, so each needs a SPECIAL_TUNE entry and a balance.ts pass (40-60% matrix) before it ships. shatter (cannot be blocked) and counter are the risky ones.",
+    "The per-round phase 2 makes floor 10 rounds long (~2x). If matches pass 3 minutes, switch to once per match (later rounds start in phase 2).",
+    "Passives must stay deterministic (timers from m.phaseT, no Math.random) so the scripts/dungeon.ts determinism check holds."
+  ],
+
+  "sources": [
+    { "url": "https://www.gamedeveloper.com/design/understanding-the-flow-channel-in-game-design", "used_for": "flow channel: rising challenge to match rising skill" },
+    { "url": "https://www.gamedeveloper.com/design/getting-gamers-in-the-zone-understanding-flow", "used_for": "flow, boredom vs anxiety" },
+    { "url": "https://bugnet.io/blog/difficulty-curves-how-to-get-them-right", "used_for": "sawtooth difficulty instead of a monotonic ramp" },
+    { "url": "https://www.abratabia.com/game-design/difficulty-curves.php", "used_for": "difficulty curve patterns" },
+    { "url": "https://computerscience.chemeketa.edu/cis125greader/Players/Difficulty.html", "used_for": "introduce mechanics in low-stakes contexts first" },
+    { "url": "https://www.gamedeveloper.com/design/boss-battle-design-and-structure", "used_for": "boss fight beats and structure" },
+    { "url": "https://www.gamedeveloper.com/design/opinion-boss-design---tips-from-a-combat-designer", "used_for": "balancing challenge vs frustration in bosses" },
+    { "url": "https://www.gamedeveloper.com/design/building-better-bosses", "used_for": "boss as a test of learned skills" },
+    { "url": "https://yukaichou.com/advanced-gamification/game-design-technique-14-mastering-the-boss-fight/", "used_for": "a boss is a test; teach during the fight" },
+    { "url": "https://bugnet.io/blog/how-to-design-a-first-boss", "used_for": "first-boss design: confidence win, teach one thing" },
+    { "url": "https://bikes.fan/corpus/gen-385/heroes-of-ruin/boss-encounters.html", "used_for": "telegraph readability; phase transitions with cues, vulnerability windows and repositioning" },
+    { "url": "https://www.wayline.io/blog/crafting-legendary-boss-battles", "used_for": "multi-channel telegraphs; each phase changes behaviour" },
+    { "url": "https://choostgames.com/blog/what-makes-a-good-boss-fight/", "used_for": "quick but readable wind-ups vs no consistent tell" },
+    { "url": "https://uefncentral.com/vi/blog/how-to-build-epic-boss-fight-mechanics-in-uefn", "used_for": "wind-up / execution / cooldown per attack; HP-threshold phases" },
+    { "url": "https://www.rollingstone.it/arcade/focus-on/street-fighter-bara-ma-va-benissimo-cosi/479076/", "used_for": "arcade CPU designed to imitate a player via joystick commands, winning without cheating" },
+    { "url": "https://atrociousgameplay.miraheze.org/wiki/Mortal_Kombat_2_CPU", "used_for": "player resentment of input-reading and invincible CPU bosses" },
+    { "url": "https://steamcommunity.com/app/1384160/discussions/0/5296777170371740177", "used_for": "player complaints about input-reading arcade bosses" },
+    { "url": "https://steamcommunity.com/app/311730/discussions/0/604153636037130451", "used_for": "arcade-mode AI feeling harder than versus at the same setting" },
+    { "url": "https://www.shacknews.com/article/107650/boss-order-and-weaknesses-in-mega-man-11", "used_for": "weapon-chain ladder: each boss's reward counters the next boss" },
+    { "url": "https://www.gameinformer.com/tips/2018/09/27/mega-man-11-boss-order-and-strategies", "used_for": "rewards help but are optional because patterns are telegraphed" },
+    { "url": "https://arxiv.org/pdf/2008.12937", "used_for": "predicting difficulty with simulated players (basis for scripts/dungeon.ts measuring clear rates with CPU proxies)" }
+  ]
+}

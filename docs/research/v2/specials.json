@@ -1,0 +1,998 @@
+{
+  "meta": {
+    "title": "InkFight special-move archetypes, v2",
+    "date": "2026-10-24",
+    "purpose": "Design catalogue of special moves for InkFight 2.0. Names are original; inspired_by is for designers only and must never appear in UI, prompts that name moves, or the name fields.",
+    "engine_reference": {
+      "tick_rate": "60 ticks/s (sim.ts TICK_HZ)",
+      "arena_px": "960 x 540, ground y=480, walls 30 px (ARENA)",
+      "body_px": "70 wide x 170 tall (BODY); hitboxes are given as reach in front of the body edge and as fractions of body height above the feet (top/bot), like MOVES and front() in updateSpecial",
+      "damage_unit": "1.0 = one 'punch' of the fighter: def.punch (physical, STR) or def.magic (ranged, IQ), times SPECIAL_TUNE[kind]. Existing specials deal about 2.4-3.0 units in total.",
+      "damage_tiers": { "light": "1.5-2.0 units total", "mid": "2.4-3.0 units total", "heavy": "3.2-4.0 units total", "ultimate": "4.5-6.0 units total (100-energy slot only)" },
+      "existing_rules_reused": "SUPER_FREEZE 16 ticks on start; applyHit (block cuts specials by blockReduce*0.6, element infect on special hit, hit-stop 6); projectiles array (speed px/tick, r, life); armorTicks; teleport-style invulnerability (applyHit early return); GRAVITY pull code in infect(); admin buff multipliers (x1.3 dealt / x0.75 taken)",
+      "slots": { "slot1_50_energy": "first special, costs 50 energy (proposed dual-special system)", "ultimate_100": "full-meter special, costs 100", "side_skill": "cheap utility on a cooldown or 25 energy, no super-freeze" },
+      "existing_blocks": ["bolt", "arrow", "orb", "slash", "charge", "uppercut", "beam", "spiral", "wave", "teleport", "barrage", "meteor"]
+    },
+    "counts": { "archetypes": 35, "mapped_to_existing": 11, "new": 24 }
+  },
+  "archetypes": [
+    {
+      "id": "ink_fireball",
+      "original_names": ["Ballpoint Blast", "Inkwell Shot", "Blot Rocket"],
+      "inspired_by": "Street Fighter: Ryu's Hadoken; Guilty Gear: Ky's Stun Edge",
+      "gameplay": "Mid-speed straight projectile from chest height. The zoning baseline every other ranged special is measured against.",
+      "maps_to": "bolt",
+      "new_block_spec": null,
+      "slot_fit": ["slot1_50_energy"],
+      "class_fit": ["Attacker", "Fighter"],
+      "element_affinity": ["FIRE", "ELECTRIC"],
+      "vfx_storyboard": [
+        "Anticipation (t0-9): back hand pulls to hip, a small ink droplet swells between palms, 3 dark particles sucked in.",
+        "Release (t10): both palms thrust; a white flash circle r=20 at the hands.",
+        "Travel: element-coloured core (FIRE #ff8a1f, ELECTRIC #3d8bff) with a 3-blob fading comet tail behind.",
+        "Impact: ink splat star (8 spikes) and an impact ring growing to r=40.",
+        "Linger: 2-3 ink drips on the floor below the hit point."
+      ],
+      "pose_notes": "Deep forward stance, both palms forward at chest height, back heel off the ground.",
+      "balance_risk": "Low. Already tuned (SPECIAL_TUNE bolt 2.04). Spam is limited by energy."
+    },
+    {
+      "id": "full_page_beam",
+      "original_names": ["Margin-to-Margin Cannon", "Highlighter Flood", "Full-Page Flash"],
+      "inspired_by": "Dragon Ball: Goku's Kamehameha; Dhalsim's Yoga Inferno (sustained stream)",
+      "gameplay": "30-tick charge in place, then a beam to the arena edge that ticks every 8 ticks for 32 ticks; the last tick knocks back.",
+      "maps_to": "beam",
+      "new_block_spec": null,
+      "slot_fit": ["ultimate_100"],
+      "class_fit": ["Attacker"],
+      "element_affinity": ["ELECTRIC", "FIRE", "FROST"],
+      "vfx_storyboard": [
+        "Anticipation: cupped hands at the back hip, a glowing ball grows r 6 to 22 with sparks pulled inward.",
+        "Release: screen dims, hands thrust forward, a beam rectangle (outer guard #2f5be0, white inner third) shoots to the edge.",
+        "Sustain: beam thickness wobbles 30+-6 px, camera shake 3.",
+        "Impact: each tick spawns an ink splat on the victim.",
+        "Linger: beam fades over 6 ticks, faint scorch line on the paper."
+      ],
+      "pose_notes": "Wide stance, hands cupped at the hip during charge, arms locked straight forward when firing.",
+      "balance_risk": "Medium: full-screen. Long startup is the counterplay (jump or teleport over during charge). Keep it 100-energy."
+    },
+    {
+      "id": "palm_spiral",
+      "original_names": ["Scribble Sphere", "Spiral Doodle Ram", "Pencil-Sharpener Palm"],
+      "inspired_by": "Naruto: Rasengan",
+      "gameplay": "16-tick spin-up, then a 14 px/tick rush with a sphere in the palm; first contact launches.",
+      "maps_to": "spiral",
+      "new_block_spec": null,
+      "slot_fit": ["slot1_50_energy"],
+      "class_fit": ["Fighter", "Attacker"],
+      "element_affinity": ["ELECTRIC", "GRAVITY"],
+      "vfx_storyboard": [
+        "Anticipation: palm open, sphere r 8 to 22 with 3 white elliptical rings orbiting.",
+        "Release: dash smear lines behind the body.",
+        "Impact: sphere flattens into a spiral scribble 2x size, victim launched.",
+        "Linger: spiral pencil-line decal fades on the floor."
+      ],
+      "pose_notes": "Sphere arm extended, other hand braces the wrist; body leans 20 degrees forward on the dash.",
+      "balance_risk": "Low; already tuned."
+    },
+    {
+      "id": "rising_dragon",
+      "original_names": ["Rising Sharpie", "Margin Climber", "Doodle Dragon Fist"],
+      "inspired_by": "Street Fighter: Shoryuken; Guilty Gear: Ky's Vapor Thrust (invulnerable reversal)",
+      "gameplay": "Rising uppercut, hitbox 80 px in front from t8 to t14, big launch. Proposed tweak: invulnerable t1-7 so it works as a reversal.",
+      "maps_to": "uppercut",
+      "new_block_spec": null,
+      "slot_fit": ["slot1_50_energy"],
+      "class_fit": ["Fighter", "Mace", "Sword"],
+      "element_affinity": ["FIRE"],
+      "vfx_storyboard": [
+        "Anticipation: crouch 6 ticks, fist cocked low, a gold glint on the knuckles.",
+        "Release: fist rises in a vertical arc smear (hit #e5482d).",
+        "Impact: flame particles rise from the fist, victim flies up.",
+        "Linger: user lands with a 10-tick recovery, smoke puff."
+      ],
+      "pose_notes": "Crouch, then full vertical extension, one knee up at the apex.",
+      "balance_risk": "Medium if invulnerable startup is added: becomes a guaranteed wake-up escape. Give it heavy recovery (20+ ticks) when it whiffs."
+    },
+    {
+      "id": "fist_flurry",
+      "original_names": ["Ink Ink Ink Rush", "Smudge Storm", "Hundred-Line Homework"],
+      "inspired_by": "JoJo's Bizarre Adventure: Star Platinum's rush; One Piece: Gum-Gum Gatling",
+      "gameplay": "Hits every 4 ticks from t6 to t42 at 0.26 units each, holds the victim in front, then a finisher at t44.",
+      "maps_to": "barrage",
+      "new_block_spec": null,
+      "slot_fit": ["slot1_50_energy", "ultimate_100"],
+      "class_fit": ["Fighter"],
+      "element_affinity": ["BLEED", "POISON"],
+      "vfx_storyboard": [
+        "Anticipation: fists pulled back, shoulders hunch, speed lines converge.",
+        "Release: 5 ghost fists (ink at 35% alpha) flicker in front each frame.",
+        "Impact: small star splats at random heights on the victim.",
+        "Linger: finisher punch with a large impact ring and screen shake 8."
+      ],
+      "pose_notes": "Feet planted, torso square to the opponent, arms alternating at chest height.",
+      "balance_risk": "Low; element specials refresh status every hit, which favours BLEED/POISON. Watch ELEMENT_TUNE."
+    },
+    {
+      "id": "crater_dive",
+      "original_names": ["Staple Drop", "Full-Stop Kick", "Paperweight Plunge"],
+      "inspired_by": "Kamen Rider: Rider Kick; Street Fighter: Akuma's dive kick",
+      "gameplay": "Leap (vy -16), dive at 20 px/tick feet-first; direct hit 3 units, landing shockwave 1.6 units within 140 px.",
+      "maps_to": "meteor",
+      "new_block_spec": null,
+      "slot_fit": ["slot1_50_energy"],
+      "class_fit": ["Mace", "Tank", "Fighter"],
+      "element_affinity": ["GRAVITY", "FIRE"],
+      "vfx_storyboard": [
+        "Anticipation: deep squat, dust puffs at the feet.",
+        "Release: leap with a vertical smear; at apex a 4-tick hang with a gold glint on the foot.",
+        "Travel: foot trails red/gold particles on the dive line.",
+        "Impact: ground ring r20 growing 12/tick, screen shake 14, 18 paper-grey debris particles.",
+        "Linger: crater crack lines on the floor for 1 s."
+      ],
+      "pose_notes": "Dive leg straight, other leg tucked, arms flung back.",
+      "balance_risk": "Low."
+    },
+    {
+      "id": "blink_strike",
+      "original_names": ["Eraser Step", "Page-Flip Ambush", "Turn-the-Page"],
+      "inspired_by": "Dragon Ball: Instant Transmission; Street Fighter: Dhalsim's Yoga Teleport",
+      "gameplay": "Untouchable t3-11, reappears 75 px behind the opponent at t10, strikes t13-20.",
+      "maps_to": "teleport",
+      "new_block_spec": null,
+      "slot_fit": ["slot1_50_energy", "side_skill"],
+      "class_fit": ["Sword", "Fighter"],
+      "element_affinity": ["ELECTRIC", "NONE"],
+      "vfx_storyboard": [
+        "Anticipation: two fingers to the forehead, body outline flickers.",
+        "Release: body erased by vertical eraser streaks (7 ink lines going up).",
+        "Reappear: body redrawn line by line behind the opponent (stroke-dash reveal over 3 ticks).",
+        "Impact: backhand strike splat."
+      ],
+      "pose_notes": "Two-finger salute before vanishing; reappears mid-swing.",
+      "balance_risk": "Low. As a side_skill without the strike it becomes a pure escape: give it a 6 s cooldown."
+    },
+    {
+      "id": "armored_lunge",
+      "original_names": ["Hardcover Rush", "Binder Bash", "Textbook Tackle"],
+      "inspired_by": "Street Fighter 6: Drive Impact (armored lunge); Potemkin's Hammer Fall",
+      "gameplay": "11 px/tick shoulder charge, half damage taken for 3 s (Mace breaks it to 0.75).",
+      "maps_to": "charge",
+      "new_block_spec": null,
+      "slot_fit": ["slot1_50_energy"],
+      "class_fit": ["Tank", "Mace"],
+      "element_affinity": ["NONE", "GRAVITY"],
+      "vfx_storyboard": [
+        "Anticipation: shoulder dips, a blue (#2f5be0) outline traces the body.",
+        "Release: charge with afterimages, dust kicked behind.",
+        "Impact: thick ink ring and the victim sliding back.",
+        "Linger: blue outline pulses until armor ends."
+      ],
+      "pose_notes": "Shoulder and shield first, head down, back leg driving.",
+      "balance_risk": "Low; tuned at 0.82."
+    },
+    {
+      "id": "floor_shockwave",
+      "original_names": ["Notebook Quake", "Spine-Crack Wave", "Ruled-Line Ripple"],
+      "inspired_by": "Fatal Fury: Terry Bogard's Power Wave",
+      "gameplay": "Ground pound at t14 sends a low projectile (9 px/tick, r24) along the floor. Jumping clears it.",
+      "maps_to": "wave",
+      "new_block_spec": null,
+      "slot_fit": ["slot1_50_energy"],
+      "class_fit": ["Mace", "Tank", "Attacker"],
+      "element_affinity": ["GRAVITY", "FROST"],
+      "vfx_storyboard": [
+        "Anticipation: fist raised overhead.",
+        "Release: fist hits the floor, the ruled lines of the page bend upward.",
+        "Travel: ink crescent rolling forward with a gold rim, dust puffs.",
+        "Impact: victim's feet knocked up, small debris."
+      ],
+      "pose_notes": "One knee down, punching fist on the floor.",
+      "balance_risk": "Low."
+    },
+    {
+      "id": "void_sphere",
+      "original_names": ["Hole-Punch Void", "Eraser Singularity", "Purple Ink Abyss"],
+      "inspired_by": "Jujutsu Kaisen: Gojo's Hollow Purple (attraction + repulsion merged)",
+      "gameplay": "Ultimate orb: two small orbs (blue left hand, red right) merge at t30, then a huge slow orb (speed 4, r 55) that pierces and hits up to 3 times (every 10 ticks while overlapping). Uses the orb block with bigger numbers plus a multi-hit flag.",
+      "maps_to": "orb",
+      "new_block_spec": null,
+      "slot_fit": ["ultimate_100"],
+      "class_fit": ["Attacker"],
+      "element_affinity": ["GRAVITY"],
+      "vfx_storyboard": [
+        "Anticipation: blue ball in the back hand, red ball in the front hand, both r 10.",
+        "Merge (t30): the two balls collide between the hands, white flash, screen goes violet-tinted.",
+        "Release: a violet (#8a4fe0) orb r55 with a black core rolls forward, the floor lines bend toward it.",
+        "Impact: each hit flashes the victim white and shakes the camera.",
+        "Linger: a torn-paper hole decal where it left the arena."
+      ],
+      "pose_notes": "Arms crossed then spread apart, then one finger pointing forward on release.",
+      "balance_risk": "Medium: multi-hit piercing orb dominates the screen; speed 4 must stay slow enough to jump."
+    },
+    {
+      "id": "spirit_arrow",
+      "original_names": ["Pencil Javelin", "Ruler Railshot", "Compass Needle"],
+      "inspired_by": "Bleach: Uryu Ishida's Quincy arrows; Hawkeye-style trick shots",
+      "gameplay": "Fast straight projectile (15 px/tick, r10). Hard to react to, low hitbox size.",
+      "maps_to": "arrow",
+      "new_block_spec": null,
+      "slot_fit": ["slot1_50_energy"],
+      "class_fit": ["Attacker", "Sword"],
+      "element_affinity": ["FROST", "ELECTRIC", "POISON"],
+      "vfx_storyboard": [
+        "Anticipation: bow-draw pose, a thin line pulled taut.",
+        "Release: white flash at the hand, string snap line.",
+        "Travel: arrow shape with a long faint trail.",
+        "Impact: arrow sticks for 10 ticks then crumbles to ink dust."
+      ],
+      "pose_notes": "Side-on archer stance, front arm straight, back hand at the cheek.",
+      "balance_risk": "Low."
+    },
+    {
+      "id": "crescent_wave",
+      "original_names": ["Crescent Scribble", "Moon-Margin Slash", "Paper-Cut Crescent"],
+      "inspired_by": "Bleach: Ichigo's Getsuga Tensho (a slash that flies)",
+      "gameplay": "A sword swing that releases a tall crescent projectile. Unlike bolt, its hitbox is a tall thin rectangle (24 x 150 px), so a jump does not clear it; it is slower than arrow and fades after 520 px.",
+      "maps_to": "NEW",
+      "new_block_spec": {
+        "block_id": "crescent_projectile",
+        "startup_ticks": 14,
+        "active_ticks": 58,
+        "recovery_ticks": 16,
+        "projectile": { "speed_px_per_tick": 9, "hitbox_w": 24, "hitbox_h": 150, "range_px": 520, "spawn": "front edge, centred at 0.55 body height" },
+        "damage_tier": "mid",
+        "damage_units": 2.6,
+        "special_rules": "Projectile struct gets an optional h (half-height) so the hit test uses a rectangle; life = range/speed. Clashes with (cancels) any other projectile it touches.",
+        "counterplay": "Block it (specials still chip), dash under it is impossible, so step back out of its 520 px range or blink through it."
+      },
+      "slot_fit": ["slot1_50_energy"],
+      "class_fit": ["Sword"],
+      "element_affinity": ["FIRE", "BLEED", "FROST"],
+      "vfx_storyboard": [
+        "Anticipation: blade raised overhead, the item's ink glows hit-red along the edge.",
+        "Release: downward swing; a crescent (two arcs, r95 and r80) detaches from the blade tip.",
+        "Travel: crescent leaves a pale trailing arc every 3 ticks, shrinking alpha.",
+        "Impact: crescent splits into two ink halves that fly up and down.",
+        "Linger: thin cut line drawn across the victim for 8 ticks."
+      ],
+      "pose_notes": "Two-handed overhead swing ending low, front knee bent.",
+      "balance_risk": "Low-medium: the anti-jump property is the point; tune range so it is not full-screen."
+    },
+    {
+      "id": "counter_stance",
+      "original_names": ["Red-Pen Correction", "Proofread Counter", "Margin Note"],
+      "inspired_by": "Street Fighter 6: Drive Parry and perfect-parry punish; Fatal Fury: Geese Howard's counter throws",
+      "gameplay": "Enter a guard stance. If a melee hit (not a projectile, not a grab) lands during the window, it deals 0 damage, the attacker freezes for 12 ticks and the user auto-strikes for 1.5x what the blocked move would have dealt (min 2 units). Whiff = long recovery.",
+      "maps_to": "NEW",
+      "new_block_spec": {
+        "block_id": "parry_counter",
+        "startup_ticks": 3,
+        "active_ticks": 24,
+        "recovery_ticks": 26,
+        "hitbox": "counter strike: front() reach 90, top 1.0, bot 0.2",
+        "damage_tier": "mid",
+        "damage_units": "1.5 x incoming raw, clamped 2.0-3.5",
+        "special_rules": "In applyHit, if victim.action==='special' && kind==='parry_counter' && 3<=t<27 && !opts.proj: cancel damage, set f.landed, teleport-free counter (user dashes 30 px forward), apply hit next tick. Counter is a special (element applies). Super-freeze only 6 ticks on start so it can be used on reaction.",
+        "counterplay": "Throw/command grab beats it; projectiles beat it; or simply wait out the 24-tick window and punish the 26-tick recovery."
+      },
+      "slot_fit": ["slot1_50_energy", "side_skill"],
+      "class_fit": ["Sword", "Tank", "Fighter"],
+      "element_affinity": ["NONE", "FROST", "ELECTRIC"],
+      "vfx_storyboard": [
+        "Anticipation: stance with the item held flat across the body, a faint white outline.",
+        "Trigger: incoming fist stops dead with a red-pen tick mark (a big check mark) drawn over it, screen flashes white 2 ticks.",
+        "Release: user's counter strike with a red correction slash.",
+        "Impact: victim gets a red circled 'X' scribble stamp.",
+        "Whiff: the outline fades grey, user sags (visible punish window)."
+      ],
+      "pose_notes": "Upright guard, weight on the back foot, item horizontal at chest; counter is a straight forward lunge.",
+      "balance_risk": "Medium: CPU AI must learn not to swing into it; online, the 24-tick window is long enough to read even with 3-snapshot jitter buffer."
+    },
+    {
+      "id": "reflector",
+      "original_names": ["Return to Sender", "Mirror Margin", "Bounce-Back Bookmark"],
+      "inspired_by": "Guilty Gear: Potemkin's F.D.B. (projectile reflect); Smash Bros reflectors",
+      "gameplay": "A short window that reverses any projectile touching the user's front: vx flips, owner changes, damage x1.25. Also a weak push (0.8 units) if the opponent is in melee range.",
+      "maps_to": "NEW",
+      "new_block_spec": {
+        "block_id": "reflect",
+        "startup_ticks": 4,
+        "active_ticks": 18,
+        "recovery_ticks": 18,
+        "hitbox": "reflect zone: from body centre to 60 px in front, full body height; melee push front() reach 50",
+        "damage_tier": "light",
+        "damage_units": "0.8 melee push; reflected projectile keeps 1.25x its own damage",
+        "special_rules": "In the projectile loop, a projectile owned by the opponent overlapping the reflect zone during active ticks: p.owner = f.slot; p.vx = -p.vx * 1.1; p.dmg *= 1.25. A reflected projectile cannot be reflected again (flag). Beam ticks are cut to 50% damage while active.",
+        "counterplay": "Don't throw projectiles into it; walk in and grab or hit after the 18-tick recovery."
+      },
+      "slot_fit": ["side_skill", "slot1_50_energy"],
+      "class_fit": ["Tank", "Sword"],
+      "element_affinity": ["NONE", "ELECTRIC"],
+      "vfx_storyboard": [
+        "Anticipation: item swung outward, a hexagon outline of paper appears in front.",
+        "Active: hexagon shimmers (guard blue, 40% alpha), edge glints.",
+        "Reflect: projectile freezes 3 ticks, a 'boing' squash, recoloured to the user's ink.",
+        "Linger: hexagon cracks into 6 shards and fades."
+      ],
+      "pose_notes": "Item or palm thrust out flat, other arm back.",
+      "balance_risk": "Low; hard counter to Attacker zoning, so keep it off the Attacker class pool."
+    },
+    {
+      "id": "piledriver_grab",
+      "original_names": ["Spiral Bind Slam", "Stapler Crush", "Spin-Cycle Suplex"],
+      "inspired_by": "Street Fighter: Zangief's Spinning Piledriver; Guilty Gear: Potemkin Buster (command grabs)",
+      "gameplay": "Very short-range unblockable grab. On contact: both fighters lock, spin up and slam; 3 units, ignores block entirely. Whiff animation is long and obvious.",
+      "maps_to": "NEW",
+      "new_block_spec": {
+        "block_id": "command_grab",
+        "startup_ticks": 6,
+        "active_ticks": 4,
+        "recovery_ticks": 34,
+        "hitbox": "front() reach 45, top 1.0, bot 0.0; grounded opponents only",
+        "damage_tier": "heavy",
+        "damage_units": 3.2,
+        "special_rules": "Hit ignores blocking (call applyHit with an unblockable flag) and armorTicks. On connect: opponent action='hit' with stun covering a 40-tick throw animation, both positions scripted (lift 120 px, spin, slam at user's front). Cannot grab during teleport invulnerability or an airborne opponent. Victim gets 7 energy as usual.",
+        "counterplay": "Jump (whiffs on airborne), back off (45 px reach is tiny), or hit the user out of the 6-tick startup; a whiff is punishable for 34 ticks."
+      },
+      "slot_fit": ["slot1_50_energy"],
+      "class_fit": ["Tank", "Mace", "Fighter"],
+      "element_affinity": ["GRAVITY", "NONE"],
+      "vfx_storyboard": [
+        "Anticipation: both arms flung wide, hands open like a clamp.",
+        "Grab: arms snap shut with a thick ink outline around both fighters.",
+        "Spin: both bodies rotate up in a vortex of 6 curved speed lines.",
+        "Impact: head-first slam, screen shake 16, big ink crater splat.",
+        "Linger: victim bounces once, 'stars' scribbled around the head."
+      ],
+      "pose_notes": "Wrestler crouch with open arms; during the slam the user is upside-down above the victim.",
+      "balance_risk": "Medium: the only block-beater. Too much range makes holding S (block) worthless; keep reach under body width."
+    },
+    {
+      "id": "hook_line",
+      "original_names": ["Paperclip Lasso", "Bookmark Hook", "Come-Here Clip"],
+      "inspired_by": "Mortal Kombat: Scorpion's spear ('Get over here'); Naruto chain weapons",
+      "gameplay": "Fires a fast tethered hook. On hit it does light damage and yanks the opponent to 80 px in front of the user, stunned 24 ticks: a free follow-up. Blocked: no pull.",
+      "maps_to": "NEW",
+      "new_block_spec": {
+        "block_id": "hook_pull",
+        "startup_ticks": 12,
+        "active_ticks": 30,
+        "recovery_ticks": 22,
+        "projectile": { "speed_px_per_tick": 16, "r": 10, "range_px": 480, "spawn": "front edge at 0.65 body height (chest)", "tethered": "retracts at 24 px/tick after hit or max range; user cannot move until it returns" },
+        "damage_tier": "light",
+        "damage_units": 1.0,
+        "special_rules": "On unblocked hit: opp.vx=0, then over 10 ticks lerp opp.x to f.x + f.facing*80 (wall-clamped); stun 24 ticks. Passes over a crouch/low pose (chest height). Clashes with and destroys other projectiles.",
+        "counterplay": "Block it (no pull), jump over (chest height but 16 px/tick needs a read), or punish the long retract recovery when it misses."
+      },
+      "slot_fit": ["slot1_50_energy", "side_skill"],
+      "class_fit": ["Fighter", "Attacker", "Mace"],
+      "element_affinity": ["FIRE", "POISON", "GRAVITY"],
+      "vfx_storyboard": [
+        "Anticipation: arm cocked back, a paperclip-shaped hook dangling from the hand.",
+        "Release: hook flies with a wobbling rope drawn as a quadratic curve from hand to hook.",
+        "Impact: hook bites with a red splat, rope snaps taut (straight line, thicker).",
+        "Pull: victim slides toward the user with horizontal speed lines.",
+        "Linger: rope coils back into the hand in 3 loops."
+      ],
+      "pose_notes": "Throw with the front arm, then a two-handed yank with the body leaning back.",
+      "balance_risk": "Medium: the 24-tick free combo. Cap the follow-up damage via the existing combo-free hit-stun or reduce stun if it whiffs anything."
+    },
+    {
+      "id": "rubber_reach",
+      "original_names": ["Rubber-Band Jab", "Slinky Strike", "Elastic Eraser"],
+      "inspired_by": "One Piece: Gum-Gum Pistol; Street Fighter: Dhalsim's stretching limbs",
+      "gameplay": "The arm stretches up to 320 px over 8 ticks and snaps back. It is a melee hit (STR, not IQ), so it cannot be reflected and does not clash with projectiles. The stretched arm is a hurtbox: hitting it cancels the move.",
+      "maps_to": "NEW",
+      "new_block_spec": {
+        "block_id": "stretch_strike",
+        "startup_ticks": 10,
+        "active_ticks": 8,
+        "recovery_ticks": 20,
+        "hitbox": "a 26 px tall box whose far edge grows from 40 to 320 px in front during active ticks, at 0.75 body height; the arm's whole length is an extra hurtbox for the user",
+        "damage_tier": "mid",
+        "damage_units": 2.4,
+        "special_rules": "Single hit, knock 14. If the opponent's melee hitbox overlaps the stretched arm during active+recovery, the user takes the hit and the move ends (limb counter-hit). Optional follow: a second press during recovery makes it a 2-hit 'slingshot' that pulls the user forward 120 px.",
+        "counterplay": "Duck/jump (a thin 26 px box), or swing at the arm; recovery 20 ticks while the arm returns."
+      },
+      "slot_fit": ["slot1_50_energy", "side_skill"],
+      "class_fit": ["Fighter"],
+      "element_affinity": ["NONE", "FIRE"],
+      "vfx_storyboard": [
+        "Anticipation: arm wound back in a spiral (the limb line drawn as 3 loops).",
+        "Release: the arm line stretches as a wobbly sine-curve stroke, fist enlarges 1.3x.",
+        "Impact: fist squash-and-stretch on contact, ink splat.",
+        "Linger: arm snaps back like a rubber band with 2 overshoot wiggles."
+      ],
+      "pose_notes": "Shoulder rotated back, then a straight arm; the stickman's arm segment length scales with t.",
+      "balance_risk": "Low-medium: long-range melee bypasses reflectors; the arm hurtbox is the balancing tool."
+    },
+    {
+      "id": "flash_draw",
+      "original_names": ["One-Stroke Signature", "Lightning Underline", "Ink-Flash Pass"],
+      "inspired_by": "Demon Slayer: Zenitsu's Thunderclap and Flash; iaido quick-draw sword arts",
+      "gameplay": "A near-instant dash THROUGH the opponent: the user is untouchable while dashing, ends 90 px behind them, and the cut lands as the user stops (delayed 12 ticks, like a sheathe). Good vs zoners and mid-range.",
+      "maps_to": "NEW",
+      "new_block_spec": {
+        "block_id": "dash_through",
+        "startup_ticks": 14,
+        "active_ticks": 6,
+        "recovery_ticks": 24,
+        "hitbox": "the full swept path: x from start to end (up to 360 px), top 1.0, bot 0.1",
+        "damage_tier": "heavy",
+        "damage_units": 3.2,
+        "special_rules": "Dash at 60 px/tick for 6 ticks, ignoring body collision; untouchable during the dash (applyHit early-return, like teleport). If the opponent was in the path, mark hit; deal damage at t = startup+active+12 (sheathe). Ends wall-clamped; if ending behind, user faces the opponent. Can pass through projectiles (they keep flying).",
+        "counterplay": "The 14-tick crouch-and-grip startup is readable: back away beyond 360 px or block (specials chip). Recovery 24 ticks with the back turned is a big punish."
+      },
+      "slot_fit": ["slot1_50_energy", "ultimate_100"],
+      "class_fit": ["Sword", "Fighter"],
+      "element_affinity": ["ELECTRIC", "BLEED"],
+      "vfx_storyboard": [
+        "Anticipation: low crouch, hand on the hilt, yellow electric zigzags crawl over the body; screen dims.",
+        "Release: body becomes a single straight bright line (ELECTRIC #3d8bff core, white edge) across the screen.",
+        "Pause: 12 ticks of stillness, user sheathing slowly, victim frozen.",
+        "Impact: a horizontal cut line appears across the victim, then a burst of ink splats.",
+        "Linger: lightning branches fade along the dash path."
+      ],
+      "pose_notes": "Crouch with the sword at the hip, ends in a low follow-through with the blade sheathed.",
+      "balance_risk": "Medium: invulnerable + long range. Range 360 px max and a back-turned recovery keep it honest."
+    },
+    {
+      "id": "delayed_blast",
+      "original_names": ["Footnote Bomb", "Asterisk Detonation", "Margin Mark Pop"],
+      "inspired_by": "Fullmetal Alchemist: Roy Mustang's snap flame; JoJo: Killer Queen's bombs",
+      "gameplay": "A snap marks the opponent's CURRENT position with a symbol on the floor; 40 ticks later it explodes there (radius 70). Area denial: the opponent must move.",
+      "maps_to": "NEW",
+      "new_block_spec": {
+        "block_id": "mark_detonate",
+        "startup_ticks": 10,
+        "active_ticks": 8,
+        "recovery_ticks": 14,
+        "hitbox": "circle r70 centred at the marked x, ground level up to 1.0 body height; delay 40 ticks after the snap",
+        "damage_tier": "mid",
+        "damage_units": 2.6,
+        "special_rules": "The user recovers before the blast (can act while it is pending). Marks a fixed point, not the fighter. Max 1 pending mark. Blocking reduces as a special.",
+        "counterplay": "Walk or jump off the mark within 40 ticks; the mark is drawn clearly from t0."
+      },
+      "slot_fit": ["slot1_50_energy", "side_skill"],
+      "class_fit": ["Attacker"],
+      "element_affinity": ["FIRE", "POISON"],
+      "vfx_storyboard": [
+        "Anticipation: arm raised, fingers snap with a small spark.",
+        "Mark: a red asterisk scribble appears on the floor under the opponent, pulsing faster as the timer runs down.",
+        "Release: column of flame-coloured ink rises from the mark (r70).",
+        "Impact: ring + 12 ember particles; victim launched slightly.",
+        "Linger: charred star on the paper."
+      ],
+      "pose_notes": "Upright, front arm extended with fingers snapping, back hand in a pocket.",
+      "balance_risk": "Low-medium: combined with a hook_pull or grab it becomes a trap; one pending mark limits it."
+    },
+    {
+      "id": "page_freeze",
+      "original_names": ["Bookmark Freeze", "Pause Between Pages", "Ink Still-Frame"],
+      "inspired_by": "JoJo's Bizarre Adventure: DIO's The World (time stop)",
+      "gameplay": "Ultimate. The opponent and their projectiles stop for 90 ticks; the user moves freely. Hits during the stop are stored and applied together, at 70% value, when time resumes.",
+      "maps_to": "NEW",
+      "new_block_spec": {
+        "block_id": "time_stop",
+        "startup_ticks": 30,
+        "active_ticks": 90,
+        "recovery_ticks": 10,
+        "hitbox": "none itself; normal moves and side skills during the stop",
+        "damage_tier": "ultimate",
+        "damage_units": "stored damage x0.7, capped at 4.5 units (about 40% of a 200 HP bar at even stats)",
+        "special_rules": "Set opp.frozen=90: skip opp's updateFighter and their projectiles. Store hits in a buffer; on release apply as one hit with knock from the last stored hit. The user cannot cast a second special during the stop. Cannot KO during the stop (resolve on release). The user's own energy does not refill during it.",
+        "counterplay": "30-tick startup (screen-wide clock ripple) can be interrupted by any hit; a blocking opponent stays blocking during the stop, so stored hits are block-reduced."
+      },
+      "slot_fit": ["ultimate_100"],
+      "class_fit": ["Attacker", "Sword"],
+      "element_affinity": ["NONE", "FROST"],
+      "vfx_storyboard": [
+        "Anticipation: the user raises a hand, a clock face scribble appears behind them, ticking.",
+        "Release: a sphere expands from the user over the arena, inverting colours (paper goes ink-dark, ink goes paper-light).",
+        "Stopped world: everything except the user desaturated grey; the background doodles stop drifting.",
+        "Resume: sphere collapses, colours snap back, all stored hits flash at once with stacked splats.",
+        "Linger: a torn page-corner fold animation across the screen."
+      ],
+      "pose_notes": "Theatrical arms-out pose at the start; during the stop the user walks with a swagger (slower walk cycle).",
+      "balance_risk": "High: removes agency for 1.5 s. Use it as a dungeon reward/boss move first, not in ranked PvP until tested."
+    },
+    {
+      "id": "clone_rush",
+      "original_names": ["Photocopy Army", "Carbon-Copy Rush", "Tracing-Paper Twins"],
+      "inspired_by": "Naruto: Shadow Clone Technique",
+      "gameplay": "Spawns 2 ink copies that dash at the opponent one after the other (as ground projectiles with a body sprite); each hits once for light damage and pops. The user can act during the clones' run.",
+      "maps_to": "NEW",
+      "new_block_spec": {
+        "block_id": "clone_strike",
+        "startup_ticks": 16,
+        "active_ticks": 60,
+        "recovery_ticks": 12,
+        "projectile": { "count": 2, "spawn_delay_ticks": 12, "speed_px_per_tick": 8, "hitbox": "a body-sized box 60x150", "range_px": 600 },
+        "damage_tier": "mid",
+        "damage_units": "1.2 per clone, 2.4 total",
+        "special_rules": "Clones are projectiles with kind 'clone' (renderer draws the owner's stickman at 50% alpha in a punch pose). Any hit on a clone (melee or projectile) pops it. Clones do not block. Each clone hit causes 10-tick stun so the user can follow up.",
+        "counterplay": "Hit the clones (one jab pops each), jump over the low-ish first one, or block both."
+      },
+      "slot_fit": ["slot1_50_energy", "ultimate_100"],
+      "class_fit": ["Fighter", "Attacker"],
+      "element_affinity": ["NONE", "POISON"],
+      "vfx_storyboard": [
+        "Anticipation: hand sign, the user's outline doubles with an offset (photocopy shift).",
+        "Release: two ghost copies peel off the body with a paper-tear sound shape.",
+        "Travel: clones run with a smudged trail, 50% alpha.",
+        "Impact: each clone bursts into a puff of torn paper confetti.",
+        "Linger: confetti flutters down for 30 ticks."
+      ],
+      "pose_notes": "Two-handed seal at the chest; clones use the punch pose from poses.ts.",
+      "balance_risk": "Medium: the user acting during clones allows a 3-way mix; cap with 'cannot start another special while clones live'."
+    },
+    {
+      "id": "power_aura",
+      "original_names": ["Highlighter Mode", "Bold-Font Form", "Underlined Power"],
+      "inspired_by": "Dragon Ball: Super Saiyan / Kaio-ken; One Piece: Gear Second",
+      "gameplay": "Self buff for 6 s: +20% damage dealt, +15% walk speed and move tempo, energy gain stops. Optional Kaio-ken rule: the user loses 1 HP per 20 ticks while active (never below 1).",
+      "maps_to": "NEW",
+      "new_block_spec": {
+        "block_id": "aura_boost",
+        "startup_ticks": 24,
+        "active_ticks": 360,
+        "recovery_ticks": 0,
+        "hitbox": "a small push burst on activation: radius 90, 0 damage, knock 8 (stops being punished while powering up)",
+        "damage_tier": "light",
+        "damage_units": 0,
+        "special_rules": "Reuse the admin buff path: a per-fighter boost multiplier multiplied into dealt damage (x1.2) and tempo (x1.15). Does not stack with itself or with the admin buff (take the max). No super-freeze; the 24-tick startup is vulnerable after the push.",
+        "counterplay": "Play keep-away for 6 s (no energy gain for the user meanwhile), or block and wait it out."
+      },
+      "slot_fit": ["side_skill", "slot1_50_energy"],
+      "class_fit": ["Fighter", "Mace", "Attacker"],
+      "element_affinity": ["FIRE", "ELECTRIC"],
+      "vfx_storyboard": [
+        "Anticipation: fists clenched at the sides, knees bent, floor debris lifts.",
+        "Release: a flame-shaped aura outline (3 nested wavy strokes, gold #f2b705) erupts around the body.",
+        "Active: aura flickers; the head scribble gets a highlighter-yellow fill; small sparks.",
+        "End: aura shrinks and pops with a puff."
+      ],
+      "pose_notes": "Power-up scream: chest out, arms down and back, head tilted up.",
+      "balance_risk": "Medium: stacks with BLEED/FIRE DOT and combos; must never stack with the admin buff."
+    },
+    {
+      "id": "gravity_well",
+      "original_names": ["Inkwell Vortex", "Spiral-Binding Pull", "Drain-Hole Doodle"],
+      "inspired_by": "Jujutsu Kaisen: Gojo's Blue (attraction); Naruto: Pain's Bansho Ten'in",
+      "gameplay": "Places a vortex 220 px in front for 60 ticks. It pulls the opponent toward its centre at 3 px/tick (stronger near the centre) and deals a small tick every 12 ticks. Sets up melee pressure and breaks keep-away.",
+      "maps_to": "NEW",
+      "new_block_spec": {
+        "block_id": "gravity_well",
+        "startup_ticks": 18,
+        "active_ticks": 60,
+        "recovery_ticks": 16,
+        "hitbox": "pull radius 200; damage radius 50 around the centre (x = user + facing*220, y = 0.5 body height)",
+        "damage_tier": "light",
+        "damage_units": "0.3 per tick-hit, max 5 ticks = 1.5",
+        "special_rules": "Pull ignores blocking but not armor (armored fighters pulled at half). Reuses the GRAVITY pull maths in infect() each tick. Projectiles inside the radius curve toward the centre and get absorbed.",
+        "counterplay": "Walk against it (pull 3 px/tick is slower than walk speed), jump away, or punish the user's 16-tick recovery."
+      },
+      "slot_fit": ["slot1_50_energy"],
+      "class_fit": ["Attacker", "Mace"],
+      "element_affinity": ["GRAVITY"],
+      "vfx_storyboard": [
+        "Anticipation: palm turned up, a tiny dark dot forms on the fingertip.",
+        "Release: the dot flies to its spot and opens into a spiral (the GRAVITY status spiral, scaled x6, #8a4fe0).",
+        "Active: floor ruled lines bend toward the centre; dust particles spiral inward.",
+        "Impact ticks: small violet sparks on the victim.",
+        "Linger: spiral collapses into a dot with a soft pop."
+      ],
+      "pose_notes": "One arm extended with a clawed hand, slowly closing into a fist.",
+      "balance_risk": "Medium: pull + delayed_blast or + command_grab is a lock. Avoid pairing those two in one kit."
+    },
+    {
+      "id": "repulse_burst",
+      "original_names": ["Page-Slam Burst", "Bookend Blast", "Shove Off the Page"],
+      "inspired_by": "Naruto: Pain's Shinra Tensei; Guilty Gear: Psych Burst (combo breaker)",
+      "gameplay": "A 360-degree push around the user (radius 130) that knocks back hard and resets spacing. Its key trait: usable while being hit (in hitstun), so it breaks a combo, costing 50 energy.",
+      "maps_to": "NEW",
+      "new_block_spec": {
+        "block_id": "repulse",
+        "startup_ticks": 6,
+        "active_ticks": 6,
+        "recovery_ticks": 28,
+        "hitbox": "circle r130 around the body centre",
+        "damage_tier": "light",
+        "damage_units": 1.0,
+        "special_rules": "Allowed from action 'hit' (not from KO, not during a grab). Knock 22, launch 6. User is untouchable t1-6. Once per round. Gives the opponent 15 energy back as compensation when used to break a combo.",
+        "counterplay": "Bait it (stop the combo early, block, then punish the 28-tick recovery); it is once per round."
+      },
+      "slot_fit": ["side_skill", "slot1_50_energy"],
+      "class_fit": ["Tank", "Attacker", "Mace"],
+      "element_affinity": ["NONE", "GRAVITY", "ELECTRIC"],
+      "vfx_storyboard": [
+        "Anticipation: user curls up, a white outline flashes 2 ticks.",
+        "Release: a ring of ink expands from the body (width 8, grows 14 px/tick), the page itself ripples.",
+        "Impact: opponent flung with speed lines, camera shake 10.",
+        "Linger: radial crack lines on the paper around the user."
+      ],
+      "pose_notes": "Curled ball, then arms and legs thrown wide in a star.",
+      "balance_risk": "High in PvP if repeatable: kills combo play. Once per round + 50 energy keeps it a comeback tool."
+    },
+    {
+      "id": "shock_shell",
+      "original_names": ["Static Doodle", "Crackle Outline", "Live-Wire Margin"],
+      "inspired_by": "Street Fighter: Blanka's Electric Thunder; Hunter x Hunter: Killua's electric aura",
+      "gameplay": "The user crackles for 40 ticks; anyone touching the body takes a hit every 8 ticks and is pushed away. Pure anti-rushdown; the user cannot move but can block.",
+      "maps_to": "NEW",
+      "new_block_spec": {
+        "block_id": "aura_field",
+        "startup_ticks": 5,
+        "active_ticks": 40,
+        "recovery_ticks": 14,
+        "hitbox": "body box expanded by 30 px on all sides",
+        "damage_tier": "light",
+        "damage_units": "0.4 per hit, max 5 = 2.0",
+        "special_rules": "Melee hits that land on the user during active ticks still hurt the user, but the attacker takes a field hit first (hit-trade). Projectiles pass through. Element applies only on the first field hit.",
+        "counterplay": "Zone from range (projectiles), or wait 40 ticks and punish 14 recovery."
+      },
+      "slot_fit": ["side_skill", "slot1_50_energy"],
+      "class_fit": ["Tank", "Fighter"],
+      "element_affinity": ["ELECTRIC", "FIRE", "POISON"],
+      "vfx_storyboard": [
+        "Anticipation: user hunches, a few sparks.",
+        "Release: jagged zigzag outline redrawn around the body every 3 ticks (random offsets), ELECTRIC blue.",
+        "Impact: attacker flashes white with a skeleton x-ray scribble for 2 ticks.",
+        "Linger: smoke puffs from the user's head."
+      ],
+      "pose_notes": "Crouched, arms tucked in, body shaking 1-2 px.",
+      "balance_risk": "Low; situational. CPU must not walk into it."
+    },
+    {
+      "id": "giant_palm",
+      "original_names": ["Teacher's Hand", "Giant Eraser Palm", "Doodle Colossus Slap"],
+      "inspired_by": "Hunter x Hunter: Netero's 100-Type Guanyin Bodhisattva (giant summoned palm)",
+      "gameplay": "After a prayer pose, a huge hand appears at a fixed distance (250 px ahead) and slams down. A spacing tool that hits far without a projectile (cannot be reflected).",
+      "maps_to": "NEW",
+      "new_block_spec": {
+        "block_id": "summon_strike",
+        "startup_ticks": 26,
+        "active_ticks": 8,
+        "recovery_ticks": 20,
+        "hitbox": "box 140 wide centred 250 px in front, from the ground to 1.4 body height",
+        "damage_tier": "heavy",
+        "damage_units": 3.4,
+        "special_rules": "Hitbox is fixed in world space at release (does not track). Launch 10. The user's body is vulnerable for the whole startup.",
+        "counterplay": "Step in closer than 180 px or past 320 px; the giant hand outline appears 10 ticks before the slam."
+      },
+      "slot_fit": ["slot1_50_energy", "ultimate_100"],
+      "class_fit": ["Mace", "Tank", "Fighter"],
+      "element_affinity": ["NONE", "GRAVITY"],
+      "vfx_storyboard": [
+        "Anticipation: palms pressed together, a golden halo circle behind the user.",
+        "Telegraph: a faint dotted outline of a huge hand above the target spot.",
+        "Release: the hand fills with gold ink and slams down.",
+        "Impact: ground ring, shake 12, victim bounced up.",
+        "Linger: hand dissolves into ink rain."
+      ],
+      "pose_notes": "Prayer pose, then one arm thrust forward with an open palm mirroring the giant hand.",
+      "balance_risk": "Low-medium; fixed range keeps it readable."
+    },
+    {
+      "id": "drill_spin",
+      "original_names": ["Pencil-Sharpener Spin", "Helicopter Doodle", "Spiral Notebook Kick"],
+      "inspired_by": "Street Fighter: Tatsumaki Senpukyaku (hurricane kick) and Chun-Li's Spinning Bird Kick",
+      "gameplay": "A spinning airborne kick that travels forward 280 px, hitting up to 4 times. It floats above the floor, so it passes over low projectiles (wave) and ground traps.",
+      "maps_to": "NEW",
+      "new_block_spec": {
+        "block_id": "spin_drill",
+        "startup_ticks": 8,
+        "active_ticks": 30,
+        "recovery_ticks": 18,
+        "hitbox": "box 90 wide around the body, top 0.95, bot 0.35; hits every 7 ticks",
+        "damage_tier": "mid",
+        "damage_units": "0.6 per hit, 4 hits + no finisher = 2.4",
+        "special_rules": "User lifts 40 px (vy small, no gravity while active), moves 9 px/tick. Lower body is not a hurtbox from t6 (low hits whiff). Ends with knock 12.",
+        "counterplay": "Block (multi-hit chips little), anti-air with uppercut, or punish the 18-tick landing."
+      },
+      "slot_fit": ["slot1_50_energy"],
+      "class_fit": ["Fighter", "Sword"],
+      "element_affinity": ["NONE", "FROST", "BLEED"],
+      "vfx_storyboard": [
+        "Anticipation: a small hop, kicking leg chambers.",
+        "Release: the body rotates; draw 2 elliptical swoosh arcs around it each frame.",
+        "Travel: small tornado scribble under the feet.",
+        "Impact: star splat per hit, alternating left/right.",
+        "Linger: dizzy spiral above the user's head for 10 ticks on landing."
+      ],
+      "pose_notes": "Leg extended horizontally, arms tucked, body rotation drawn by flipping facing every 4 ticks.",
+      "balance_risk": "Low."
+    },
+    {
+      "id": "one_shot_punch",
+      "original_names": ["Serious Scribble", "Final Draft Punch", "Full-Stop Fist"],
+      "inspired_by": "One-Punch Man: Saitama's Serious Punch; Smash Bros: Falcon Punch (slow, huge)",
+      "gameplay": "A hold-to-charge straight punch. Press special to start charging; release (or press again) to fire. Damage scales from 1.6 to 4.0 units over 90 ticks; at full charge it breaks guard (ignores blocking).",
+      "maps_to": "NEW",
+      "new_block_spec": {
+        "block_id": "hold_charge",
+        "startup_ticks": "20 minimum, up to 90 charging",
+        "active_ticks": 5,
+        "recovery_ticks": 28,
+        "hitbox": "front() reach 80, top 0.9, bot 0.4, with a 30 px lunge",
+        "damage_tier": "heavy",
+        "damage_units": "1.6 + 2.4 * (charge/90); full charge is unblockable",
+        "special_rules": "Input uses counters, so 'release' = the next special press (a second tap fires); auto-fires at 90 ticks. Armor 1 hit (half damage) during charge ticks 30-90. Getting hit out of the charge refunds 25 energy.",
+        "counterplay": "Hit them while charging (only 1-hit armor), back away past 110 px, or jump (no anti-air coverage)."
+      },
+      "slot_fit": ["slot1_50_energy", "ultimate_100"],
+      "class_fit": ["Fighter", "Mace", "Tank"],
+      "element_affinity": ["NONE", "FIRE"],
+      "vfx_storyboard": [
+        "Anticipation: fist pulled back; concentric rings pulse around the fist, growing as charge builds; screen slowly dims.",
+        "Full charge: a white glint 'ding' on the knuckles, the user's face scribble turns flat and calm.",
+        "Release: a 2-tick impact frame (whole screen inverted, only black silhouettes).",
+        "Impact: giant splat filling half the screen, shake 18, victim launched across.",
+        "Linger: a wind wake (horizontal lines) continues to the arena edge."
+      ],
+      "pose_notes": "Deep back-weighted stance with the fist at the ear, then a full-body straight punch.",
+      "balance_risk": "Medium: needs input/protocol work (hold state); guard-break at full charge must stay slow to react to."
+    },
+    {
+      "id": "ink_drain",
+      "original_names": ["Ink Siphon", "Refill Bite", "Cartridge Drain"],
+      "inspired_by": "Naruto: Kisame's Samehada chakra drain; vampire life-steal grabs common in fighting games",
+      "gameplay": "A short lunge bite/grab that deals mid damage and heals the user for 50% of damage dealt, plus steals 20 energy.",
+      "maps_to": "NEW",
+      "new_block_spec": {
+        "block_id": "drain_strike",
+        "startup_ticks": 10,
+        "active_ticks": 6,
+        "recovery_ticks": 22,
+        "hitbox": "front() reach 60, top 0.95, bot 0.3, lunge 6 px/tick",
+        "damage_tier": "mid",
+        "damage_units": 2.4,
+        "special_rules": "On unblocked hit: user.hp += round(dealt*0.5) (max HP 200), opp.energy -= 20, user.energy += 0 (no refill from the steal, to avoid loops). Blocked: no heal, no steal.",
+        "counterplay": "Block it (removes the payoff), or space beyond 60 px."
+      },
+      "slot_fit": ["slot1_50_energy"],
+      "class_fit": ["Fighter", "Sword", "Mace"],
+      "element_affinity": ["POISON", "BLEED"],
+      "vfx_storyboard": [
+        "Anticipation: user hunches with claw hands.",
+        "Release: lunge with a jagged mouth shape (scribbled teeth) at the hand.",
+        "Impact: ink droplets flow from the victim to the user along a curve.",
+        "Linger: user's HP bar flashes green and fills a little."
+      ],
+      "pose_notes": "Forward lunge with both claws, head low.",
+      "balance_risk": "Medium: healing lengthens rounds and helps time-outs; cap heal per round to 40 HP."
+    },
+    {
+      "id": "inkblot_trap",
+      "original_names": ["Sticky Blot Mine", "Glue-Stick Trap", "Wet-Ink Puddle"],
+      "inspired_by": "Naruto: paper bomb tags; Guilty Gear: trap-setting zoners (e.g. Testament, Venom's balls)",
+      "gameplay": "Drops a sticky ink puddle 120 px ahead on the floor. The first time the opponent steps on it they are rooted for 40 ticks and take light damage. Lasts 6 s, max 1.",
+      "maps_to": "NEW",
+      "new_block_spec": {
+        "block_id": "floor_trap",
+        "startup_ticks": 12,
+        "active_ticks": 360,
+        "recovery_ticks": 12,
+        "hitbox": "floor rect 80 wide x 12 tall centred 120 px in front, triggers only on a grounded opponent",
+        "damage_tier": "light",
+        "damage_units": 1.0,
+        "special_rules": "Root = opponent cannot walk or jump for 40 ticks, can still block/attack. Trap is a projectile with vx 0 and kind 'trap'. Destroyed by any opponent special, or by the opponent's attack hitting it.",
+        "counterplay": "Jump over it, destroy it with an attack, or bait the user to stand behind it and zone them."
+      },
+      "slot_fit": ["side_skill", "slot1_50_energy"],
+      "class_fit": ["Attacker", "Tank"],
+      "element_affinity": ["POISON", "FROST"],
+      "vfx_storyboard": [
+        "Anticipation: user flicks the pen-hand down.",
+        "Release: an ink drop arcs to the floor and splats into an irregular puddle with a glossy highlight.",
+        "Idle: puddle bubbles slowly (2 small circles every 30 ticks).",
+        "Trigger: ink tendrils wrap the victim's feet (3 curved strokes up to the knees).",
+        "Linger: puddle dries into a grey stain and fades."
+      ],
+      "pose_notes": "Overhand flick, like flicking ink from a fountain pen.",
+      "balance_risk": "Medium: trap + zoning = turtling that runs out the timer. One trap at a time and a 6 s life."
+    },
+    {
+      "id": "phase_out",
+      "original_names": ["Tracing-Paper Ghost", "Ink Vanish", "Watermark Mode"],
+      "inspired_by": "Naruto: Obito's Kamui intangibility; ghost-type phasing in fighting games",
+      "gameplay": "Becomes intangible for 50 ticks: all hits and projectiles pass through, the user can walk through the opponent but cannot attack. Ends with a 10-tick fade-in where they are vulnerable.",
+      "maps_to": "NEW",
+      "new_block_spec": {
+        "block_id": "phase",
+        "startup_ticks": 4,
+        "active_ticks": 50,
+        "recovery_ticks": 10,
+        "hitbox": "none",
+        "damage_tier": "light",
+        "damage_units": 0,
+        "special_rules": "applyHit early-return while active (reuse the teleport check). Body collision off. Cannot attack or block; walk speed x1.2. Cannot be used twice within 6 s.",
+        "counterplay": "Track where they will reappear and time a hit on the 10-tick fade-in."
+      },
+      "slot_fit": ["side_skill"],
+      "class_fit": ["Attacker", "Sword"],
+      "element_affinity": ["NONE", "GRAVITY"],
+      "vfx_storyboard": [
+        "Anticipation: a swirl around one eye of the head scribble.",
+        "Release: body drawn at 30% alpha with a dotted outline (tracing-paper look).",
+        "Active: projectiles pass with a small ripple at the overlap.",
+        "End: outline solidifies stroke by stroke over 10 ticks."
+      ],
+      "pose_notes": "Relaxed stand, hands in pockets; ghost walk cycle.",
+      "balance_risk": "Medium: pure escape; abusable near the round timer. Cooldown plus no attack keeps it fair."
+    },
+    {
+      "id": "homing_shot",
+      "original_names": ["Paper-Plane Seeker", "Doodle Dragon Dart", "Origami Hunter"],
+      "inspired_by": "Yu Yu Hakusho: Hiei's Dragon of the Darkness Flame; homing projectiles in fighting games",
+      "gameplay": "A slow projectile that steers vertically toward the opponent's chest (vy turn rate 0.5 px/tick^2) so jumping does not dodge it. It flies only forward (no U-turn).",
+      "maps_to": "NEW",
+      "new_block_spec": {
+        "block_id": "homing_projectile",
+        "startup_ticks": 16,
+        "active_ticks": 120,
+        "recovery_ticks": 18,
+        "projectile": { "speed_px_per_tick": 6, "r": 18, "vy_max": 4, "turn": 0.5, "range_px": 720 },
+        "damage_tier": "mid",
+        "damage_units": 2.4,
+        "special_rules": "Projectile gets a vy updated each tick toward opp.y - 0.6*BODY.h. Destroyed by any other projectile or a melee hit on it.",
+        "counterplay": "Block, hit it with a normal (it is slow), or out-run it horizontally: it never turns back."
+      },
+      "slot_fit": ["slot1_50_energy"],
+      "class_fit": ["Attacker"],
+      "element_affinity": ["FIRE", "FROST", "POISON"],
+      "vfx_storyboard": [
+        "Anticipation: user folds a paper plane in 3 quick frames.",
+        "Release: plane launched with a flick; ink trail behind it.",
+        "Travel: plane banks (rotates) as it turns; small element-coloured sparks from the tail.",
+        "Impact: plane unfolds into a flat sheet that slaps the victim, splat."
+      ],
+      "pose_notes": "Dart-throw pose, arm finishing high.",
+      "balance_risk": "Low-medium: slow speed + destructible."
+    },
+    {
+      "id": "sky_volley",
+      "original_names": ["Pencil-Case Downpour", "Ink Rain", "Stationery Storm"],
+      "inspired_by": "Fate series: Gilgamesh's Gate of Babylon (rain of weapons)",
+      "gameplay": "Ultimate. Opens 5 portals above the arena; pencils/rulers rain down at staggered x positions around the opponent (centred on their position at release, spread 360 px), one every 8 ticks.",
+      "maps_to": "NEW",
+      "new_block_spec": {
+        "block_id": "volley",
+        "startup_ticks": 24,
+        "active_ticks": 48,
+        "recovery_ticks": 14,
+        "projectile": { "count": 5, "speed_px_per_tick": 14, "direction": "down, slight diagonal", "hitbox": "r12", "spacing_px": 90, "every_ticks": 8 },
+        "damage_tier": "ultimate",
+        "damage_units": "1.0 each, 5 = 5.0 if all hit (rarely)",
+        "special_rules": "Targets are fixed at release (opponent x + [-180,-90,0,90,180]), order random but seeded by m.nextId for determinism. Projectiles hit the floor and vanish. The user can move after the startup.",
+        "counterplay": "Watch the shadows on the floor (each impact point is marked 16 ticks ahead) and step between them; blocking reduces each."
+      },
+      "slot_fit": ["ultimate_100"],
+      "class_fit": ["Attacker", "Sword"],
+      "element_affinity": ["FIRE", "FROST", "ELECTRIC", "BLEED"],
+      "vfx_storyboard": [
+        "Anticipation: user raises a hand; 5 golden rippling rectangles (portals) open at the top of the screen.",
+        "Telegraph: dark ellipse shadows on the floor under each target point.",
+        "Release: pencil/ruler shapes drop from each portal with motion lines.",
+        "Impact: each sticks into the floor at an angle, small splat.",
+        "Linger: stuck items fade out after 20 ticks."
+      ],
+      "pose_notes": "Arm raised high, palm down, then swept forward as a command.",
+      "balance_risk": "Medium: full-area pressure; the floor shadows are essential."
+    },
+    {
+      "id": "domain_page",
+      "original_names": ["My Notebook, My Rules", "Closed-Book Arena", "Private Margin"],
+      "inspired_by": "Jujutsu Kaisen: Domain Expansion (a field where the user's technique is guaranteed to hit)",
+      "gameplay": "Ultimate field for 4 s: the arena background turns into the user's page. The opponent walks 30% slower and their energy gain stops; the user's specials-free normal hits ignore 50% of block reduction.",
+      "maps_to": "NEW",
+      "new_block_spec": {
+        "block_id": "domain",
+        "startup_ticks": 40,
+        "active_ticks": 240,
+        "recovery_ticks": 0,
+        "hitbox": "arena-wide status, plus an opening burst r160 for 1.0 units",
+        "damage_tier": "ultimate",
+        "damage_units": "1.0 opening burst; value comes from the 4 s field",
+        "special_rules": "Field = match-level state {owner, t}. Opponent: walk x0.7, energyMul 0. Owner: blocked hits use blockReduce*0.5. If both fighters cast a domain, the later one cancels both (clash, white flash).",
+        "counterplay": "40-tick startup can be interrupted; during the field, block and run; counter-cast your own domain to cancel."
+      },
+      "slot_fit": ["ultimate_100"],
+      "class_fit": ["Attacker", "Fighter", "Sword"],
+      "element_affinity": ["NONE", "GRAVITY", "POISON"],
+      "vfx_storyboard": [
+        "Anticipation: user makes a hand sign; a black ink ring spreads on the floor from their feet.",
+        "Release: the background notebook page peels away and is replaced by a new page in the user's ink colour, with their doodles scribbled around.",
+        "Active: subtle border vignette in the user's ink; opponent's outline gets a grey haze.",
+        "End: the page tears down the middle and the normal notebook returns."
+      ],
+      "pose_notes": "Hand sign at the chest, eyes closed, then arms spread.",
+      "balance_risk": "High: global debuffs for 4 s; strongest as a boss/dungeon move. Needs careful renderer cost (full background swap)."
+    },
+    {
+      "id": "lob_bomb",
+      "original_names": ["Crumpled-Paper Comet", "Spitball Mortar", "Ink-Cap Lob"],
+      "inspired_by": "Dragon Ball: Spirit Bomb (a huge ball brought down from above); arcing grenade throws in fighting games",
+      "gameplay": "An arcing projectile with gravity that sails over a close opponent and lands 200-360 px away, exploding on the floor (r60). Beats an opponent sitting at mid range behind a block wall or trap.",
+      "maps_to": "NEW",
+      "new_block_spec": {
+        "block_id": "lob",
+        "startup_ticks": 14,
+        "active_ticks": 50,
+        "recovery_ticks": 16,
+        "projectile": { "vx_px_per_tick": 6, "vy0": -12, "gravity": 0.5, "r": 20, "explosion_r": 60 },
+        "damage_tier": "mid",
+        "damage_units": 2.6,
+        "special_rules": "Projectile gets vy and gravity; explodes on touching the ground or the opponent. Landing point shown as a shadow while in flight.",
+        "counterplay": "Step in close (it passes over you) or back off past its landing spot; the shadow telegraphs it."
+      },
+      "slot_fit": ["slot1_50_energy"],
+      "class_fit": ["Attacker", "Mace", "Tank"],
+      "element_affinity": ["FIRE", "POISON", "FROST"],
+      "vfx_storyboard": [
+        "Anticipation: user crumples a paper ball overhead (it grows from r6 to r20).",
+        "Release: underhand toss, the ball spins (rotate crumple lines).",
+        "Travel: soft shadow ellipse on the floor tracks the landing point.",
+        "Impact: explosion ring r60 in the element colour, paper scraps fly.",
+        "Linger: smouldering crumple on the floor for 20 ticks."
+      ],
+      "pose_notes": "Both hands overhead, then a big two-handed lob.",
+      "balance_risk": "Low."
+    }
+  ],
+  "ranking": {
+    "top_8_new_blocks_first": [
+      { "rank": 1, "block_id": "command_grab", "archetype": "piledriver_grab", "why": "Block (hold S) currently has no hard answer except special chip; a grab adds the classic strike/throw mix. Cheap: front() plus an unblockable flag in applyHit and a scripted 40-tick animation." },
+      { "rank": 2, "block_id": "parry_counter", "archetype": "counter_stance", "why": "First reactive defensive special; gives Sword/Tank a skill expression. Fits applyHit's existing early-return hook (same place as teleport invulnerability). Beaten by grabs and projectiles, so it forms a triangle with command_grab." },
+      { "rank": 3, "block_id": "hook_pull", "archetype": "hook_line", "why": "Anti-zoning tool and a crowd-pleaser; reuses the projectile array with a tether flag and a position lerp on hit. Gives Fighter/Mace a way to deal with beam/bolt Attackers." },
+      { "rank": 4, "block_id": "dash_through", "archetype": "flash_draw", "why": "Signature Sword identity with a strong cinematic moment (sheathe pause). Built from teleport invulnerability + slash dash code; mostly renderer work." },
+      { "rank": 5, "block_id": "crescent_projectile", "archetype": "crescent_wave", "why": "Smallest code change of all (a tall rectangular projectile hitbox) yet changes play: a projectile you cannot jump. Gives Sword a ranged option." },
+      { "rank": 6, "block_id": "mark_detonate", "archetype": "delayed_blast", "why": "New zoning shape (area denial at the opponent's position) that does not fill the screen; one delayed hitbox, user acts while pending." },
+      { "rank": 7, "block_id": "spin_drill", "archetype": "drill_spin", "why": "Answers wave/low projectiles and traps; multi-hit like barrage so the hit loop already exists; good Fighter/Sword option." },
+      { "rank": 8, "block_id": "aura_boost", "archetype": "power_aura", "why": "Best first side_skill: reuses the admin buff multipliers, no hitbox work, and anime fans expect a power-up. Needs only a timer and a renderer aura." }
+    ],
+    "dungeon_reward_candidates": [
+      { "block_id": "time_stop", "archetype": "page_freeze", "why": "The most hype move but too oppressive for ranked PvP; as a rare dungeon reward (or boss move) it feels earned and can be tuned against the CPU first." },
+      { "block_id": "domain", "archetype": "domain_page", "why": "Arena-wide transformation is a perfect 'trophy' move; global debuffs are safer against CPU bosses than humans." },
+      { "block_id": "volley", "archetype": "sky_volley", "why": "Flashy, readable (floor shadows), multi-projectile spectacle; a natural chest-drop ultimate that teaches dodging." },
+      { "block_id": "clone_strike", "archetype": "clone_rush", "why": "Visually reuses the player's own drawing as clones, which makes the reward feel personal; needs the most AI tuning, so gating it is sensible." },
+      { "block_id": "summon_strike", "archetype": "giant_palm", "why": "A giant drawn hand is a memorable 'boss defeated' unlock and is mechanically safe (fixed range, long telegraph)." }
+    ]
+  },
+  "risky_ideas": [
+    "time_stop: 90 ticks with no agency; stored-damage cap and interruptible startup required. Keep out of ranked until tested.",
+    "repulse (combo breaker usable in hitstun): makes combos pointless if cheap; once per round + 50 energy.",
+    "domain: global debuffs for 4 s and a full background swap (render cost on phones).",
+    "hold_charge: needs a held-button state in Input and the WebRTC protocol (inputs are counters today).",
+    "drain_strike: life-steal extends rounds and favours time-outs; cap heal per round.",
+    "gravity_well or mark_detonate paired with command_grab or hook_pull in one kit can form unescapable loops: forbid those pairings in the generator.",
+    "aura_boost must not stack with the admin buff (User.buff)."
+  ],
+  "sources": [
+    "https://dustloop.com/w/Using_Frame_Data",
+    "https://www.dustloop.com/w/GGST/Potemkin",
+    "https://www.dustloop.com/wiki/images/cache/b/b7/GGST%252FKy_Kiske%252FStrategy.html",
+    "https://www.dustloop.com/wiki/images/cache/c/cc/GGST%252FKy_Kiske%252FResources.html",
+    "https://srk.shib.live/w/Street_Fighter_6/Zangief",
+    "https://srk.shib.live/w/Ultra_Street_Fighter_IV/Zangief/Introduction",
+    "https://strategywiki.org/wiki/Street_Fighter_II/Zangief",
+    "https://www.redbull.com/int-en/street-fighter-6-drive-tips",
+    "https://dashfight.com/news/street-fighter-6-drive-system-explained-2880",
+    "https://primagames.com/gaming/street-fighter-6-beat-drive-impact",
+    "https://game.capcom.com/cfn/sfv/column/131545?lang=en",
+    "https://game.capcom.com/cfn/sfv/column/131432?lang=en",
+    "https://critpoints.net/2017/05/17/hitstophitfreezehitlaghitpausehitshit/",
+    "https://en.wikipedia.org/wiki/Dhalsim",
+    "https://en.wikipedia.org/wiki/Scorpion_(Mortal_Kombat)",
+    "https://gamespot.com/articles/ed-boon-shares-some-history-on-an-iconic-mortal-kombat-move/1100-6497016/",
+    "https://onepiece.fandom.com/wiki/Gomu_Gomu_no_Mi/Techniques",
+    "https://naruto.fandom.com/wiki/shadow_clone",
+    "https://jujutsu-kaisen.fandom.com/wiki/Limitless",
+    "https://jojowiki.com/The_World_(Steel_Ball_Run)",
+    "https://bleach.fandom.com/wiki/Fierce_Fighting_Conclusion!_Release,_the_Final_Getsuga_Tensh%C5%8D!",
+    "https://sportskeeda.com/anime/what-netero-s-power-hunter-x-hunter-his-nen-ability-explained",
+    "https://myanimelist.net/character/14489",
+    "docs/research/anime-01.json .. anime-12.json (earlier Gemini research: new_block ideas stretch_bolt, dash_slash, remote_detonation, shatter, parry_counter, pocket_salt, sawblade_dash, stat_boost, ethereal_state, time_stop, summon_strike, pull, counter, snatch)"
+  ]
+}
