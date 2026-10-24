@@ -144,7 +144,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
       if (me.status !== 200) return setError("That fighter doesn't exist. Draw a new one?");
       const myFighter: PublicFighter = {
         id: me.id, name: me.name, class: me.class, imageUrl: me.imageUrl, specialMove: me.specialMove,
-        hp: me.hp, atk: me.atk, def: me.def, spd: me.spd, agi: me.agi, iq: me.iq, element: me.element, item: me.item, pose: me.pose, rotation: me.rotation, specialKind: me.specialKind, style: me.style,
+        hp: me.hp, atk: me.atk, def: me.def, spd: me.spd, agi: me.agi, iq: me.iq, element: me.element, item: me.item, pose: me.pose, rotation: me.rotation, specialKind: me.specialKind, style: me.style, sideSkill: me.sideSkill,
         flipItem: me.flipItem, ...(buff && { buff }),
       };
 
@@ -510,5 +510,5 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
 
 function sanitize(i: Partial<Input> | undefined): Input {
   const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
-  return { left: !!i?.left, right: !!i?.right, block: !!i?.block, jump: n(i?.jump), attack: n(i?.attack), kick: n(i?.kick), special: n(i?.special) };
+  return { left: !!i?.left, right: !!i?.right, block: !!i?.block, jump: n(i?.jump), attack: n(i?.attack), kick: n(i?.kick), special: n(i?.special), skill: n(i?.skill) };
 }

@@ -3,7 +3,7 @@
 // impact FX (smears, rings, ink splats, hit-stop shake) and the HUD.
 
 import { normClass } from "../lib/stats";
-import { itemOf, MOVES, STYLE_INFO } from "./moves";
+import { itemOf, MOVES, SKILL_INFO, STYLE_INFO, type SideSkill } from "./moves";
 import { ceremonyPose, poseFor } from "./poses";
 import { resolvePose, type BoneName, type Vec } from "./skeleton";
 import type { Sprite } from "./sprite";
@@ -143,8 +143,19 @@ export class Renderer {
         }
       }
       const words = e.blocked ? ["BLOCK", "NOPE"] : e.special ? ["KRAKA-BOOM", "WHAM!!", "SPLAT", "DOOM"] : ["POW", "BAM", "BONK", "SMACK", "OOF", "THWACK"];
-      this.particles.push({ x: e.x, y: e.y - 24, vx: 0, vy: -1.2, life: 0, max: 36, text: `${words[e.id % words.length]} ${e.dmg}`, color, size: e.special ? 30 : 22 });
+      const text = e.dmg === 0 ? "ABSORBED" : `${words[e.id % words.length]} ${e.dmg}`; // 0: an ink bubble soaked it
+      this.particles.push({ x: e.x, y: e.y - 24, vx: 0, vy: -1.2, life: 0, max: 36, text, color, size: e.special ? 30 : 22 });
       this.shake = Math.max(this.shake, e.special ? 13 : e.blocked ? 2 : 4 + e.dmg / 3);
+      // A mace's overhead or slam cracks the floor; a sweep kicks up dust.
+      const by = s.fighters[e.by];
+      if (!e.blocked && (by.move === "overhead" || by.move === "slam")) {
+        this.shake = Math.max(this.shake, 12);
+        this.rings.push({ x: e.x, y: ARENA.ground, r: 14, grow: 9, life: 0, max: 16, color: C.ink, width: 5 });
+        for (let i = 0; i < 3; i++) this.stains.push({ x: e.x + (i - 1) * 26, y: ARENA.ground + 3, r: 9 + i * 3, life: 0, color: C.ink });
+      }
+      if (by.move === "sweep" || by.move === "flyingKick") {
+        for (let i = 0; i < 8; i++) this.particles.push({ x: e.x + (Math.random() - 0.5) * 50, y: ARENA.ground - 4, vx: (Math.random() - 0.5) * 6, vy: -2 - Math.random() * 4, life: 0, max: 20, color: C.muted, size: 3 + Math.random() * 3 });
+      }
       if (e.special) this.flash = Math.max(this.flash, 3);
     } else if (e.type === "special") {
       this.banner = { text: `${hud.specialNames[e.by]}!`, color: C.hit, life: 80 };
@@ -154,6 +165,22 @@ export class Renderer {
       // A quick afterimage ring and a word, no damage number.
       this.rings.push({ x: e.x, y: e.y, r: 18, grow: 3, life: 0, max: 10, color: C.guard, width: 2 });
       this.particles.push({ x: e.x, y: e.y - 30, vx: 0, vy: -1, life: 0, max: 28, text: ["SLIP", "MISS", "WHIFF"][e.id % 3], color: C.guard, size: 20 });
+    } else if (e.type === "clash") {
+      // Two strikes meet: sparks and a burst of ink at the contact point, nobody takes damage.
+      this.rings.push({ x: e.x, y: e.y, r: 6, grow: 9, life: 0, max: 14, color: C.gold, width: 6 });
+      this.rings.push({ x: e.x, y: e.y, r: 2, grow: 14, life: 0, max: 12, color: C.ink, width: 2 });
+      for (let i = 0; i < 16; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const sp = 3 + Math.random() * 6;
+        this.particles.push({ x: e.x, y: e.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1, life: 0, max: 14 + Math.random() * 8, color: i % 2 ? C.gold : C.ink, size: 2 + Math.random() * 3 });
+      }
+      this.particles.push({ x: e.x, y: e.y - 30, vx: 0, vy: -1.3, life: 0, max: 30, text: "CLASH!", color: C.gold, size: 26 });
+      this.shake = Math.max(this.shake, 8);
+      this.flash = Math.max(this.flash, 2);
+    } else if (e.type === "skill") {
+      const f = s.fighters[e.by];
+      this.rings.push({ x: f.x, y: f.y - BODY.h * 0.55, r: 30, grow: 4, life: 0, max: 14, color: C.guard, width: 3 });
+      this.particles.push({ x: f.x, y: f.y - BODY.h - 30, vx: 0, vy: -1, life: 0, max: 40, text: SKILL_INFO[e.kind].name.toUpperCase(), color: C.guard, size: 18 });
     } else if (e.type === "ko") {
       this.shake = 20;
       this.flash = 6;
@@ -219,7 +246,7 @@ export class Renderer {
 
     // Whoever is doing a special is drawn on top.
     const order = [...fighters].sort((a, b) => (a.action === "special" ? 1 : 0) - (b.action === "special" ? 1 : 0));
-    for (const f of order) this.fighter(f, cur.specials[f.slot], cur.styles[f.slot], now, hud.you === f.slot);
+    for (const f of order) this.fighter(f, cur.specials[f.slot], cur.styles[f.slot], now, hud.you === f.slot, cur.skills?.[f.slot]);
     this.lastNow = now;
     for (const p of projectiles) this.projectile(p.kind, p.x, p.y, p.r, p.vx, now, p.owner);
     this.fx();
@@ -347,7 +374,7 @@ export class Renderer {
     ctx.restore();
   }
 
-  private fighter(f: F, special: SpecialKind, style: Snapshot["styles"][number], now: number, isYou: boolean) {
+  private fighter(f: F, special: SpecialKind, style: Snapshot["styles"][number], now: number, isYou: boolean, skill?: SideSkill) {
     const { ctx } = this;
     const sprite = this.sprites[f.slot];
     const cls = this.classes[f.slot];
@@ -361,7 +388,7 @@ export class Renderer {
 
     // Round intro: taunts. After a KO / time-out: the winner celebrates.
     const ceremony = f.action === "idle" && f.grounded && !f.moving && (this.phase === "intro" || (this.phase !== "fight" && this.roundWinner === f.slot));
-    const motion = ceremony ? ceremonyPose(this.phase === "intro" ? "intro" : "win", f.slot, now) : poseFor(f, special, now);
+    const motion = ceremony ? ceremonyPose(this.phase === "intro" ? "intro" : "win", f.slot, now) : poseFor(f, special, now, normClass(this.classes[f.slot] ?? ""));
     let dx = motion.lunge * f.facing;
     if (f.action === "hit") dx += (Math.random() - 0.5) * 6;
     const h = BODY.h * 1.06;
@@ -381,7 +408,7 @@ export class Renderer {
     this.limbs[f.slot] = cur;
     const pose = solveStick(cur);
     // Keep the lowest foot on the floor: bent legs crouch the body instead of sinking it.
-    const lift = f.grounded && f.action !== "ko" ? -Math.max(pose.joints.footF.y, pose.joints.footB.y) : 0;
+    const lift = (f.grounded && f.action !== "ko" ? -Math.max(pose.joints.footF.y, pose.joints.footB.y) : 0) - (motion.hover ?? 0);
     const dir = motion.flip ? -f.facing : f.facing;
     const toWorld = (v: Vec): Vec => ({ x: f.x + dx + dir * v.x, y: f.y + lift + v.y });
 
@@ -399,6 +426,24 @@ export class Renderer {
     if (smear.length > 2) {
       const color = f.action === "special" ? (special === "uppercut" ? C.gold : C.hit) : finisher ? C.hit : "rgba(23,23,26,.55)";
       this.drawSmear(smear, color, f.action === "special" || finisher ? 26 : 18);
+    }
+    // A sword's slashes leave a crescent where the blade swept (the smear only follows the hand).
+    if (normal && (f.move === "iai" || f.move === "risingSlash" || f.move === "airSlash") && f.t >= mv.from - 1 && f.t <= mv.to + 3) {
+      const sh = toWorld(pose.joints.shoulder);
+      const rising = f.move === "risingSlash";
+      const [a0, a1] = rising ? [0.9, -1.4] : f.move === "airSlash" ? [-1.3, 1.0] : [-0.5, 0.6];
+      const k = Math.min(1, (f.t - mv.from + 1) / Math.max(1, mv.to - mv.from + 1));
+      const span = (a1 - a0) * k;
+      const ang = (a: number) => (f.facing > 0 ? a : Math.PI - a);
+      ctx.save();
+      ctx.globalAlpha = 0.7 * (1 - Math.max(0, f.t - mv.to) / 4);
+      ctx.strokeStyle = finisher ? C.hit : C.ink;
+      ctx.lineCap = "round";
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(sh.x, sh.y, 75, ang(a0), ang(a0 + span), f.facing > 0 ? span < 0 : span > 0);
+      ctx.stroke();
+      ctx.restore();
     }
 
     // Afterimages while a special is out.
@@ -429,9 +474,13 @@ export class Renderer {
       drawStick(ctx, p, { ...look, ink: C.hit, head: null, prop: null });
     });
     ctx.globalAlpha = base;
+    const skillOn = f.skillT > 0 && f.action !== "ko" ? skill : undefined;
     if (f.armorTicks > 0 || f.action === "special") {
       ctx.shadowColor = f.action === "special" ? C.hit : C.guard;
       ctx.shadowBlur = 12; // blur cost grows with radius, and it runs per stroke
+    } else if (skillOn === "poise" || skillOn === "blade") {
+      ctx.shadowColor = skillOn === "poise" ? C.gold : C.hit; // iron poise / element blade
+      ctx.shadowBlur = 10;
     } else if (f.status) {
       ctx.shadowColor = STATUS_COLOR[f.status.kind] ?? C.muted; // a faint halo in the element's colour
       ctx.shadowBlur = 7;
@@ -441,6 +490,7 @@ export class Renderer {
     ctx.globalAlpha = 1;
 
     if (f.action === "special") this.specialFx(f, special, pose, toWorld, now);
+    if (skillOn) this.skillFx(f, skillOn, f.x + dx, f.y + lift, now);
     if (f.status && f.action !== "ko") this.statusFx(f.status.kind, f.x + dx - f.facing * 38, f.y + lift - 150, now);
 
     if (f.blocking) {
@@ -465,6 +515,40 @@ export class Renderer {
       ctx.textAlign = "center";
       ctx.fillText("YOU", f.x, top - 15);
     }
+  }
+
+  // Side skill while it lasts: a bubble, a reflect shield, a weave afterimage (poise and blade glow above).
+  private skillFx(f: F, skill: SideSkill, x: number, y: number, now: number) {
+    const { ctx } = this;
+    const cy = y - BODY.h * 0.55;
+    ctx.save();
+    if (skill === "bubble" && f.bubble > 0) {
+      const r = 84 + Math.sin(now / 120) * 3;
+      ctx.fillStyle = "rgba(47,91,224,.10)";
+      ctx.strokeStyle = "rgba(47,91,224,.55)";
+      ctx.lineWidth = 3;
+      ctx.setLineDash(f.bubble === 1 ? [10, 8] : []); // cracked after one hit
+      ctx.beginPath();
+      ctx.arc(x, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    } else if (skill === "reflect") {
+      ctx.strokeStyle = C.gold;
+      ctx.lineWidth = 4;
+      ctx.globalAlpha = 0.6 + Math.sin(now / 60) * 0.3;
+      ctx.beginPath();
+      ctx.arc(x + f.facing * 14, cy, 78, f.facing > 0 ? -1 : Math.PI - 1, f.facing > 0 ? 1 : Math.PI + 1);
+      ctx.stroke();
+    } else if (skill === "weave") {
+      ctx.strokeStyle = C.guard;
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.5;
+      ctx.setLineDash([4, 6]);
+      ctx.beginPath();
+      ctx.ellipse(x, cy, 44, 92, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   // Tapered swoosh through recent positions of a fist / foot.
@@ -838,6 +922,10 @@ export class Renderer {
         ctx.fillStyle = C.muted;
         ctx.fillText(`${Math.ceil(f.hp)} / ${s.maxHp[slot]}  ·  ${s.styles[slot]}`, left ? x : x + barW, 98);
       }
+
+      // Side skill: a short bar in the free space beside the energy meter (blue when ready).
+      const skillPct = 1 - (f.skillCd ?? 0) / Math.max(1, s.skillCds?.[slot] ?? 1);
+      this.bar(left ? x : x + barW - 72, 76, 72, 7, skillPct, skillPct >= 1 ? C.guard : C.muted, !left);
 
       // Energy / special meter
       const full = f.energy >= 100;

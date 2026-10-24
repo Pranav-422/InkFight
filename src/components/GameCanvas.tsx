@@ -23,9 +23,10 @@ type Props = {
 const SNAP_MS = 1000 / TICK_HZ; // one snapshot per sim tick
 const subscribeNoop = () => () => {};
 const isTouchDevice = () => window.matchMedia("(pointer: coarse)").matches;
-const TAPS = new Set<Control>(["jump", "attack", "kick", "special"]); // sent as press counters
+const TAPS = new Set<Control>(["jump", "attack", "kick", "special", "skill"]); // sent as press counters
 
-// A/D or ←/→ move · W/↑/Space jump · S/↓ block (hold) · J punch · K kick · L special
+// A/D or ←/→ move · W/↑/Space jump · S/↓ block (hold) · J punch · K kick · L special · U side skill
+// S+K sweeps low, toward+K opens with a roundhouse, J/K in the air is an air move.
 const KEYS: Record<string, Control> = {
   KeyA: "left",
   ArrowLeft: "left",
@@ -42,6 +43,8 @@ const KEYS: Record<string, Control> = {
   KeyX: "kick",
   KeyL: "special",
   KeyC: "special",
+  KeyU: "skill",
+  KeyV: "skill",
 };
 
 // Standard gamepad mapping (Xbox / PlayStation / most Bluetooth pads).
@@ -51,7 +54,7 @@ const PAD_BUTTONS: [number, Control][] = [
   [3, "kick"], // Y / Triangle
   [1, "special"], // B / Circle
   [4, "block"], // LB
-  [5, "block"], // RB
+  [5, "skill"], // RB
   [6, "block"], // LT
   [12, "jump"], // D-pad up
   [13, "block"], // D-pad down
@@ -66,6 +69,7 @@ export function GameCanvas({ snaps, players, you, onInput, onExit, children }: P
   const touch = useSyncExternalStore(subscribeNoop, isTouchDevice, () => false);
   const [lit, setLit] = useState<ReadonlySet<Control>>(new Set());
   const [energy, setEnergy] = useState(0);
+  const [skill, setSkill] = useState(100); // side skill readiness, 0..100
   const [gamepad, setGamepad] = useState<string | null>(null);
   const [inspect, setInspect] = useState(false); // reading the opponent (InspectPanel)
   const them = (1 - you) as Slot;
@@ -138,8 +142,11 @@ export function GameCanvas({ snaps, players, you, onInput, onExit, children }: P
     const beat = setInterval(() => onInputRef.current({ ...input.current }), 250);
     // Special meter on the console.
     const meter = setInterval(() => {
-      const f = snaps.current.cur?.fighters[you];
-      if (f) setEnergy(Math.round(f.energy));
+      const s = snaps.current.cur;
+      const f = s?.fighters[you];
+      if (!f) return;
+      setEnergy(Math.round(f.energy));
+      setSkill(Math.round(100 * (1 - (f.skillCd ?? 0) / Math.max(1, s.skillCds?.[you] ?? 1))));
     }, 120);
     return () => {
       window.removeEventListener("keydown", down);
@@ -264,7 +271,7 @@ export function GameCanvas({ snaps, players, you, onInput, onExit, children }: P
         <div className="relative" style={{ width: `min(100vw, calc(100svh * ${ARENA.w / ARENA.h}))` }}>
           {arena}
         </div>
-        <TouchControls press={stickPress} lit={lit} energy={energy} onExit={onExit} />
+        <TouchControls press={stickPress} lit={lit} energy={energy} skill={skill} onExit={onExit} />
         <div className="pointer-events-none absolute inset-0 z-20 [&>*]:pointer-events-auto">{children}</div>
         <div className="fixed inset-0 z-[60] hidden flex-col items-center justify-center gap-3 bg-ink p-6 text-center text-white portrait:flex">
           <RotateCw className="size-10 animate-spin [animation-duration:3s]" />
@@ -282,7 +289,7 @@ export function GameCanvas({ snaps, players, you, onInput, onExit, children }: P
         {arena}
         {children}
       </div>
-      <Controller press={(k, d) => press.current(k, d, "ui")} lit={lit} energy={energy} showKeys gamepad={gamepad} />
+      <Controller press={(k, d) => press.current(k, d, "ui")} lit={lit} energy={energy} skill={skill} showKeys gamepad={gamepad} />
     </div>
   );
 }

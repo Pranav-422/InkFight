@@ -2,7 +2,7 @@
 // server steps it at TICK_HZ and broadcasts snapshots; clients only render.
 
 import { clampStats, ELEMENTS, HP, normClass, type CharacterClass } from "../lib/stats";
-import { CLASS_TUNE, COMBO_WINDOW, ELEMENT_TUNE, itemOf, MOVES, SPECIAL_INFO, SPECIAL_TUNE, specialOf, STYLE_INFO, STYLE_POWER, STYLE_TUNE, styleOf, type MoveName, type SpecialKind, type Style } from "./moves";
+import { CLASS_CHAIN, CLASS_CHAIN_POWER, CLASS_TUNE, COMBO_WINDOW, ELEMENT_TUNE, itemOf, MOVES, SKILL_INFO, skillOf, SKILL_TUNE, SPECIAL_INFO, SPECIAL_TUNE, specialOf, STYLE_INFO, STYLE_POWER, STYLE_TUNE, styleOf, type MoveName, type SideSkill, type SpecialKind, type Style } from "./moves";
 
 export type { SpecialKind } from "./moves";
 
@@ -27,7 +27,7 @@ export type Slot = 0 | 1;
 // agi/iq/element/item: InkFight 2.0 (src/lib/stats.ts); missing on old data → 70 / NONE / class item.
 export type FighterStats = {
   hp: number; atk: number; def: number; spd: number; agi?: number; iq?: number;
-  class: string; specialKind?: string | null; style?: string | null; element?: string | null; item?: string | null; buff?: boolean;
+  class: string; specialKind?: string | null; style?: string | null; element?: string | null; item?: string | null; sideSkill?: string | null; buff?: boolean;
 };
 
 // How a drawing's stats become game physics. Every stat matters in play.
@@ -46,6 +46,8 @@ export type FighterDef = {
   energyMul: number; // IQ (and Attacker) → faster special meter
   dodge: number; // AGI → chance to slip a normal hit (not while reeling or airborne)
   special: SpecialKind;
+  skill: SideSkill;
+  skillCd: number; // IQ → ticks between side skills
   style: Style;
   cls: CharacterClass;
   item: string;
@@ -53,9 +55,9 @@ export type FighterDef = {
 };
 
 // Spans per stat (see scripts/balance.ts: one stat alone should win 50-60% against an all-70 fighter).
-export const TUNE = { SPEED_SPAN: 3, AGI_SPEED: 1, STR_EXP: 0.741, DUR_EXP: 0.501, IQ_EXP: 1.212, SPD_COOLDOWN: 8, TEMPO_GAIN: 0.0023, JUMP_SPAN: 6, AIR_SPAN: 0.5, STUN_SPAN: 8, BLOCK_SPAN: 0.05, IQ_ENERGY: 0.01, DODGE_SPAN: 0.345 };
+export const TUNE = { SPEED_SPAN: 3, AGI_SPEED: 1, STR_EXP: 1.2093, DUR_EXP: 0.9269, IQ_EXP: 1.8058, SPD_COOLDOWN: 8, TEMPO_GAIN: 0.0047, JUMP_SPAN: 6, AIR_SPAN: 0.5, STUN_SPAN: 8, BLOCK_SPAN: 0.05, IQ_ENERGY: 0.01, DODGE_SPAN: 0.4648 };
 // Class traits (see the class list in src/lib/stats.ts), tuned with scripts/balance.ts like TUNE.
-export const TRAIT = { SWORD_REACH: 32, MACE_STUN: 6, TANK_BLOCK: 0.7, TANK_PUSH: 6, TANK_GUARD_WALK: 0.4, MACE_ARMOR_LEAD: 2, MACE_BREAK: 0.625, ATTACKER_ENERGY: 1, SPECIAL_IQ: 1, BACKWALK: 0.8, MACE_POISE: 1, BLAST_MULT: 0.6, FIGHTER_TEMPO: 1.15 };
+export const TRAIT = { SWORD_REACH: 20, MACE_STUN: 6, TANK_BLOCK: 0.7, TANK_PUSH: 6, TANK_GUARD_WALK: 0.4, MACE_ARMOR_LEAD: 2, MACE_BREAK: 0.625, ATTACKER_ENERGY: 1, SPECIAL_IQ: 1, BACKWALK: 0.8, MACE_POISE: 0, BLAST_MULT: 0.6, FIGHTER_TEMPO: 1.15, BLADE: 1.15, BUBBLE_PUSH: 7, BUBBLE_HITS: 2, REFLECT: 0.5 };
 // Admin buff (set by the server, see buffOn in src/lib/auth.ts): deals more, takes less.
 const BUFF = { dealt: 1.3, taken: 0.75 };
 
@@ -87,6 +89,8 @@ export function deriveDef(s: FighterStats): FighterDef {
     // Bounded: a meter that fills 2-3x faster than the opponent's turns every fight into a special spam.
     energyMul: Math.min(1.2, Math.max(0.85, 1 + (f.iq - 70) * TUNE.IQ_ENERGY)) * (cls === "Attacker" ? TRAIT.ATTACKER_ENERGY : 1),
     special: specialOf(s.specialKind, s.class),
+    skill: skillOf(s.sideSkill, s.class),
+    skillCd: Math.round(SKILL_INFO[skillOf(s.sideSkill, s.class)].cd * TICK_HZ * (1 - (f.iq - 70) * 0.006)),
     style: styleOf(s.style, s.class),
     cls,
     item: itemOf(s.item, cls),
@@ -103,9 +107,10 @@ export type Input = {
   attack: number; // punch
   kick: number;
   special: number;
+  skill: number; // side skill
 };
 
-export const EMPTY_INPUT: Input = { left: false, right: false, block: false, jump: 0, attack: 0, kick: 0, special: 0 };
+export const EMPTY_INPUT: Input = { left: false, right: false, block: false, jump: 0, attack: 0, kick: 0, special: 0, skill: 0 };
 
 export type Action = "idle" | "attack" | "kick" | "special" | "hit" | "ko";
 
@@ -136,7 +141,12 @@ export type Fighter = {
   crossT: number; // ticks left in which a punch/kick switch counts as a cross-combo (Fighter)
   fast: boolean; // this move plays ×1.15 faster (Fighter cross-combo)
   status: { kind: string; t: number; n: number } | null; // element effect: kind, ticks left, damage owed
-  seen: { jump: number; attack: number; kick: number; special: number };
+  mix: boolean; // this move is a mix finisher (punch, punch, kick)
+  skillCd: number; // ticks until the side skill is ready again
+  skillT: number; // ticks left of the side skill's effect
+  bubble: number; // ink bubble: hits it can still absorb
+  skillQ: boolean; // a skill press made while reeling: used the moment it can be, not lost
+  seen: { jump: number; attack: number; kick: number; special: number; skill: number };
 };
 
 export type Projectile = { id: number; owner: Slot; kind: SpecialKind | "blast"; x: number; y: number; vx: number; r: number; dmg: number; life: number };
@@ -146,7 +156,9 @@ export type GameEvent =
   | { id: number; type: "special"; by: Slot; kind: SpecialKind }
   | { id: number; type: "ko"; loser: Slot }
   | { id: number; type: "round"; round: number }
-  | { id: number; type: "dodge"; x: number; y: number; by: Slot }; // an agile fighter slipped a hit
+  | { id: number; type: "dodge"; x: number; y: number; by: Slot } // an agile fighter slipped a hit
+  | { id: number; type: "skill"; by: Slot; kind: SideSkill }
+  | { id: number; type: "clash"; x: number; y: number }; // two strikes met: neither lands
 
 export type Phase = "intro" | "fight" | "roundEnd" | "matchEnd";
 
@@ -198,7 +210,12 @@ function spawn(slot: Slot, def: FighterDef, seen: Fighter["seen"]): Fighter {
     crossT: 0,
     fast: false,
     status: null,
-    seen: { ...seen },
+    mix: false,
+    skillCd: 0,
+    skillT: 0,
+    bubble: 0,
+    skillQ: false,
+    seen: { jump: seen.jump, attack: seen.attack, kick: seen.kick, special: seen.special, skill: seen.skill ?? 0 },
   };
 }
 
@@ -288,14 +305,14 @@ function applyHit(
   att: Fighter,
   vic: Fighter,
   raw: number,
-  opts: { knock: number; launch?: number; special: boolean; proj?: boolean; finisher?: boolean; at: { x: number; y: number } },
+  opts: { knock: number; launch?: number; special: boolean; proj?: boolean; finisher?: boolean; low?: boolean; down?: number; at: { x: number; y: number } },
 ) {
   if (vic.action === "ko" || m.phase !== "fight") return;
   // Mid-teleport the body isn't there.
   if (vic.action === "special" && m.defs[vic.slot].special === "teleport" && vic.t >= 3 && vic.t < 12) return;
   const dir = vic.x >= att.x ? 1 : -1;
   const facingAttacker = vic.facing === -dir;
-  const blocked = vic.blocking && facingAttacker;
+  const blocked = vic.blocking && facingAttacker && !opts.low; // a low strike goes under a standing guard
   // Agility: a grounded fighter that isn't reeling sometimes slips a normal hit, even mid-swing. The
   // roll comes from the match clock, not Math.random, so the sim stays deterministic.
   const canSlip = vic.action === "idle" || vic.action === "attack" || vic.action === "kick";
@@ -306,10 +323,31 @@ function applyHit(
   }
   const def = m.defs[vic.slot];
   const ad = m.defs[att.slot];
+  // Slip-weave: the hit is slipped and the weaver's next move comes out fast, to punish with
+  // (an automatic counter stunned the attacker every time: a free win, not a read).
+  if (def.skill === "weave" && vic.skillT > 0 && !opts.proj && vic.action !== "hit") {
+    vic.skillT = 0;
+    vic.vx = dir * 4;
+    vic.fast = true;
+    vic.crossT = COMBO_WINDOW;
+    if (vic.action === "idle") vic.cooldown = 0;
+    emit(m, { type: "dodge", x: vic.x, y: vic.y - BODY.h * 0.6, by: vic.slot });
+    return;
+  }
+  // Ink bubble: soaks the hit and shoves a melee attacker back. A mace pops it in one blow.
+  if (vic.bubble > 0 && vic.skillT > 0) {
+    if (--vic.bubble === 0 || (ad.cls === "Mace" && !opts.proj)) vic.bubble = vic.skillT = 0;
+    if (!opts.proj) att.vx = -dir * TRAIT.BUBBLE_PUSH;
+    emit(m, { type: "hit", x: opts.at.x, y: opts.at.y, dmg: 0, blocked: true, special: opts.special, by: att.slot });
+    m.freeze = Math.max(m.freeze, 3);
+    return;
+  }
+  const blade = ad.skill === "blade" && att.skillT > 0 && !opts.special && !opts.proj;
 
-  let dmg = raw * def.armor; // raw already carries the attacker's STR/IQ (see deriveDef)
+  let dmg = raw * def.armor * (blade ? TRAIT.BLADE : 1); // raw already carries the attacker's STR/IQ (see deriveDef)
   if (att.status?.kind === "POISON") dmg *= 1 - POISON_CUT * (ELEMENT_TUNE.POISON ?? 1);
   if (vic.armorTicks > 0) dmg *= ad.cls === "Mace" ? TRAIT.MACE_BREAK : 0.5; // a mace cracks armor: ×1.25 on the halving (×1.5 made Tank vs Mace 35%)
+  const full = dmg;
   // Specials punch through a block harder than normal hits.
   if (blocked) dmg *= 1 - def.blockReduce * (opts.special ? 0.6 : 1);
   const dealt = Math.max(1, Math.round(dmg));
@@ -322,26 +360,36 @@ function applyHit(
 
   // Mace: its heavy finisher doesn't flinch from normal hits (a heavy trades blows instead of being out-paced).
   const mv = vic.move ? MOVES[vic.move] : null;
-  const vchain = vic.action === "attack" || vic.action === "kick" ? chainOf(def, vic.action) : [];
-  const heavy = vchain.length > 0 && (vchain.length === 1 || vic.combo === vchain.length - 1); // the chain's finisher
-  const swinging = heavy && mv !== null && vic.t >= mv.from - TRAIT.MACE_ARMOR_LEAD && vic.t <= mv.to;
+  const striking = (vic.action === "attack" || vic.action === "kick") && mv !== null && vic.t >= mv.from - TRAIT.MACE_ARMOR_LEAD && vic.t <= mv.to;
+  const vchain = striking ? chainOf(def, vic.action as "attack" | "kick") : [];
+  const heavy = vchain[vic.combo] === vic.move && (vchain.length === 1 || vic.combo === vchain.length - 1); // the chain's finisher
   // ...and its poise shrugs off light projectiles (blasts) outside hit-stun, so a heavy can walk a zoner down.
   const poised = TRAIT.MACE_POISE > 0 && !!opts.proj && vic.action !== "hit";
-  const armored = def.cls === "Mace" && !opts.special && (swinging || poised);
+  const armored =
+    (!opts.special && ((def.cls === "Mace" && ((striking && heavy) || poised)) || (striking && !!mv!.armor))) || // shield bash: armor while it hits
+    (def.skill === "poise" && vic.skillT > 0); // iron poise: nothing staggers
   if (blocked) {
     vic.vx = dir * opts.knock * 0.4;
     // A tank's guard shoves a melee attacker back.
     if (def.cls === "Tank" && !opts.special && !opts.proj) att.vx = -dir * TRAIT.TANK_PUSH;
+    // Reflect shield: half the blocked blow bounces back (as a normal hit, so it can't loop).
+    if (def.skill === "reflect" && vic.skillT > 0 && !opts.proj && att.action !== "ko") {
+      const back = full * TRAIT.REFLECT / def.armor; // undo the defender's armor; the attacker's own applies
+      applyHit(m, vic, att, back, { knock: 8, special: false, at: { x: att.x + dir * 20, y: att.y - BODY.h * 0.6 } });
+    }
   } else if (!armored) {
     vic.action = "hit";
     vic.t = 0;
-    vic.stun = def.stun + (ad.cls === "Mace" && opts.finisher ? TRAIT.MACE_STUN : 0); // only a chain finisher: a reward, not a lock
+    vic.stun = def.stun + (ad.cls === "Mace" && opts.finisher ? TRAIT.MACE_STUN : 0) + (opts.down ?? 0); // Mace: only a chain finisher, a reward, not a lock
     vic.vx = dir * opts.knock;
     if (opts.launch) {
       vic.vy = -opts.launch;
       vic.grounded = false;
     }
     if (opts.special && ad.element !== "NONE" && vic.hp > 0) infect(att, vic, ad.element, dir);
+    // Element blade: also sets the fighter's own element on a clean target (a free FIRE burn on every
+    // element-less sword, refreshed each hit, was a permanent burn).
+    else if (blade && vic.hp > 0 && !vic.status && ad.element !== "NONE") infect(att, vic, ad.element, dir);
   }
   emit(m, { type: "hit", x: opts.at.x, y: opts.at.y, dmg: dealt, blocked, special: opts.special, by: att.slot });
   // Hit-stop sells the impact: bigger hits hold a little longer.
@@ -500,7 +548,11 @@ function updateSpecial(m: Match, f: Fighter, opp: Fighter) {
   if (t >= SPECIAL_DURATION[kind]) f.action = "idle";
 }
 
-const chainOf = (def: FighterDef, type: "attack" | "kick") => STYLE_INFO[def.style][type === "attack" ? "punch" : "kick"];
+// J swings the class's weapon (Fighter: the style's punches); K is always the style's kicks.
+const chainOf = (def: FighterDef, type: "attack" | "kick") => (type === "attack" ? (CLASS_CHAIN[def.cls] ?? STYLE_INFO[def.style].punch) : STYLE_INFO[def.style].kick);
+// Damage per unit of move mult, so every chain deals about the same damage per second.
+const chainPower = (def: FighterDef, type: "attack" | "kick") =>
+  type === "attack" && CLASS_CHAIN[def.cls] ? CLASS_CHAIN_POWER[def.cls] : STYLE_POWER[def.style][type === "attack" ? "punch" : "kick"] * STYLE_TUNE[def.style];
 const reachBonus = (def: FighterDef, type: "attack" | "kick") => (type === "attack" && def.cls === "Sword" ? TRAIT.SWORD_REACH : 0); // a sword extends the punch chain
 // Longest reach past the body edge of a fighter's punch or kick chain (the CPU spaces itself by it).
 export const moveReach = (def: FighterDef, type: "attack" | "kick") => Math.max(...chainOf(def, type).map((n) => MOVES[n].reach)) + reachBonus(def, type);
@@ -509,14 +561,18 @@ export const BLAST_REACH = BODY.w / 2 + 10 + Math.ceil(BLAST.range / BLAST.speed
 // True when step() will skip this tick (hit-stop, or a held KO slow-motion tick). Mirrors step().
 export const holds = (m: Match) => (m.slow > 0 && (m.slow - 1) % 3 !== 0) || m.freeze > 0;
 
-// Start the next punch/kick of this fighter's style, continuing the chain if it's still open.
-function startMove(f: Fighter, def: FighterDef, type: "attack" | "kick") {
+// Start the next punch/kick: an air move when airborne, `forced` for a directional one (down+K, toward+K),
+// the style's mix finisher when a chain of two switches buttons, else the chain's next move.
+function startMove(f: Fighter, def: FighterDef, type: "attack" | "kick", forced?: MoveName) {
   const chain = chainOf(def, type);
-  const cont = f.comboT > 0 && f.move !== null && chain.includes(f.move);
+  const other = chainOf(def, type === "attack" ? "kick" : "attack");
+  const cont = f.comboT > 0 && f.move !== null && chain[f.combo] === f.move;
+  const mix = !forced && f.grounded && f.comboT > 0 && f.combo >= 1 && f.move !== null && other[f.combo] === f.move;
   // Fighter: a punch right after a kick (or the reverse) flows faster.
-  f.fast = def.cls === "Fighter" && f.crossT > 0 && f.move !== null && chainOf(def, type === "attack" ? "kick" : "attack").includes(f.move);
-  f.combo = cont ? (f.combo + 1) % chain.length : 0;
-  f.move = chain[f.combo];
+  f.fast = def.cls === "Fighter" && f.crossT > 0 && f.move !== null && other.includes(f.move);
+  f.mix = mix;
+  f.combo = cont && !forced ? (f.combo + 1) % chain.length : 0;
+  f.move = !f.grounded ? (type === "kick" ? "flyingKick" : def.cls === "Sword" ? "airSlash" : "divePunch") : (forced ?? (mix ? STYLE_INFO[def.style].mix : chain[f.combo]));
   f.action = type;
   f.t = 0;
   f.landed = false;
@@ -532,7 +588,7 @@ function startMove(f: Fighter, def: FighterDef, type: "attack" | "kick") {
 
 function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
   const def = m.defs[f.slot];
-  const pressed = (k: "jump" | "attack" | "kick" | "special") => {
+  const pressed = (k: "jump" | "attack" | "kick" | "special" | "skill") => {
     const now = input[k] ?? 0;
     const p = now !== (f.seen[k] ?? 0);
     f.seen[k] = now;
@@ -542,12 +598,24 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
   const attackP = pressed("attack");
   const kickP = pressed("kick");
   const specialP = pressed("special");
+  const skillP = pressed("skill");
   const canAct = m.phase === "fight";
 
   f.cooldown = Math.max(0, f.cooldown - 1);
   f.comboT = Math.max(0, f.comboT - 1);
   f.armorTicks = Math.max(0, f.armorTicks - 1);
   f.crossT = Math.max(0, f.crossT - 1);
+  f.skillCd = Math.max(0, f.skillCd - 1);
+  if (f.skillT > 0 && --f.skillT === 0) f.bubble = 0;
+  // Side skill: instant, usable mid-move. A press while reeling waits for the hit-stun to end.
+  if (skillP && canAct && f.skillCd === 0) f.skillQ = true;
+  if (f.skillQ && canAct && f.action !== "hit" && f.action !== "ko") {
+    f.skillQ = false;
+    f.skillCd = def.skillCd;
+    f.skillT = Math.max(1, Math.round(SKILL_INFO[def.skill].dur * SKILL_TUNE[def.skill]));
+    if (def.skill === "bubble") f.bubble = TRAIT.BUBBLE_HITS;
+    emit(m, { type: "skill", by: f.slot, kind: def.skill });
+  }
   if (canAct && f.status) tickStatus(m, f);
   f.t++;
   // Tempo: a fast fighter's punch/kick sometimes skips a tick, a slow one's sometimes holds.
@@ -571,9 +639,14 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
     // A shoved-back attacker (tank block) doesn't lunge forward again.
     if (f.t >= mv.from && f.t <= mv.to && f.grounded && !(f.landed && f.vx * f.facing < 0)) f.vx = f.facing * mv.lunge;
     const chain = chainOf(def, type);
-    const finisher = chain.length > 1 && f.combo === chain.length - 1;
+    const inChain = chain[f.combo] === f.move; // not an air, directional or mix move
+    const finisher = f.mix || (inChain && chain.length > 1 && f.combo === chain.length - 1);
     const reach = mv.reach + reachBonus(def, type);
-    const power = mv.mult * STYLE_POWER[def.style][type === "attack" ? "punch" : "kick"] * STYLE_TUNE[def.style] * (finisher ? 1.15 : 1);
+    const power = mv.mult * chainPower(def, type) * (finisher ? 1.15 : 1);
+    if (mv.dive && f.t === mv.from && !f.grounded) {
+      f.vx = f.facing * mv.dive[0];
+      f.vy = Math.max(f.vy, mv.dive[1]);
+    }
     if (!f.landed && f.t >= mv.from && f.t <= mv.to && overlaps(x1, x1 + f.facing * reach, f.y - BODY.h * mv.top, f.y - BODY.h * mv.bot, opp)) {
       f.landed = true;
       applyHit(m, f, opp, def.punch * power, {
@@ -581,6 +654,8 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
         launch: mv.launch,
         special: false,
         finisher,
+        low: mv.low,
+        down: mv.down,
         at: { x: x1 + f.facing * reach * 0.7, y: f.y - (BODY.h * (mv.top + mv.bot)) / 2 },
       });
     }
@@ -603,13 +678,14 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
     }
     // A press after the hit frames is buffered, so the chain flows without frame-perfect timing.
     if ((attackP || kickP) && f.t > mv.to) f.buffer = attackP ? "attack" : "kick";
+    if (mv.air && f.grounded && f.t > 2) f.t = Math.max(f.t, mv.dur); // an air move ends on landing
     if (f.t >= mv.dur) {
-      const last = f.combo === chain.length - 1;
+      const last = !inChain || f.combo === chain.length - 1;
       f.action = "idle";
       f.comboT = last ? 0 : COMBO_WINDOW;
       f.crossT = COMBO_WINDOW;
       f.cooldown = last ? def.cooldown : Math.round(def.cooldown * 0.3);
-      if (f.buffer && canAct && !last && (f.buffer === "attack" || f.grounded)) {
+      if (f.buffer && canAct && !last) {
         const next = f.buffer;
         f.cooldown = 0;
         f.facing = opp.x >= f.x ? 1 : -1;
@@ -623,9 +699,14 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
   if (f.action === "idle" && canAct) {
     f.facing = opp.x >= f.x ? 1 : -1;
     f.blocking = input.block && f.grounded;
-    if (attackP && f.cooldown === 0 && !f.blocking) {
+    const toward = (input.right ? 1 : 0) - (input.left ? 1 : 0) === f.facing;
+    if (kickP && f.cooldown === 0 && f.blocking) {
+      startMove(f, def, "kick", "sweep"); // down+K: a low sweep that goes under a guard
+    } else if (attackP && f.cooldown === 0 && !f.blocking) {
       startMove(f, def, "attack");
-    } else if (kickP && f.cooldown === 0 && !f.blocking && f.grounded) {
+    } else if (kickP && f.cooldown === 0 && f.grounded && toward && f.comboT === 0) {
+      startMove(f, def, "kick", "roundhouse"); // toward+K opens with a roundhouse
+    } else if (kickP && f.cooldown === 0 && !f.blocking) {
       startMove(f, def, "kick");
     } else if (specialP && f.energy >= 100 && !f.blocking) {
       startSpecial(m, f);
@@ -677,6 +758,29 @@ function separate(a: Fighter, b: Fighter) {
   }
 }
 
+// The strike box of a punch/kick that will be in its active frames on the tick about to play (t + 1:
+// updateFighter advances t, then a hit lands at once), if it hasn't connected yet.
+function strikeBox(m: Match, f: Fighter): [number, number, number, number] | null {
+  if ((f.action !== "attack" && f.action !== "kick") || !f.move || f.landed) return null;
+  const mv = MOVES[f.move];
+  if (f.t + 1 < mv.from || f.t + 1 > mv.to) return null;
+  const x1 = f.x + f.facing * (BODY.w / 2);
+  return [x1, x1 + f.facing * (mv.reach + reachBonus(m.defs[f.slot], f.action)), f.y - BODY.h * mv.top, f.y - BODY.h * mv.bot];
+}
+
+// Limb clash: two strikes that reach each other in the same tick cancel out (before, slot 0 always won the trade).
+function clash(m: Match, a: Fighter, b: Fighter) {
+  const ba = strikeBox(m, a), bb = strikeBox(m, b);
+  if (!ba || !bb || !overlaps(...ba, b) || !overlaps(...bb, a)) return;
+  a.landed = b.landed = true;
+  m.freeze = Math.max(m.freeze, 6);
+  const dir = b.x >= a.x ? 1 : -1;
+  a.vx = -dir * 5;
+  b.vx = dir * 5;
+  for (const f of [a, b]) f.energy = Math.min(100, f.energy + (m.defs[f.slot].cls === "Fighter" ? 15 : 12) * m.defs[f.slot].energyMul);
+  emit(m, { type: "clash", x: (a.x + b.x) / 2, y: Math.min(a.y, b.y) - BODY.h * 0.65 });
+}
+
 function resetRound(m: Match) {
   const [a, b] = m.fighters;
   m.fighters = [spawn(0, m.defs[0], a.seen), spawn(1, m.defs[1], b.seen)];
@@ -710,6 +814,7 @@ export function step(m: Match, inputs: [Input, Input]) {
   }
 
   const [a, b] = m.fighters;
+  if (m.phase === "fight") clash(m, a, b);
   // During intro/roundEnd, inputs are still consumed (so stale presses don't fire later) but ignored.
   updateFighter(m, a, b, inputs[0]);
   updateFighter(m, b, a, inputs[1]);
@@ -750,6 +855,8 @@ export type Snapshot = Omit<Match, "defs" | "nextId" | "fighters"> & {
   maxHp: [number, number];
   specials: [SpecialKind, SpecialKind];
   styles: [Style, Style];
+  skills: [SideSkill, SideSkill];
+  skillCds: [number, number]; // full side-skill cooldown, ticks (for the console's SKILL fill)
 };
 
 export function snapshot(m: Match): Snapshot {
@@ -776,6 +883,8 @@ export function snapshot(m: Match): Snapshot {
     maxHp: [m.defs[0].maxHp, m.defs[1].maxHp],
     specials: [m.defs[0].special, m.defs[1].special],
     styles: [m.defs[0].style, m.defs[1].style],
+    skills: [m.defs[0].skill, m.defs[1].skill],
+    skillCds: [m.defs[0].skillCd, m.defs[1].skillCd],
   };
 }
 
@@ -797,7 +906,7 @@ export function resumeMatch(s: Snapshot, a: FighterStats, b: FighterStats, input
     projectiles: s.projectiles.map((p) => ({ ...p })),
     events: [],
   });
-  m.fighters = [0, 1].map((i) => ({ ...s.fighters[i], seen: { jump: inputs[i].jump, attack: inputs[i].attack, kick: inputs[i].kick, special: inputs[i].special } })) as [Fighter, Fighter];
+  m.fighters = [0, 1].map((i) => ({ ...s.fighters[i], seen: { jump: inputs[i].jump, attack: inputs[i].attack, kick: inputs[i].kick, special: inputs[i].special, skill: inputs[i].skill } })) as [Fighter, Fighter];
   m.nextId = Math.max(0, ...s.events.map((e) => e.id), ...s.projectiles.map((p) => p.id)) + 1;
   return m;
 }

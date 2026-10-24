@@ -3,7 +3,7 @@
 import { Camera, ImageUp, Loader2, RotateCcw, RotateCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { SPECIAL_INFO, SPECIAL_KINDS, STYLE_INFO, STYLES, type SpecialKind, type Style } from "@/game/moves";
+import { SIDE_SKILLS, SKILL_INFO, SPECIAL_INFO, SPECIAL_KINDS, STYLE_INFO, STYLES, type SideSkill, type SpecialKind, type Style } from "@/game/moves";
 import { cleanDrawing, ITEMS, measureDrawing, type Item, type Measured } from "@/game/sprite";
 import { classFromItems, ELEMENTS, suggestElement, type Element } from "@/lib/stats";
 import { MovePreview, type Demo } from "./MovePreview";
@@ -46,6 +46,7 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
   const [itemPicked, setItemPicked] = useState(false);
   const [style, setStyle] = useState<Style | "">("");
   const [special, setSpecial] = useState<SpecialKind | "">("");
+  const [skill, setSkill] = useState<SideSkill | "">("");
   const [element, setElement] = useState<Element | "">("");
   const [demo, setDemo] = useState<Demo>({ kind: "style", n: 0 });
   const measureId = useRef(0);
@@ -100,6 +101,7 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
       if (itemPicked && facts) body.append("pick_item", facts.item);
       if (style) body.append("pick_style", style);
       if (special) body.append("pick_special", special);
+      if (skill) body.append("pick_skill", skill);
       if (element) body.append("pick_element", element);
       const res = await fetch("/api/characters", { method: "POST", body });
       const data = await res.json();
@@ -253,7 +255,7 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
 
       {preview && !busy && (
         <details className="rounded-xl bg-card px-4 py-3 text-sm ring-1 ring-line">
-          <summary className="cursor-pointer font-semibold">Correct the AI (optional): fighting style and special move</summary>
+          <summary className="cursor-pointer font-semibold">Correct the AI (optional): style, special move, side skill</summary>
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
             <label className="grid gap-1">
               <span className="text-xs font-semibold uppercase tracking-wider text-muted">Fighting style</span>
@@ -292,6 +294,24 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
               </select>
             </label>
             <label className="grid gap-1">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted">Side skill</span>
+              <select
+                value={skill}
+                onChange={(e) => {
+                  setSkill(e.target.value as SideSkill | "");
+                  if (e.target.value) setDemo((d) => ({ kind: "skill", n: d.n + 1 }));
+                }}
+                className="rounded-lg bg-paper px-2 py-1.5 ring-1 ring-line"
+              >
+                <option value="">Auto: the class default</option>
+                {SIDE_SKILLS.map((k) => (
+                  <option key={k} value={k}>
+                    {SKILL_INFO[k].name}: {SKILL_INFO[k].how}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1">
               <span className="text-xs font-semibold uppercase tracking-wider text-muted">Element</span>
               <select
                 value={element}
@@ -310,7 +330,7 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
           {demo.n > 0 && preview && (
             <MovePreview
               className="mt-3"
-              fighter={{ imageUrl: preview, rotation: turn, class: classFromItems(facts && facts.item !== "nothing" ? [facts.item] : []), style: style || null, specialKind: special || null }}
+              fighter={{ imageUrl: preview, rotation: turn, class: classFromItems(facts && facts.item !== "nothing" ? [facts.item] : []), style: style || null, specialKind: special || null, sideSkill: skill || null }}
               demo={demo}
             />
           )}

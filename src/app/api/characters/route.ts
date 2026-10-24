@@ -5,7 +5,7 @@ import { rateLimit, tooMany } from "@/lib/rateLimit";
 import { db } from "@/lib/db";
 import { MAX_BYTES, sniff, TYPES } from "@/lib/imageType";
 import { saveDrawing } from "@/lib/storage";
-import { SPECIAL_KINDS, STYLES } from "@/game/moves";
+import { SIDE_SKILLS, SPECIAL_KINDS, STYLES } from "@/game/moves";
 import { analyzeDrawing, type Picks } from "@/lib/vision";
 import { ELEMENTS, suggestElement } from "@/lib/stats";
 
@@ -76,6 +76,7 @@ export async function POST(request: Request) {
   const [imageUrl, a] = await Promise.all([saveDrawing(bytes, TYPES[type], type, "cut-"), analyzeDrawing(bytes, type, facts, picks)]);
   const element = picks.element ?? a.element ?? suggestElement(facts?.colors ?? []);
   const item = picks.item ?? facts?.item ?? null;
+  const skill = form.get("pick_skill");
   const character = await db.character.create({
     data: {
       name: cleanName(form.get("name")) ?? a.name,
@@ -95,6 +96,7 @@ export async function POST(request: Request) {
       specialDesc: a.specialMove.description,
       specialKind: a.specialKind,
       style: a.style,
+      sideSkill: typeof skill === "string" && (SIDE_SKILLS as readonly string[]).includes(skill) ? skill : null,
       flavorText: a.flavorText,
       detectedItems: JSON.stringify(a.breakdown),
       pose: a.pose ? JSON.stringify(a.pose) : null,

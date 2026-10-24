@@ -25,7 +25,7 @@ const buzz = (ms: number) => {
 
 // Phone fight controls floating over the arena: a floating stick under one thumb and a
 // PUNCH-first button arc under the other (swappable for left-handers, resizable).
-export function TouchControls({ press, lit, energy, onExit }: { press: (k: Control, down: boolean) => void; lit: ReadonlySet<Control>; energy: number; onExit?: () => void }) {
+export function TouchControls({ press, lit, energy, skill, onExit }: { press: (k: Control, down: boolean) => void; lit: ReadonlySet<Control>; energy: number; skill: number; onExit?: () => void }) {
   const [prefs, setPrefs] = useState<Prefs>(loadPrefs);
   const [open, setOpen] = useState(false);
   const save = (p: Prefs) => {
@@ -36,6 +36,7 @@ export function TouchControls({ press, lit, energy, onExit }: { press: (k: Contr
   };
   const s = prefs.size;
   const ready = energy >= 100;
+  const skillReady = skill >= 100;
   const tap = (k: Control, down: boolean) => {
     if (down) buzz(10);
     press(k, down);
@@ -47,6 +48,7 @@ export function TouchControls({ press, lit, energy, onExit }: { press: (k: Contr
     ["kick", "KICK", "bg-white/80 text-ink ring-1 ring-ink/20", 60, 116, 12],
     ["block", "BLOCK", "bg-guard/75 text-white", 60, 100, 86],
     ["special", "SPECIAL", ready ? "animate-pulse bg-gold text-ink" : "overflow-hidden bg-ink/55 text-white", 64, 24, 114],
+    ["skill", "SKILL", skillReady ? "bg-guard/85 text-white" : "overflow-hidden bg-ink/55 text-white/70", 52, 96, 150],
   ];
 
   return (
@@ -73,6 +75,7 @@ export function TouchControls({ press, lit, energy, onExit }: { press: (k: Contr
             style={{ width: size * s, height: size * s, [prefs.lefty ? "left" : "right"]: right * s, bottom: bottom * s }}
           >
             {k === "special" && !ready && <span className="absolute inset-x-0 bottom-0 bg-gold/70" style={{ height: `${Math.max(0, Math.min(100, energy))}%` }} />}
+            {k === "skill" && !skillReady && <span className="absolute inset-x-0 bottom-0 bg-guard/60" style={{ height: `${Math.max(0, Math.min(100, skill))}%` }} />}
             <span className="relative">{label}</span>
           </button>
         ))}

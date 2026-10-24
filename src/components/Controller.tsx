@@ -9,14 +9,16 @@ type Props = {
   press: (k: Control, down: boolean) => void;
   lit: ReadonlySet<Control>; // buttons currently held / just pressed (for feedback)
   energy: number; // 0..100, fills the special button
+  skill: number; // 0..100, side skill readiness
   showKeys: boolean;
   gamepad: string | null;
 };
 
 // An on-screen gamepad: D-pad on the left, face buttons on the right.
 // Works with mouse, touch and pen; keyboard and real gamepads light it up too.
-export function Controller({ press, lit, energy, showKeys, gamepad }: Props) {
+export function Controller({ press, lit, energy, skill, showKeys, gamepad }: Props) {
   const ready = energy >= 100;
+  const skillReady = skill >= 100;
   const btn = (k: Control, label: string, keyHint: string, cls: string, extra?: React.ReactNode) => (
     <button
       type="button"
@@ -69,7 +71,13 @@ export function Controller({ press, lit, energy, showKeys, gamepad }: Props) {
               <span className="absolute inset-x-0 bottom-0 rounded-2xl bg-gold/60" style={{ height: `${Math.max(0, Math.min(100, energy))}%` }} />
             ),
           )}
-          <span />
+          {btn(
+            "skill",
+            "SKILL",
+            "U",
+            skillReady ? "bg-guard text-white" : "overflow-hidden bg-white/15 text-white/70",
+            !skillReady && <span className="absolute inset-x-0 bottom-0 rounded-2xl bg-guard/50" style={{ height: `${Math.max(0, Math.min(100, skill))}%` }} />,
+          )}
           {btn("attack", "PUNCH", "J", "bg-hit")}
           {btn("block", "BLOCK", "S", "bg-guard")}
           {btn("kick", "KICK", "K", "bg-white text-ink")}

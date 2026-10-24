@@ -6,7 +6,7 @@
 
 import { Eye, Lock } from "lucide-react";
 import { useEffect, useState, type RefObject } from "react";
-import { styleOf } from "@/game/moves";
+import { SKILL_INFO, skillOf, styleOf } from "@/game/moves";
 import type { LobbyPlayer } from "@/game/protocol";
 import type { Slot } from "@/game/sim";
 import type { SnapBuffer } from "@/game/useGameRoom";
@@ -51,7 +51,14 @@ export function InspectPanel({ me, them, slot, snaps }: { me: LobbyPlayer; them:
         ))}
       </div>
       <div className="mt-2 grid gap-1 border-t border-line pt-2">
-        {readsSpecial ? <p className="text-xs"><span className="font-semibold text-hit">Special:</span> {them.specialMove}</p> : lock(`Special hidden: your IQ ${myIq} vs their ${theirIq}`)}
+        {readsSpecial ? (
+          <>
+            <p className="text-xs"><span className="font-semibold text-hit">Special:</span> {them.specialMove}</p>
+            <p className="text-xs"><span className="font-semibold text-guard">Skill:</span> {SKILL_INFO[skillOf(them.sideSkill, them.class)].name}</p>
+          </>
+        ) : (
+          lock(`Special and skill hidden: your IQ ${myIq} vs their ${theirIq}`)
+        )}
         {readsMeter ? (
           energy !== null && (
             <p className="text-xs">

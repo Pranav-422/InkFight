@@ -18,8 +18,8 @@ const FIGHT: PoseTargets = { ...GUARD, ...STANCE };
 
 // lunge: body shift forward. flip: mirror (mid-spin). Crouching needs no field: the renderer
 // keeps the lowest foot on the floor, so bent legs lower the body.
-// alpha: fade (teleport). fall: KO topple angle.
-export type BodyMotion = { pose: PoseTargets; lunge: number; fall: number; flip: boolean; alpha: number };
+// alpha: fade (teleport). fall: KO topple angle. hover: px off the floor (an Attacker's idle float).
+export type BodyMotion = { pose: PoseTargets; lunge: number; fall: number; flip: boolean; alpha: number; hover?: number };
 
 // Wind-up, strike and recovery poses per move. Recovery returns to the fighting stance.
 const MOVE_POSES: Record<MoveName, { wind: PoseTargets; hit: PoseTargets; lunge?: number; spin?: boolean }> = {
@@ -100,11 +100,79 @@ const MOVE_POSES: Record<MoveName, { wind: PoseTargets; hit: PoseTargets; lunge?
     hit: { upperF: abs(1.2), foreF: abs(1.5), upperB: abs(1.9), thighF: abs(0.12), shinF: abs(0.06), thighB: abs(DOWN + 1.0), shinB: abs(DOWN - 0.9), torso: rel(0.35) },
     lunge: 4,
   },
+  // Weapon chains: the item is in the front hand, so the front arm swings it.
+  iai: {
+    wind: { ...STANCE, upperF: abs(2.3), foreF: abs(0.7), upperB: abs(1.6), foreB: abs(0.4), torso: rel(-0.15) },
+    hit: { ...STANCE, upperF: abs(-0.1), foreF: abs(0.1), upperB: abs(2.2), foreB: abs(1.6), torso: rel(0.22), thighF: abs(DOWN - 0.55) },
+    lunge: 10,
+  },
+  risingSlash: {
+    wind: { ...STANCE, upperF: abs(1.9), foreF: abs(1.4), torso: rel(0.15), thighF: abs(DOWN - 0.6), shinF: abs(DOWN + 0.2) },
+    hit: { ...STANCE, upperF: abs(-1.3), foreF: abs(-1.5), upperB: abs(1.9), foreB: abs(1.2), torso: rel(-0.2), head: rel(-0.1) },
+    lunge: 6,
+  },
+  thrust: {
+    wind: { ...STANCE, upperF: abs(2.6), foreF: abs(0.2), torso: rel(-0.15), thighB: abs(DOWN + 0.5) },
+    hit: { upperF: abs(-0.02), foreF: abs(-0.02), upperB: abs(2.4), foreB: abs(2.0), torso: rel(0.3), thighF: abs(DOWN - 0.75), shinF: abs(DOWN - 0.1), thighB: abs(DOWN + 0.75), shinB: abs(DOWN + 0.6) },
+    lunge: 18,
+  },
+  overhead: {
+    wind: { ...STANCE, upperF: abs(-2.0), foreF: abs(-2.6), upperB: abs(-1.7), foreB: abs(-2.4), torso: rel(-0.25), head: rel(-0.1) },
+    hit: { upperF: abs(0.6), foreF: abs(0.9), upperB: abs(0.7), foreB: abs(1.0), torso: rel(0.4), head: rel(0.2), thighF: abs(DOWN - 0.55), shinF: abs(DOWN + 0.1), thighB: abs(DOWN + 0.5), shinB: abs(DOWN + 0.3) },
+    lunge: 8,
+  },
+  slam: {
+    wind: { upperF: abs(-1.5), foreF: abs(-1.7), upperB: abs(-1.4), foreB: abs(-1.7), torso: rel(-0.3), thighF: abs(DOWN - 0.5), shinF: abs(DOWN + 0.4), thighB: abs(DOWN + 0.5), shinB: abs(DOWN + 0.4) },
+    hit: { upperF: abs(1.0), foreF: abs(1.3), upperB: abs(1.1), foreB: abs(1.4), torso: rel(0.55), head: rel(0.3), thighF: abs(DOWN - 0.85), shinF: abs(DOWN + 0.35), thighB: abs(DOWN + 0.75), shinB: abs(DOWN + 0.2) },
+    lunge: 6,
+  },
+  shieldBash: {
+    wind: { ...STANCE, upperF: abs(1.6), foreF: abs(-0.3), upperB: abs(1.5), foreB: abs(-0.8), torso: rel(-0.2) },
+    hit: { ...STANCE, upperF: abs(0.05), foreF: abs(-0.6), upperB: abs(1.2), foreB: abs(-0.9), torso: rel(0.35), head: rel(0.15), thighB: abs(DOWN + 0.6) },
+    lunge: 16,
+  },
+  inkPalm: {
+    wind: { ...STANCE, upperF: abs(1.4), foreF: abs(0.2), upperB: abs(1.5), foreB: abs(0.3), torso: rel(-0.15) },
+    hit: { ...STANCE, upperF: abs(-0.05), foreF: abs(-0.3), upperB: abs(0.08), foreB: abs(-0.25), torso: rel(0.2), thighF: abs(DOWN - 0.5) },
+    lunge: 8,
+  },
+  airSlash: {
+    wind: { upperF: abs(-1.6), foreF: abs(-2.2), upperB: abs(-0.6), thighF: abs(DOWN - 0.8), shinF: abs(DOWN + 0.2), thighB: abs(DOWN - 0.3), shinB: abs(DOWN + 0.7), torso: rel(-0.2) },
+    hit: { upperF: abs(0.7), foreF: abs(0.9), upperB: abs(BACK - 0.5), thighF: abs(DOWN - 0.8), shinF: abs(DOWN + 0.2), thighB: abs(DOWN - 0.3), shinB: abs(DOWN + 0.7), torso: rel(0.3) },
+  },
+  divePunch: {
+    wind: { upperF: abs(-0.8), foreF: abs(-1.6), upperB: abs(BACK - 0.3), thighF: abs(DOWN - 0.8), shinF: abs(DOWN + 0.3), thighB: abs(DOWN - 0.2), shinB: abs(DOWN + 0.8) },
+    hit: { upperF: abs(0.55), foreF: abs(0.55), upperB: abs(BACK - 0.4), torso: rel(0.3), thighF: abs(DOWN + 0.3), shinF: abs(DOWN + 0.8), thighB: abs(BACK - 0.6), shinB: abs(BACK - 0.3) },
+  },
+  flyingKick: {
+    wind: { ...GUARD, thighF: abs(-0.3), shinF: abs(DOWN + 0.6), thighB: abs(DOWN + 0.2), shinB: abs(DOWN + 0.9), torso: rel(-0.15) },
+    hit: { upperF: abs(-0.6), foreF: abs(-0.9), upperB: abs(BACK - 0.4), thighF: abs(0.35), shinF: abs(0.35), thighB: abs(DOWN + 0.9), shinB: abs(BACK - 0.5), torso: rel(-0.3) },
+  },
 };
+
+// Idle stance per class: a 2-3 s loop, so a Tank reads heavy and an Attacker light before anyone moves.
+function idleFor(cls: string, now: number): BodyMotion {
+  if (cls === "Tank") {
+    const b = Math.sin(now / 380); // slow, heavy breathing in a low stance
+    return still({ ...GUARD, thighF: abs(DOWN - 0.5), shinF: abs(DOWN + 0.05), thighB: abs(DOWN + 0.5), shinB: abs(DOWN + 0.25), torso: rel(0.1 + b * 0.025), head: rel(b * 0.02) });
+  }
+  if (cls === "Attacker") {
+    const b = Math.sin(now / 330); // floats, palms open
+    return still({ ...STANCE, upperF: abs(0.9 + b * 0.08), foreF: abs(-0.4), upperB: abs(1.3 - b * 0.08), foreB: abs(-0.2), torso: rel(-0.03 + b * 0.03) }, { hover: 5 + b * 4 });
+  }
+  if (cls === "Sword" || cls === "Mace") {
+    const b = Math.sin(now / 320); // a steady guard sway; the mace sits lower and heavier
+    const low = cls === "Mace" ? 0.12 : 0;
+    return still({ ...GUARD, thighF: abs(DOWN - 0.35 - low), shinF: abs(DOWN - 0.1 + low), thighB: abs(DOWN + 0.35 + low), shinB: abs(DOWN + 0.15 + low), torso: rel(0.05 + low * 0.5 + b * 0.04), upperF: abs(1.15 + b * 0.05) });
+  }
+  // Fighter (and anyone else): bounces on the toes, like a real fighter waiting.
+  const b = Math.sin(now / 160);
+  return still({ ...FIGHT, torso: rel(0.04 + b * 0.03), head: rel(b * 0.03), upperF: abs(1.15 + b * 0.08) });
+}
 
 const still = (pose: PoseTargets, extra: Partial<BodyMotion> = {}): BodyMotion => ({ pose, lunge: 0, fall: 0, flip: false, alpha: 1, ...extra });
 
-export function poseFor(f: F, special: SpecialKind, now: number): BodyMotion {
+export function poseFor(f: F, special: SpecialKind, now: number, cls = ""): BodyMotion {
   const t = f.t;
   switch (f.action) {
     case "idle": {
@@ -124,9 +192,7 @@ export function poseFor(f: F, special: SpecialKind, now: number): BodyMotion {
           torso: rel(0.08),
         });
       }
-      // Fighting stance that bounces on the toes, like a real fighter waiting.
-      const b = Math.sin(now / 160);
-      return still({ ...FIGHT, torso: rel(0.04 + b * 0.03), head: rel(b * 0.03), upperF: abs(1.15 + b * 0.08) });
+      return idleFor(cls, now);
     }
     case "attack":
     case "kick": {

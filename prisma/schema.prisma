@@ -43,6 +43,7 @@ model Character {
   flipItem      Boolean  @default(false) // owner: the held item came out upside down, swap its grip and tip
   specialKind   String?  // special-move building block (src/game/moves.ts); null → class default
   style         String?  // fighting style (Boxing, Taekwondo, ...); null → class default
+  sideSkill     String?  // side skill (src/game/moves.ts SIDE_SKILLS); null → class default
   cpu           Boolean  @default(true)  // admin: the computer may play this design
   hidden        Boolean  @default(false) // admin: kept off gallery, leaderboard and CPU lists
   createdAt     DateTime @default(now())

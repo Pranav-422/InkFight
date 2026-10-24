@@ -5,7 +5,7 @@ import { CharacterCard } from "@/components/CharacterCard";
 import { FightButtons } from "@/components/FightButtons";
 import { OwnerActions } from "@/components/OwnerActions";
 import { RotateControl } from "@/components/RotateControl";
-import { MOVES, SPECIAL_INFO, STYLE_INFO, type MoveName } from "@/game/moves";
+import { CLASS_CHAIN, MOVES, SKILL_INFO, SKILL_TUNE, SPECIAL_INFO, STYLE_INFO, type MoveName } from "@/game/moves";
 import { deriveDef, TICK_HZ } from "@/game/sim";
 import { getSession, isAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -15,7 +15,10 @@ export const dynamic = "force-dynamic";
 
 const LABEL = { hp: "HP", atk: "STR", def: "DUR", spd: "SPD", agi: "AGI", iq: "IQ" } as const;
 
-const MOVE_LABEL: Partial<Record<MoveName, string>> = { uppercutP: "Uppercut", flyingKnee: "Flying knee", frontKick: "Front kick", spinKick: "Spinning back kick", axeKick: "Axe kick", lowKick: "Low kick" };
+const MOVE_LABEL: Partial<Record<MoveName, string>> = {
+  uppercutP: "Uppercut", flyingKnee: "Flying knee", frontKick: "Front kick", spinKick: "Spinning back kick", axeKick: "Axe kick", lowKick: "Low kick",
+  iai: "Iai draw", risingSlash: "Rising slash", shieldBash: "Shield bash", inkPalm: "Ink palm", airSlash: "Air slash", divePunch: "Dive punch", flyingKick: "Flying kick",
+};
 const moveLabel = (m: MoveName) => MOVE_LABEL[m] ?? m[0].toUpperCase() + m.slice(1);
 
 export default async function CharacterPage({ params, searchParams }: PageProps<"/character/[id]">) {
@@ -27,6 +30,8 @@ export default async function CharacterPage({ params, searchParams }: PageProps<
   const owns = session?.userId === me.ownerId;
   const canEdit = isAdmin(session) || (owns && !me.imageUrl.startsWith("/samples/"));
   const def = deriveDef(me);
+  // J swings the class weapon (a Fighter punches with the style); K is the style's kicks.
+  const chains = { punch: CLASS_CHAIN[def.cls] ?? STYLE_INFO[def.style].punch, kick: STYLE_INFO[def.style].kick };
   const power: [string, string, string][] = [
     ["Health", `${def.maxHp} HP`, "same for everyone"],
     ["Punch damage", def.punch.toFixed(1), "from STR"],
@@ -127,19 +132,24 @@ export default async function CharacterPage({ params, searchParams }: PageProps<
             : {SPECIAL_INFO[def.special].how}, usable when the meter is
             full.
           </p>
+          <p className="mt-1 text-sm">
+            <span className="font-semibold text-guard">{SKILL_INFO[def.skill].name}</span> (side skill, U): {SKILL_INFO[def.skill].how}. Lasts{" "}
+            {(Math.round((SKILL_INFO[def.skill].dur * SKILL_TUNE[def.skill]) / TICK_HZ * 10) / 10).toFixed(1)}s, every {Math.round(def.skillCd / TICK_HZ)}s.
+          </p>
         </section>
 
         <section>
           <h2 className="font-display text-xl font-extrabold">Fighting style: {def.style}</h2>
-          <p className="text-sm text-muted">{STYLE_INFO[def.style].blurb}. Keep tapping the same button to chain the combo.</p>
+          <p className="text-sm text-muted">
+            {STYLE_INFO[def.style].blurb}. Keep tapping the same button to chain the combo; switch buttons after two hits for the {moveLabel(STYLE_INFO[def.style].mix).toLowerCase()} finisher.
+            S+K sweeps under a guard, toward+K opens with a roundhouse, J or K in the air is an air attack.
+          </p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {(["punch", "kick"] as const).map((k) => (
               <div key={k} className="rounded-xl bg-card p-3 ring-1 ring-line">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted">{k === "punch" ? "Punch (J)" : "Kick (K)"} combo</p>
-                <p className="font-display font-extrabold">{STYLE_INFO[def.style][k].map(moveLabel).join(" → ")}</p>
-                <p className="text-[11px] text-muted tabular-nums">
-                  {STYLE_INFO[def.style][k].map((m) => `${MOVES[m].mult}×`).join(" · ")} damage
-                </p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted">{k === "punch" ? (CLASS_CHAIN[def.cls] ? "Weapon (J)" : "Punch (J)") : "Kick (K)"} combo</p>
+                <p className="font-display font-extrabold">{chains[k].map(moveLabel).join(" → ")}</p>
+                <p className="text-[11px] text-muted tabular-nums">{chains[k].map((m) => `${MOVES[m].mult}×`).join(" · ")} damage</p>
               </div>
             ))}
           </div>

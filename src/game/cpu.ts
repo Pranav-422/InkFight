@@ -1,15 +1,16 @@
 // Computer opponent. Reads the match like a player would (with a reaction delay,
 // so it isn't frame-perfect) and drives the same Input a human would send.
 
-import { SPECIAL_INFO } from "./moves";
+import { MOVES, SPECIAL_INFO } from "./moves";
 import { ARENA, BLAST_REACH, BODY, holds, moveReach, type Input, type Match, type Slot } from "./sim";
 
 export type Level = "easy" | "normal" | "hard";
 
-const LEVELS: Record<Level, { react: number; block: number; aggro: number; dodge: number; think: number }> = {
-  easy: { react: 24, block: 0.15, aggro: 0.35, dodge: 0.2, think: 14 },
-  normal: { react: 14, block: 0.42, aggro: 0.6, dodge: 0.5, think: 8 },
-  hard: { react: 7, block: 0.72, aggro: 0.85, dodge: 0.8, think: 4 },
+// skill: how often it uses its side skill when the moment comes.
+const LEVELS: Record<Level, { react: number; block: number; aggro: number; dodge: number; think: number; skill: number }> = {
+  easy: { react: 24, block: 0.15, aggro: 0.35, dodge: 0.2, think: 14, skill: 0 },
+  normal: { react: 14, block: 0.42, aggro: 0.6, dodge: 0.5, think: 8, skill: 0.5 },
+  hard: { react: 7, block: 0.72, aggro: 0.85, dodge: 0.8, think: 4, skill: 1 },
 };
 
 // How often a sword steps back after a chain. Every time makes a slow class unable to ever reach it
@@ -26,9 +27,10 @@ export type CpuBrain = {
   guardFor: string; // the attack it chose to block: the guard stays up while that attack still threatens
   retreatUntil: number;
   stepBack: boolean | null; // after this chain, step back out of range? (rolled once per chain, null between chains)
+  skillUse: number; // chance to use the side skill when the moment comes (scripts/balance.ts sets 0 to price a skill)
 };
 
-export const newBrain = (level: Level): CpuBrain => ({ level, tick: 0, history: [], blockUntil: 0, nextThink: 0, reactedTo: "", guardFor: "", retreatUntil: 0, stepBack: null });
+export const newBrain = (level: Level): CpuBrain => ({ level, tick: 0, history: [], blockUntil: 0, nextThink: 0, reactedTo: "", guardFor: "", retreatUntil: 0, stepBack: null, skillUse: LEVELS[level].skill });
 
 export function cpuThink(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
   const L = LEVELS[brain.level];
@@ -55,6 +57,7 @@ export function cpuThink(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
 
   const myDef = m.defs[slot];
   const opDef = m.defs[1 - slot];
+  const skillReady = me.skillCd === 0 && Math.random() < brain.skillUse;
   // Defend: block a threatening move it has "noticed", once per enemy attack. Melee threatens within
   // the opponent's reach; a ranged special (a beam crosses the arena, and can't be jumped) from anywhere.
   const opReach = BODY.w / 2 + Math.max(moveReach(opDef, "attack"), moveReach(opDef, "kick")) + 40;
@@ -64,7 +67,14 @@ export function cpuThink(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
   if (threat && brain.reactedTo !== attackId) {
     brain.reactedTo = attackId;
     brain.guardFor = Math.random() < L.block + (m.defs[slot].cls === "Tank" ? 0.1 : 0) ? attackId : ""; // tanks guard more
+    // A low sweep goes under a guard: jump it instead.
+    if (brain.guardFor && op.move && MOVES[op.move].low && op.action === "kick" && me.grounded) {
+      brain.guardFor = "";
+      input.jump++;
+    }
     if (brain.guardFor) brain.blockUntil = brain.tick + 22;
+    // Iron poise answers an attack: trade through it.
+    if (skillReady && Math.random() < L.aggro && myDef.skill === "poise") input.skill++;
   }
   // Hold the guard like a player would: a beam fires after its 30-tick charge, past the first 22 ticks.
   if (threat && brain.guardFor === attackId) brain.blockUntil = Math.max(brain.blockUntil, brain.tick + 2);
@@ -77,6 +87,14 @@ export function cpuThink(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
 
   const blocking = brain.blockUntil > brain.tick;
   input.block = blocking;
+  // Reflect shield while guarding a melee attack; ink bubble when someone closes in or fires at it.
+  if (skillReady && Math.random() < L.aggro * 0.2) {
+    if (myDef.skill === "reflect" && blocking && (op.action === "attack" || op.action === "kick") && dist < opReach) input.skill++;
+    if (myDef.skill === "bubble" && (dist < 150 || incoming)) input.skill++;
+    // Slip-weave is a read, like a player's: it goes up when the opponent is close enough to swing, not in
+    // reaction to a swing (reacting inside a 7-tick window would be frame-perfect, which no human is).
+    if (myDef.skill === "weave" && !blocking && dist < opReach && op.action === "idle") input.skill++;
+  }
   if (blocking) {
     input.left = input.right = false;
     // A tank walks in behind its guard (towards a zoner, or anyone out of reach).
@@ -106,9 +124,9 @@ export function cpuThink(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
   const kickReach = BODY.w / 2 + moveReach(myDef, "kick") - 8;
   const reach = Math.max(punchReach, kickReach);
   input.left = input.right = false;
-  // Air: an agile fighter jumps in with a punch; once airborne it swings when in range.
+  // Air: an agile fighter jumps in; once airborne it swings (or dive-kicks) when in range.
   if (!me.grounded) {
-    if (dist < punchReach + 20 && me.action === "idle") input.attack++;
+    if (dist < punchReach + 20 && me.action === "idle") input[Math.random() < 0.5 ? "kick" : "attack"]++;
     input[toward] = !retreat;
     return;
   }
@@ -136,11 +154,18 @@ export function cpuThink(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
     input[toward] = true;
     if (dist < reach + 120 && Math.random() < 0.06) input.jump++; // the same habit for every stat line: the numbers decide, not the policy
   } else if (Math.random() < L.aggro) {
+    // Element blade before a swing.
+    if (myDef.skill === "blade" && skillReady && Math.random() < 0.3) input.skill++;
     // In range: keep pressing the same button so the style's combo chains;
-    // kick when only the kick reaches (or now and then).
+    // kick when only the kick reaches (or now and then). A turtle gets swept; the edge of range gets a roundhouse.
     if (me.action === "attack" || me.action === "kick") input[me.action === "kick" ? "kick" : "attack"]++;
-    else if (dist > punchReach || (dist <= kickReach && Math.random() < 0.3)) input.kick++;
-    else input.attack++;
+    else if (op.blocking && dist <= kickReach && Math.random() < 0.3) {
+      input.block = true; // down+K
+      input.kick++;
+    } else if (dist > punchReach || (dist <= kickReach && Math.random() < 0.3)) {
+      if (dist > punchReach && Math.random() < 0.5) input[toward] = true; // toward+K
+      input.kick++;
+    } else input.attack++;
   } else if (Math.random() < 0.3) {
     input[away] = true; // feint back
   }
