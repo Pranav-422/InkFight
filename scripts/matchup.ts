@@ -1,5 +1,6 @@
 // Why does one class beat another? Damage breakdown for one pairing (hard CPU, default kits, 40 matches):
-// normal vs special damage, how much of it was blocked, dodges, specials used and time spent guarding.
+// normal vs special damage (ultDmg: the part from ultimates), how much of it was blocked, dodges, slot-1 specials and
+// ultimates used and time spent guarding.
 //   npx tsx scripts/matchup.ts Fighter Tank
 // Use it when scripts/balance.ts shows a lopsided pair: a factor can't fix a broken mechanic.
 
@@ -19,7 +20,7 @@ const neutral = { size: "medium", pose: "neutral", dominant_colors: [] } as cons
 const fighter = (cls: string): FighterStats => ({ ...ruleStats(cls, { ...neutral, dominant_colors: [] }), class: cls, item: CLASS_ITEM[cls], style: CLASS_STYLE[cls], specialKind: CLASS_SPECIAL[cls] });
 
 const [A, B] = [process.argv[2] ?? "Fighter", process.argv[3] ?? "Tank"];
-const st = [0, 1].map(() => ({ wins: 0, normal: 0, normalBlocked: 0, hits: 0, hitsBlocked: 0, special: 0, specialBlocked: 0, specialHits: 0, specialsUsed: 0, dodged: 0, guardSecs: 0 }));
+const st = [0, 1].map(() => ({ wins: 0, normal: 0, normalBlocked: 0, hits: 0, hitsBlocked: 0, special: 0, specialBlocked: 0, specialHits: 0, specialsUsed: 0, ultsUsed: 0, ultDmg: 0, dodged: 0, guardSecs: 0 }));
 for (let g = 0; g < 40; g++) {
   const ia = { ...EMPTY_INPUT }, ib = { ...EMPTY_INPUT };
   const m = createMatch(fighter(A), fighter(B), [ia, ib]);
@@ -35,6 +36,7 @@ for (let g = 0; g < 40; g++) {
       last = e.id;
       if (e.type === "hit") {
         const s = st[e.by];
+        if (e.ult) s.ultDmg += e.dmg;
         if (e.special) {
           s.special += e.dmg;
           s.specialHits++;
@@ -49,7 +51,7 @@ for (let g = 0; g < 40; g++) {
         }
       }
       if (e.type === "dodge") st[1 - e.by].dodged++; // the attacker's hit that was slipped
-      if (e.type === "special") st[e.by].specialsUsed++;
+      if (e.type === "special") st[e.by][e.ult ? "ultsUsed" : "specialsUsed"]++;
     }
   }
   if (m.matchWinner !== null) st[m.matchWinner].wins++;

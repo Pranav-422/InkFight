@@ -109,12 +109,12 @@ export const CLASS_CHAIN_POWER = Object.fromEntries(Object.entries(CLASS_CHAIN).
 // Damage factors found by simulation (`npx tsx scripts/balance.ts --tune`): each style
 // and special set so it wins about half its fights against a mixed pool of every
 // style x special with the same stats. Re-run the tuner after changing moves or specials.
-export const STYLE_TUNE: Record<Style, number> = { Boxing: 0.69, Taekwondo: 0.817, "Muay Thai": 0.796, Karate: 0.817, Street: 0.88, Systema: 0.69 };
-export const SPECIAL_TUNE: Record<SpecialKind, number> = { bolt: 1.492, arrow: 1.281, orb: 1.07, slash: 0.775, charge: 0.416, uppercut: 0.922, beam: 1.513, spiral: 1.661, wave: 1.914, teleport: 0.669, barrage: 0.543, meteor: 1.407 };
+export const STYLE_TUNE: Record<Style, number> = { Boxing: 0.775, Taekwondo: 0.859, "Muay Thai": 0.901, Karate: 0.796, Street: 0.901, Systema: 0.754 };
+export const SPECIAL_TUNE: Record<SpecialKind, number> = { bolt: 1.323, arrow: 1.26, orb: 1.112, slash: 0.648, charge: 0.311, uppercut: 0.796, beam: 2.188, spiral: 1.682, wave: 1.935, teleport: 0.627, barrage: 0.817, meteor: 1.218 };
 
 // Damage factor per class, found by simulation like the two above (scripts/balance.ts --tune):
 // each class's usual stat line and kit wins about half its fights against every class.
-export const CLASS_TUNE: Record<string, number> = { Sword: 0.997, Mace: 1.077, Tank: 1.291, Attacker: 1.123, Fighter: 1.29 };
+export const CLASS_TUNE: Record<string, number> = { Sword: 1.039, Mace: 1.142, Tank: 1.137, Attacker: 1.212, Fighter: 1.196 };
 // Strength of each element's status effect (1 = as described in sim.ts), tuned the same way.
 export const ELEMENT_TUNE: Record<string, number> = { NONE: 1, FIRE: 1, ELECTRIC: 1, FROST: 1, POISON: 1, BLEED: 1, GRAVITY: 1 };
 
@@ -148,7 +148,7 @@ export const specialOf = (kind: string | null | undefined, cls: string): Special
 export const SLOT1_COST = 50;
 export const ULT_COST = 100;
 export const CLASS_ULT: Record<string, SpecialKind> = {
-  Sword: "teleport",
+  Sword: "meteor",
   Mace: "uppercut",
   Tank: "meteor",
   Attacker: "spiral",
@@ -173,7 +173,7 @@ export const SKILL_INFO: Record<SideSkill, { name: string; how: string; cd: numb
 // Each skill's duration factor, found by simulation (scripts/balance.ts --tune N
 // skills): a class with its skill beats the same class without it 60% of the time. A mirror amplifies any edge,
 // so that is a few % of HP: worth pressing, not a matchup decider.
-export const SKILL_TUNE: Record<SideSkill, number> = { blade: 0.723, reflect: 0.587, bubble: 0.496, weave: 0.451, poise: 0.361 };
+export const SKILL_TUNE: Record<SideSkill, number> = { blade: 1.539, reflect: 1.086, bubble: 0.406, weave: 0.587, poise: 0.451 };
 export const CLASS_SKILL: Record<string, SideSkill> = { Sword: "blade", Mace: "poise", Tank: "reflect", Attacker: "bubble", Fighter: "weave" };
 export const skillOf = (skill: string | null | undefined, cls: string): SideSkill =>
   (SIDE_SKILLS as readonly string[]).includes(skill ?? "") ? (skill as SideSkill) : (CLASS_SKILL[normClass(cls)] ?? "weave");
