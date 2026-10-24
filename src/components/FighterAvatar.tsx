@@ -12,20 +12,20 @@ import type { Snapshot } from "@/game/sim";
 import { loadSpriteCached, type Sprite } from "@/game/sprite";
 import { drawStick, solveStick, STICK_REST } from "@/game/stickman";
 
-type AvatarFighter = { imageUrl: string; class: string; pose?: string | null; rotation?: number; style?: string | null };
+type AvatarFighter = { imageUrl: string; class: string; pose?: string | null; rotation?: number; style?: string | null; flipItem?: boolean };
 
 const ACCENT: Record<string, string> = { Tank: "#2f5be0", Mage: "#2f5be0", Brawler: "#e5482d" };
 
 export function FighterAvatar({ fighter, className = "", showcase = true }: { fighter: AvatarFighter; className?: string; showcase?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const { imageUrl, pose, rotation, class: cls, style } = fighter;
+  const { imageUrl, pose, rotation, class: cls, style, flipItem } = fighter;
 
   useEffect(() => {
     const canvas = ref.current!;
     const ctx = canvas.getContext("2d")!;
     let sprite: Sprite | null = null;
     let alive = true;
-    loadSpriteCached(imageUrl, pose, rotation ?? 0)
+    loadSpriteCached(imageUrl, pose, rotation ?? 0, flipItem ?? false)
       .then((s) => alive && (sprite = s))
       .catch(() => {});
 
@@ -105,7 +105,7 @@ export function FighterAvatar({ fighter, className = "", showcase = true }: { fi
       io.disconnect();
       cancelAnimationFrame(raf);
     };
-  }, [imageUrl, pose, rotation, cls, style, showcase]);
+  }, [imageUrl, pose, rotation, cls, style, flipItem, showcase]);
 
   return <canvas ref={ref} className={`block h-full w-full ${className}`} aria-hidden />;
 }

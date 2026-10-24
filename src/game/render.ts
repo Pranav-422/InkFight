@@ -25,7 +25,8 @@ type Stain = { x: number; y: number; r: number; life: number; color: string };
 type F = Snapshot["fighters"][number];
 type Doodle = { x: number; y: number; kind: number; speed: number; spin: number; size: number };
 
-export type HudInfo = { names: [string, string]; specialNames: [string, string]; you: Slot };
+// buffs: the admin buff is on for that side (shown, so the other player knows).
+export type HudInfo = { names: [string, string]; specialNames: [string, string]; you: Slot; buffs?: [boolean, boolean] };
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const TIP = { hand: "handF", handB: "handB", foot: "footF", footB: "footB", knee: "kneeF", head: "head" } as const;
@@ -62,7 +63,11 @@ export class Renderer {
     size: 14 + Math.random() * 18,
   }));
 
-  constructor(private canvas: HTMLCanvasElement) {
+  // preview: the small training room (MovePreview): camera close on the pair, no HUD or banners.
+  constructor(
+    private canvas: HTMLCanvasElement,
+    private preview = false,
+  ) {
     this.ctx = canvas.getContext("2d")!;
     const css = getComputedStyle(document.body);
     this.fontDisplay = css.getPropertyValue("--font-display").trim() || "sans-serif";
@@ -171,7 +176,11 @@ export class Renderer {
     // Camera: push in on a special as it starts, and hard on the knockout blow.
     let tz = 1, tx = ARENA.w / 2, ty = ARENA.h / 2;
     const sp = fighters.find((f) => f.action === "special" && f.t < 26);
-    if (cur.slow > 0) {
+    if (this.preview) {
+      tz = 1.5;
+      tx = (fighters[0].x + fighters[1].x) / 2;
+      ty = ARENA.ground - BODY.h * 0.6;
+    } else if (cur.slow > 0) {
       const loser = fighters.find((f) => f.action === "ko") ?? fighters[0];
       tz = 1.35;
       tx = (loser.x + fighters[1 - loser.slot].x) / 2;
@@ -220,6 +229,7 @@ export class Renderer {
       ctx.fillRect(0, 0, ARENA.w, bar);
       ctx.fillRect(0, ARENA.h - bar, ARENA.w, bar);
     }
+    if (this.preview) return;
     this.hud(cur, hud, now);
     this.phaseText(cur);
   }
@@ -689,6 +699,12 @@ export class Renderer {
       ctx.textAlign = left ? "left" : "right";
       const name = z > 1.2 ? (hud.you === slot ? "YOU" : hud.names[slot]) : hud.names[slot] + (hud.you === slot ? "  (you)" : "");
       ctx.fillText(name, left ? x : x + barW, 40, barW - 70);
+      if (hud.buffs?.[slot]) {
+        const w = Math.min(barW - 70, ctx.measureText(name).width) + 8;
+        ctx.font = `800 ${Math.round(12 * z)}px ${this.fontDisplay}`;
+        ctx.fillStyle = C.gold;
+        ctx.fillText("BUFF", left ? x + w : x + barW - w, 40);
+      }
 
       // Round wins as dots next to the name
       for (let i = 0; i < WINS_NEEDED; i++) {

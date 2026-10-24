@@ -35,6 +35,7 @@ type RoomInfo = {
   answer?: string | null;
   hostFighter?: PublicFighter | null;
   guestFighter?: PublicFighter | null;
+  youBuff?: boolean; // this player is an admin with the buff on
   version?: number;
   error?: string;
 };
@@ -122,7 +123,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
       if (info.status === 401) return setError("You're logged out. Log in again to play.");
       if (userId && info.you && info.you !== userId) return setError(SWITCHED);
       if (info.exists && info.full) return setError("Room's full. Two's a fight, three's a crowd.");
-      if (!info.exists || info.isHost) return host();
+      if (!info.exists || info.isHost) return host(!!info.youBuff);
       // We already answered earlier (page refresh): wait for the host to reopen the room.
       let fresh = info;
       for (let i = 0; fresh.answer && i < 40 && !cancelled; i++) {
@@ -132,18 +133,19 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
       }
       if (cancelled) return;
       if (fresh.answer) return setError("The host hasn't reopened the room yet. Try again in a moment.");
-      if (!fresh.exists) return host();
+      if (!fresh.exists) return host(!!fresh.youBuff);
       await guest(fresh);
     }
 
     // ---------------------------------------------------------------- host
-    async function host() {
+    async function host(buff: boolean) {
       const me = await api<{ fighters?: never } & PublicFighter>(`/api/characters/${fighterId}`);
       if (cancelled) return;
       if (me.status !== 200) return setError("That fighter doesn't exist. Draw a new one?");
       const myFighter: PublicFighter = {
         id: me.id, name: me.name, class: me.class, imageUrl: me.imageUrl, specialMove: me.specialMove,
         hp: me.hp, atk: me.atk, def: me.def, spd: me.spd, pose: me.pose, rotation: me.rotation, specialKind: me.specialKind, style: me.style,
+        flipItem: me.flipItem, ...(buff && { buff }),
       };
 
       // away: the guest dropped mid-fight and the computer is playing their fighter.

@@ -14,14 +14,6 @@ export function CharacterCard({ character: c, variant = "full" }: Props) {
         <div className="absolute left-2 top-2">
           <ClassBadge cls={c.class} size={full ? "md" : "sm"} />
         </div>
-        {/* The original drawing, small, so you can see where the fighter came from. */}
-        {/* eslint-disable-next-line @next/next/no-img-element -- user uploads served from an API route */}
-        <img
-          src={c.imageUrl}
-          alt={`Drawing of ${c.name}`}
-          className={`absolute bottom-2 right-2 rounded-md bg-white object-contain ring-1 ring-line ${full ? "size-16" : "size-10"}`}
-          style={c.rotation ? { transform: `rotate(${c.rotation}deg)` } : undefined}
-        />
       </div>
       <div className={full ? "px-2 pt-4 pb-2" : "px-1 pt-3 pb-1"}>
         <h3 className={`font-display font-extrabold leading-tight ${full ? "text-3xl" : "text-lg"}`}>{c.name}</h3>

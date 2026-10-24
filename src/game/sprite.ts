@@ -7,16 +7,18 @@ import { estimateJoints, jointsFromVision, type Joints, type Vec } from "./skele
 // What a fighter wears from its drawing. head: the drawn head, cut out as a circle.
 // ink: average ink colour. prop: the item drawn in its hand (the stickman holds it).
 // width: the drawing's pen width, in arena units.
-export type Prop = { img: HTMLCanvasElement; hx: number; hy: number; scale: number; rest: number };
+// axis: grip→tip angle of a long item (blade, staff), which the stickman turns with the arm;
+// null for the rest (shield, book, bow), which keep the angle they were drawn at.
+export type Prop = { img: HTMLCanvasElement; hx: number; hy: number; scale: number; rest: number; axis: number | null };
 export type Sprite = { head: HTMLCanvasElement | null; ink: string | null; prop: Prop | null; width: number };
 
 // Loading a drawing is a few ms of pixel work; the gallery, pickers and the arena share it.
 const cache = new Map<string, Promise<Sprite>>();
-export function loadSpriteCached(url: string, poseJson?: string | null, rotation = 0): Promise<Sprite> {
-  const key = `${url}|${rotation}|${poseJson ?? ""}`;
+export function loadSpriteCached(url: string, poseJson?: string | null, rotation = 0, flipItem = false): Promise<Sprite> {
+  const key = `${url}|${rotation}|${flipItem}|${poseJson ?? ""}`;
   let p = cache.get(key);
   if (!p) {
-    p = loadSprite(url, poseJson, rotation);
+    p = loadSprite(url, poseJson, rotation, flipItem);
     p.catch(() => cache.delete(key));
     cache.set(key, p);
   }
@@ -159,12 +161,14 @@ function hasKeptNeighbour(label: Int32Array, keep: boolean[], p: number, w: numb
   return false;
 }
 
+type Source = CanvasImageSource & { width: number; height: number };
+
 // Stand a sideways photo upright: returns the rotated image and how to map
 // a point given as fractions of the *original* photo into it.
-function rotated(src: CanvasImageSource & { width: number; height: number }, deg: number) {
+function rotated(src: Source, deg: number) {
   const r = ((Math.round(deg / 90) % 4) + 4) % 4;
   const W0 = src.width, H0 = src.height;
-  if (r === 0) return { img: src as CanvasImageSource & { width: number; height: number }, map: (v: Vec) => ({ x: v.x * W0, y: v.y * H0 }) };
+  if (r === 0) return { img: src, map: (v: Vec) => ({ x: v.x * W0, y: v.y * H0 }) };
   const c = document.createElement("canvas");
   c.width = r % 2 ? H0 : W0;
   c.height = r % 2 ? W0 : H0;
@@ -181,8 +185,10 @@ function rotated(src: CanvasImageSource & { width: number; height: number }, deg
   return { img: c, map };
 }
 
-export async function loadSprite(url: string, poseJson?: string | null, rotation = 0): Promise<Sprite> {
-  const { img, map: toRotated } = rotated(await loadImage(url), rotation);
+// Find the figure in a photo and cut just its ink out, sharp: paper → transparent.
+// deepen: darken faint ink so pencil lines read on screen (not for the stored cut-out,
+// which is cut again when it loads).
+function cutFigure(img: Source, deepen = true) {
   const scale = Math.min(1, FIND_SIDE / Math.max(img.width, img.height));
   const w = Math.max(1, Math.round(img.width * scale));
   const h = Math.max(1, Math.round(img.height * scale));
@@ -236,7 +242,7 @@ export async function loadSprite(url: string, poseJson?: string | null, rotation
       }
       const a = keep ? alpha2[p] : 0;
       px2[i + 3] = a;
-      if (a > 64) {
+      if (deepen && a > 64) {
         // Deepen faint ink a little so pencil lines read on screen.
         px2[i] = Math.round(px2[i] * 0.75);
         px2[i + 1] = Math.round(px2[i + 1] * 0.75);
@@ -245,6 +251,29 @@ export async function loadSprite(url: string, poseJson?: string | null, rotation
     }
   }
   nctx.putImageData(d2, 0, 0);
+  return { normal, px2, ox, oy, s2 };
+}
+
+// What gets uploaded and stored instead of the photo: the figure alone, upright, on
+// white paper with a margin. Nothing else from the photo (table, room, faces) is kept.
+export async function cleanDrawing(file: Blob, rotation = 0): Promise<Blob> {
+  const { img } = rotated(await createImageBitmap(file), rotation);
+  const { normal } = cutFigure(img, false);
+  const pad = Math.round(Math.max(normal.width, normal.height) * 0.08);
+  const c = document.createElement("canvas");
+  c.width = normal.width + pad * 2;
+  c.height = normal.height + pad * 2;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#fff";
+  g.fillRect(0, 0, c.width, c.height);
+  g.drawImage(normal, pad, pad);
+  return new Promise((resolve, reject) => c.toBlob((b) => (b ? resolve(b) : reject(new Error("Couldn't read that image"))), "image/png"));
+}
+
+// flipItem: the owner says the held item came out upside down, so grip and tip swap.
+export async function loadSprite(url: string, poseJson?: string | null, rotation = 0, flipItem = false): Promise<Sprite> {
+  const { img, map: toRotated } = rotated(await loadImage(url), rotation);
+  const { normal, px2, ox, oy, s2 } = cutFigure(img);
 
   // Joints: AI keypoints when we have them (fractions of the photo), else read off the ink.
   const W = normal.width, H = normal.height;
@@ -264,14 +293,14 @@ export async function loadSprite(url: string, poseJson?: string | null, rotation
   return {
     head: cutHead(normal, joints),
     ink: inkColor(px2),
-    prop: side ? cutProp(px2, W, H, side, unit) : null,
+    prop: side ? cutProp(px2, W, H, side, unit, flipItem) : null,
     width: Math.min(11, Math.max(4, (side?.stroke ?? strokeWidth((x, y) => px2[(y * W + x) * 4 + 3] >= 64, W, H, joints)) * unit * 1.1)),
   };
 }
 
 // Copy exactly the prop's pixels into their own canvas, anchored at the hand. A prop
 // on the drawing's left is mirrored, since the stickman always holds it in front.
-function cutProp(px: Uint8ClampedArray, W: number, H: number, s: PropSide, scale: number): Prop | null {
+function cutProp(px: Uint8ClampedArray, W: number, H: number, s: PropSide, scale: number, flip: boolean): Prop | null {
   let x0 = W, y0 = H, x1 = 0, y1 = 0;
   for (const p of s.pts) {
     x0 = Math.min(x0, p.x);
@@ -293,9 +322,51 @@ function cutProp(px: Uint8ClampedArray, W: number, H: number, s: PropSide, scale
     for (let k = 0; k < 4; k++) out.data[dst + k] = px[src + k];
   }
   g.putImageData(out, 0, 0);
-  const hx = s.left ? x1 - s.hand.x : s.hand.x - x0, hy = s.hand.y - y0;
+  const mx = (x: number) => (s.left ? x1 - x : x - x0);
   const rest = Math.atan2(s.hand.y - s.elbow.y, (s.hand.x - s.elbow.x) * (s.left ? -1 : 1));
-  return { img: c, hx, hy, scale, rest };
+  // Items are held where they meet the arm: the point nearest the shoulder (the arm's own
+  // stroke was stripped off). The "hand" found on the ink is often a blade's tip, and
+  // hanging the item from there turns it upside down or leaves it floating away.
+  const d = (v: Vec) => Math.hypot(v.x - s.shoulder.x, v.y - s.shoulder.y);
+  const ends = longEnds(s.pts);
+  if (!ends) {
+    const hold = s.pts.reduce((a, b) => (d(b) < d(a) ? b : a));
+    return { img: c, hx: mx(hold.x), hy: hold.y - y0, scale, rest, axis: null };
+  }
+  let [grip, tip] = d(ends[0]) <= d(ends[1]) ? ends : [ends[1], ends[0]];
+  if (flip) [grip, tip] = [tip, grip];
+  return { img: c, hx: mx(grip.x), hy: grip.y - y0, scale, rest, axis: Math.atan2(tip.y - grip.y, (tip.x - grip.x) * (s.left ? -1 : 1)) };
+}
+
+// The two ends of a long, thin item along its main axis; null for a blob or a curve.
+function longEnds(pts: Vec[]): [Vec, Vec] | null {
+  let mx = 0, my = 0;
+  for (const p of pts) {
+    mx += p.x;
+    my += p.y;
+  }
+  mx /= pts.length;
+  my /= pts.length;
+  let sxx = 0, syy = 0, sxy = 0;
+  for (const p of pts) {
+    sxx += (p.x - mx) ** 2;
+    syy += (p.y - my) ** 2;
+    sxy += (p.x - mx) * (p.y - my);
+  }
+  const tr = (sxx + syy) / pts.length, det = (sxx * syy - sxy * sxy) / pts.length ** 2;
+  const l1 = tr / 2 + Math.sqrt(Math.max(0, (tr * tr) / 4 - det)), l2 = Math.max(0, tr - l1);
+  if (Math.sqrt(l2 / (l1 || 1)) >= 0.25) return null; // same "line" test as shapeOf (sword/staff < 0.18)
+  const a = 0.5 * Math.atan2(2 * sxy, sxx - syy), ux = Math.cos(a), uy = Math.sin(a);
+  let lo = Infinity, hi = -Infinity;
+  for (const p of pts) {
+    const t = (p.x - mx) * ux + (p.y - my) * uy;
+    lo = Math.min(lo, t);
+    hi = Math.max(hi, t);
+  }
+  return [
+    { x: mx + ux * lo, y: my + uy * lo },
+    { x: mx + ux * hi, y: my + uy * hi },
+  ];
 }
 
 // The head as a circle around the head joint (head-to-shoulder is about two head radii),
@@ -408,7 +479,7 @@ function guessItem(alpha: ArrayLike<number>, w: number, h: number, j: Joints, bh
   return side ? shapeOf(side.pts, w, h, bh) : "nothing";
 }
 
-type PropSide = { pts: Vec[]; left: boolean; hand: Vec; elbow: Vec; stroke: number };
+type PropSide = { pts: Vec[]; left: boolean; hand: Vec; elbow: Vec; shoulder: Vec; stroke: number };
 
 // Pen width from the legs (two strokes from hip to feet), so thresholds fit pen or marker.
 function strokeWidth(ink: (x: number, y: number) => boolean, w: number, h: number, j: Joints) {
@@ -447,7 +518,7 @@ function propSide(ink: (x: number, y: number) => boolean, w: number, h: number, 
   }
   const i = sides[0].length > sides[1].length ? 0 : 1;
   if (sides[i].length < bh * 0.16 * stroke) return null; // shorter than a sixth of the body: just a hand
-  return { pts: sides[i], ...arms[i], stroke };
+  return { pts: sides[i], ...arms[i], shoulder: j.shoulder, stroke };
 }
 
 function distToSeg(p: Vec, a: Vec, b: Vec) {

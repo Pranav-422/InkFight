@@ -1,12 +1,13 @@
 "use client";
 
-import { Bot, Eye, EyeOff, Swords } from "lucide-react";
+import { Bot, Eye, EyeOff, Scissors, Swords } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ClassBadge } from "@/components/ClassBadge";
 import { FighterAvatar } from "@/components/FighterAvatar";
 import { OwnerActions } from "@/components/OwnerActions";
+import { cleanDrawing } from "@/game/sprite";
 
 export type AdminDesign = {
   id: string;
@@ -18,6 +19,7 @@ export type AdminDesign = {
   specialMove: string;
   pose: string | null;
   rotation: number;
+  flipItem: boolean;
   stats: string;
   owner: string;
   ownerEmail: string;
@@ -47,11 +49,46 @@ export function AdminDesigns({ designs }: { designs: AdminDesign[] }) {
     router.refresh();
   }
 
+  // Fighters made before cut-outs still store the whole photo. Re-cut them here, in the
+  // browser (the cutting runs on a canvas), and the server deletes the photos.
+  const photos = designs.filter((d) => !d.imageUrl.startsWith("/samples/") && !d.imageUrl.includes("/cut-"));
+  const [recut, setRecut] = useState<string | null>(null);
+  async function recutAll() {
+    if (!window.confirm(`Replace ${photos.length} stored photos with their cut-out figures and delete the photos? This can't be undone.`)) return;
+    let done = 0, failed = 0;
+    for (const d of photos) {
+      setRecut(`Cutting ${done + failed + 1}/${photos.length}…`);
+      try {
+        const img = await fetch(d.imageUrl).then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))));
+        const body = new FormData();
+        body.append("image", await cleanDrawing(img, d.rotation), "cut.png");
+        const res = await fetch(`/api/characters/${d.id}/image`, { method: "PUT", body });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? String(res.status));
+        done++;
+      } catch (err) {
+        console.warn("[recut]", d.id, err);
+        failed++;
+      }
+    }
+    setRecut(`Done: ${done} cut${failed ? `, ${failed} failed (see console)` : ""}.`);
+    router.refresh();
+  }
+
   const pill = (on: boolean) => `inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold ring-1 disabled:opacity-50 ${on ? "bg-ink text-white ring-ink" : "ring-line hover:ring-ink"}`;
   return (
     <section>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h2 className="font-display text-2xl font-extrabold">Designs ({designs.length})</h2>
+        {(photos.length > 0 || recut) && (
+          <div className="flex items-center gap-2 text-sm">
+            {photos.length > 0 && (
+              <button onClick={recutAll} disabled={!!recut?.startsWith("Cutting")} className={pill(false)} title="Keep only the figure, delete the rest of the photo">
+                <Scissors className="size-3.5" /> Re-cut {photos.length} old photos
+              </button>
+            )}
+            {recut && <span className="text-muted">{recut}</span>}
+          </div>
+        )}
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -67,8 +104,8 @@ export function AdminDesigns({ designs }: { designs: AdminDesign[] }) {
                 <FighterAvatar fighter={d} />
               </div>
               <a href={d.imageUrl} target="_blank" rel="noreferrer">
-                {/* eslint-disable-next-line @next/next/no-img-element -- the raw upload, for moderation */}
-                <img src={d.imageUrl} alt="Uploaded photo" className="aspect-square w-full rounded-xl bg-white object-contain ring-1 ring-line" />
+                {/* eslint-disable-next-line @next/next/no-img-element -- the stored image, for moderation */}
+                <img src={d.imageUrl} alt="Stored cut-out" className="aspect-square w-full rounded-xl bg-white object-contain ring-1 ring-line" />
               </a>
             </div>
             <div className="min-w-0 flex-1 text-sm">

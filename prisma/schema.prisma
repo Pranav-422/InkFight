@@ -13,6 +13,7 @@ model User {
   email        String      @unique
   name         String
   passwordHash String
+  buff         Boolean     @default(false) // admin only: their own side hits harder and takes less (fights not recorded)
   createdAt    DateTime    @default(now())
   characters   Character[]
 }
@@ -35,6 +36,7 @@ model Character {
   detectedItems String   // JSON: rule-based features, raw model proposal, stat breakdown
   pose          String?  // JSON body keypoints (0..1 of the photo) from vision; null → estimated in the browser
   rotation      Int      @default(0) // degrees clockwise (0/90/180/270) to stand a sideways drawing upright
+  flipItem      Boolean  @default(false) // owner: the held item came out upside down, swap its grip and tip
   specialKind   String?  // special-move building block (src/game/moves.ts); null → class default
   style         String?  // fighting style (Boxing, Taekwondo, ...); null → class default
   cpu           Boolean  @default(true)  // admin: the computer may play this design

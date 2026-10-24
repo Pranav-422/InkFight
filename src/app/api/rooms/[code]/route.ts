@@ -1,6 +1,6 @@
 import { ROOM_CODE } from "@/game/protocol";
 import { rateLimit, tooMany } from "@/lib/rateLimit";
-import { getSession, isAdmin } from "@/lib/auth";
+import { buffOn, getSession, isAdmin, sessionBuff } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isStale, publicFighter } from "@/lib/rooms";
 
@@ -10,12 +10,14 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/rooms/[code]">)
   if (!s) return Response.json({ error: "Log in first." }, { status: 401 });
   const code = (await ctx.params).code.toUpperCase();
   const room = await db.room.findUnique({ where: { code } });
-  if (!room || isStale(room)) return Response.json({ exists: false, you: s.userId });
+  if (!room || isStale(room)) return Response.json({ exists: false, you: s.userId, youBuff: await sessionBuff(s) });
 
-  const [host, guest] = await Promise.all([
+  const [host, guest, users] = await Promise.all([
     db.character.findUnique({ where: { id: room.hostFighterId } }),
     room.guestFighterId ? db.character.findUnique({ where: { id: room.guestFighterId } }) : null,
+    db.user.findMany({ where: { id: { in: [room.hostUserId, room.guestUserId ?? ""] } }, select: { id: true, email: true, buff: true } }),
   ]);
+  const buffed = (id: string | null) => buffOn(users.find((u) => u.id === id));
   return Response.json({
     exists: true,
     you: s.userId,
@@ -23,8 +25,9 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/rooms/[code]">)
     full: Boolean(room.answer) && room.guestUserId !== s.userId && room.hostUserId !== s.userId,
     offer: room.offer,
     answer: room.answer,
-    hostFighter: host ? publicFighter(host) : null,
-    guestFighter: guest ? publicFighter(guest) : null,
+    hostFighter: host ? publicFighter(host, buffed(room.hostUserId)) : null,
+    guestFighter: guest ? publicFighter(guest, buffed(room.guestUserId)) : null,
+    youBuff: buffed(s.userId),
     version: room.updatedAt.getTime(),
   });
 }

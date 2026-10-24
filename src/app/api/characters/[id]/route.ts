@@ -29,8 +29,8 @@ async function editable(ctx: RouteContext<"/api/characters/[id]">) {
 export async function PATCH(req: Request, ctx: RouteContext<"/api/characters/[id]">) {
   const r = await editable(ctx);
   if (r.error) return r.error;
-  const body = (await req.json().catch(() => ({}))) as { rotation?: unknown; name?: unknown; cpu?: unknown; hidden?: unknown };
-  const data: { rotation?: number; name?: string; cpu?: boolean; hidden?: boolean } = {};
+  const body = (await req.json().catch(() => ({}))) as { rotation?: unknown; name?: unknown; cpu?: unknown; hidden?: unknown; flipItem?: unknown };
+  const data: { rotation?: number; name?: string; cpu?: boolean; hidden?: boolean; flipItem?: boolean } = {};
   // Moderation flags are admin-only.
   for (const k of ["cpu", "hidden"] as const) {
     if (body[k] === undefined) continue;
@@ -40,6 +40,10 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/characters/[id
   if (body.rotation !== undefined) {
     if (![0, 90, 180, 270].includes(Number(body.rotation))) return Response.json({ error: "Rotation must be 0, 90, 180 or 270." }, { status: 400 });
     data.rotation = Number(body.rotation);
+  }
+  if (body.flipItem !== undefined) {
+    if (typeof body.flipItem !== "boolean") return Response.json({ error: "flipItem must be true or false." }, { status: 400 });
+    data.flipItem = body.flipItem;
   }
   if (body.name !== undefined) {
     const name = cleanName(body.name);

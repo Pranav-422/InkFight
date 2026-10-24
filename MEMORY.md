@@ -163,3 +163,12 @@ To fight yourself, use one normal window + one incognito window (the split-scree
 - Talks in Hinglish, so reply in Hinglish. Keep it short and concrete.
 - Wants things actually running and verified, with screenshots/tests, not just written.
 - Ask before hard-to-reverse or account-level actions (legal terms, deleting data). Hosting on Vercel and pushing to GitHub were explicitly approved.
+
+## Chat 6 additions (2026-10-24): InkFight 2.0, Phase 1 in sprints (plan in the session's plan file)
+
+- **Sprint 0 (done):**
+  - **Cut-out storage:** uploads store only the figure (`cleanDrawing` in `sprite.ts`, upright PNG on white, file `cut-*.png`), never the photo. Cards show no photo thumbnail. `/admin` has "Re-cut N old photos" (`PUT /api/characters/[id]/image`, admin only: saves the cut-out, deletes the photo, resets rotation/pose).
+  - **Training room** `MovePreview` (real sim + `Renderer(canvas, true)` preview mode vs a dummy) on `/build` and in the upload "Correct the AI" panel. Every style/special/item pick replays it.
+  - **Sword fix:** `heldAngle(fore)` in `stickman.ts` (blades point forward-up in every stance). Photo props are held at their point nearest the shoulder; long props are turned along `heldAngle`. Owner toggle "Flip item" (`Character.flipItem`). The builder canvas is 720 wide, because a sword touching the edge made the figure finder drop the figure.
+  - **Admin buff:** `User.buff` (toggle on `/admin`). The server sets `PublicFighter.buff` (`buffOn`/`sessionBuff` in `auth.ts`). Sim ×1.3 dealt, ×0.75 taken. A gold BUFF tag shows on the HUD. Buffed fights aren't recorded.
+- **Next:** Sprint 1 (5 stats STR/DUR/SPD/AGI/IQ, classes Sword/Mace/Tank/Attacker/Fighter, elements, inspect panel, class balance), Sprint 2 (moves, side skills, limb clash), Sprint 3 (dual specials, hit-lock, impact frames).

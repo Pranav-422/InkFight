@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { isAdmin, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AdminDesigns, type AdminDesign } from "./AdminDesigns";
+import { BuffToggle } from "./BuffToggle";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Admin · Inkfight" };
@@ -13,11 +14,12 @@ export default async function AdminPage() {
   const s = await requireUser("/admin");
   if (!isAdmin(s)) notFound();
 
-  const [chars, users, battles, newToday] = await Promise.all([
+  const [chars, users, battles, newToday, me] = await Promise.all([
     db.character.findMany({ orderBy: { createdAt: "desc" }, include: { owner: { select: { email: true } } } }),
     db.user.findMany({ orderBy: { createdAt: "desc" }, select: { id: true, name: true, email: true, createdAt: true, _count: { select: { characters: true } } } }),
     db.battle.count(),
     db.character.count({ where: { createdAt: { gte: dayAgo() } } }),
+    db.user.findUnique({ where: { id: s.userId }, select: { buff: true } }),
   ]);
   const designs: AdminDesign[] = chars.map((c) => {
     let source = "?";
@@ -34,6 +36,7 @@ export default async function AdminPage() {
       specialMove: c.specialMove,
       pose: c.pose,
       rotation: c.rotation,
+      flipItem: c.flipItem,
       stats: `${c.atk} ATK · ${c.def} DUR · ${c.spd} SPD`,
       owner: c.ownerHandle,
       ownerEmail: c.owner?.email ?? "(deleted user)",
@@ -65,6 +68,9 @@ export default async function AdminPage() {
             </div>
           ))}
         </dl>
+        <div className="mt-4">
+          <BuffToggle on={!!me?.buff} />
+        </div>
       </section>
 
       <AdminDesigns designs={designs} />

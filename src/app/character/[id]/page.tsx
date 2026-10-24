@@ -52,7 +52,7 @@ export default async function CharacterPage({ params, searchParams }: PageProps<
           </Link>
         )}
         {canEdit && <OwnerActions id={me.id} name={me.name} afterDelete="/home" />}
-        {owns && <RotateControl id={me.id} rotation={me.rotation} />}
+        {(owns || isAdmin(session)) && <RotateControl id={me.id} rotation={me.rotation} flipItem={me.flipItem} />}
       </div>
 
       <div className="grid content-start gap-8">

@@ -14,6 +14,8 @@ export type PublicFighter = {
   rotation?: number; // degrees clockwise to stand the drawing upright
   specialKind?: string | null; // special-move building block (moves.ts); null → class default
   style?: string | null; // fighting style; null → class default
+  flipItem?: boolean; // the held item is drawn upside down: swap grip and tip
+  buff?: boolean; // admin buff: hits harder, takes less; such fights aren't recorded
 };
 
 export type LobbyPlayer = PublicFighter & { ready: boolean; rematch: boolean };

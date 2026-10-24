@@ -22,6 +22,11 @@ const REST_JOINTS: Joints = {
 };
 export const HEAD_R = 20;
 
+// Where a held blade or staff points (world angle, facing +x), from the forearm's angle:
+// mostly forward-up, following the arm only partly, so it never hangs down or backwards
+// in the guard (forearm up) like a real grip would turn it. Guard → about 60° up.
+export const heldAngle = (fore: number) => -1.0 * 0.6 + fore * 0.4;
+
 const ang = (a: Vec, b: Vec) => Math.atan2(b.y - a.y, b.x - a.x);
 const REST = {} as Record<BoneName, number>;
 const LEN = {} as Record<BoneName, number>;
@@ -107,9 +112,9 @@ export function drawStick(
     const p = o.prop;
     ctx.save();
     ctx.translate(j.handF.x, j.handF.y);
-    // Only half the forearm's turn: a held sword mostly keeps the angle it was drawn at,
-    // instead of sweeping across the face on every guard.
-    ctx.rotate((world.foreF - p.rest) * 0.45);
+    // A long item points along heldAngle. Anything else gets only half the forearm's turn,
+    // so it mostly keeps the angle it was drawn at instead of sweeping across the face.
+    ctx.rotate(p.axis !== null ? heldAngle(world.foreF) - p.axis : (world.foreF - p.rest) * 0.45);
     ctx.scale(p.scale, p.scale);
     ctx.drawImage(p.img, -p.hx, -p.hy);
     ctx.restore();
@@ -129,8 +134,8 @@ function drawItem(ctx: CanvasRenderingContext2D, cls: string, j: Joints, fore: n
   ctx.lineWidth = 4;
   switch (cls) {
     case "Warrior": {
-      // Blade continues past the fist, crossguard across it.
-      ctx.rotate(fore - Math.PI / 2.6);
+      // Blade continues past the fist (drawn along -y), crossguard across it.
+      ctx.rotate(heldAngle(fore) + Math.PI / 2);
       ctx.lineWidth = 5;
       ctx.beginPath();
       ctx.moveTo(0, 6);
@@ -157,7 +162,8 @@ function drawItem(ctx: CanvasRenderingContext2D, cls: string, j: Joints, fore: n
       break;
     }
     case "Caster": {
-      // Staff stays upright, gem on top.
+      // Staff stays mostly upright (drawn along -y), gem on top.
+      ctx.rotate((heldAngle(fore) + Math.PI / 2) * 0.3);
       ctx.beginPath();
       ctx.moveTo(0, 40);
       ctx.lineTo(0, -64);

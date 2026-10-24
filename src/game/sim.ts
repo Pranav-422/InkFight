@@ -23,7 +23,7 @@ const PASSIVE_ENERGY = 0.05; // per tick → a full meter in ~33s without fighti
 
 export type Slot = 0 | 1;
 
-export type FighterStats = { hp: number; atk: number; def: number; spd: number; class: string; specialKind?: string | null; style?: string | null };
+export type FighterStats = { hp: number; atk: number; def: number; spd: number; class: string; specialKind?: string | null; style?: string | null; buff?: boolean };
 
 // How a drawing's stats become game physics. Every stat matters in play.
 export type FighterDef = {
@@ -40,6 +40,8 @@ export type FighterDef = {
 };
 
 export const TUNE = { DUR_SPAN: 180, SPD_COOLDOWN: 14, ATK_SPAN: 120, TEMPO_SPAN: 800 };
+// Admin buff (set by the server, see buffOn in src/lib/auth.ts): deals more, takes less.
+const BUFF = { dealt: 1.3, taken: 0.75 };
 const { DUR_SPAN, SPD_COOLDOWN, ATK_SPAN, TEMPO_SPAN } = TUNE;
 
 // Everyone has HP 200; the drawing only splits a fixed budget (src/lib/stats.ts), and
@@ -47,14 +49,15 @@ const { DUR_SPAN, SPD_COOLDOWN, ATK_SPAN, TEMPO_SPAN } = TUNE;
 export function deriveDef(s: FighterStats): FighterDef {
   const f = clampStats(s);
   const t = (v: number) => (v - 40) / 60; // 40..100 → 0..1
+  const buff = s.buff ? BUFF : { dealt: 1, taken: 1 };
   return {
     maxHp: HP,
     // Ranges tuned with scripts/balance.ts so a point of any stat is worth about the same.
     speed: 3 + t(f.spd) * 3.4,
     jump: 13.5 + t(f.spd) * 2.5,
-    punch: 10 * (1 + (f.atk - 70) / ATK_SPAN), // a jab-to-straight lands 7-14 of 200 HP
+    punch: 10 * (1 + (f.atk - 70) / ATK_SPAN) * buff.dealt, // a jab-to-straight lands 7-14 of 200 HP
     tempo: 1 + (f.spd - 70) / TEMPO_SPAN, // fast fighters' punches and kicks play out quicker
-    armor: 1 - (f.def - 70) / DUR_SPAN, // durability: damage-taken multiplier
+    armor: (1 - (f.def - 70) / DUR_SPAN) * buff.taken, // durability: damage-taken multiplier
     blockReduce: 0.55 + t(f.def) * 0.25,
     cooldown: Math.round(26 - t(f.spd) * SPD_COOLDOWN),
     special: specialOf(s.specialKind, s.class),

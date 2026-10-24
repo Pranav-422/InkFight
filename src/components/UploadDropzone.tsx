@@ -4,7 +4,9 @@ import { Camera, ImageUp, Loader2, RotateCcw, RotateCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { SPECIAL_INFO, SPECIAL_KINDS, STYLE_INFO, STYLES, type SpecialKind, type Style } from "@/game/moves";
-import { ITEMS, measureDrawing, type Item, type Measured } from "@/game/sprite";
+import { cleanDrawing, ITEMS, measureDrawing, type Item, type Measured } from "@/game/sprite";
+import { classFromItems } from "@/lib/stats";
+import { MovePreview, type Demo } from "./MovePreview";
 import { useLeaveGuard } from "./useLeaveGuard";
 
 const ITEM_LABEL: Record<Item, string> = {
@@ -25,24 +27,6 @@ const LOADING_LINES = [
   "Writing some light trash talk…",
 ];
 
-const MAX_SIDE = 1600;
-
-// Phone photos are huge; shrink in the browser so upload + vision stay fast.
-async function downscale(file: File): Promise<Blob> {
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  const ctx = canvas.getContext("2d")!;
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  return new Promise((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Couldn't read that image"))), "image/jpeg", 0.88),
-  );
-}
-
 export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; returnTo?: string }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -61,6 +45,7 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
   const [itemPicked, setItemPicked] = useState(false);
   const [style, setStyle] = useState<Style | "">("");
   const [special, setSpecial] = useState<SpecialKind | "">("");
+  const [demo, setDemo] = useState<Demo>({ kind: "style", n: 0 });
   const measureId = useRef(0);
   const [measuring, setMeasuring] = useState(false);
 
@@ -105,10 +90,10 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
     setLine(0);
     try {
       const body = new FormData();
-      body.append("image", await downscale(file), "drawing.jpg");
+      // Only the cut-out figure is uploaded, already turned upright; the photo stays on the device.
+      body.append("image", await cleanDrawing(file, turn), "drawing.png");
       if (name.trim()) body.append("name", name.trim());
       if (facts) body.append("features", JSON.stringify(facts));
-      if (turn) body.append("rotation", String(turn));
       if (itemPicked && facts) body.append("pick_item", facts.item);
       if (style) body.append("pick_style", style);
       if (special) body.append("pick_special", special);
@@ -267,7 +252,14 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1">
               <span className="text-xs font-semibold uppercase tracking-wider text-muted">Fighting style</span>
-              <select value={style} onChange={(e) => setStyle(e.target.value as Style | "")} className="rounded-lg bg-paper px-2 py-1.5 ring-1 ring-line">
+              <select
+                value={style}
+                onChange={(e) => {
+                  setStyle(e.target.value as Style | "");
+                  if (e.target.value) setDemo((d) => ({ kind: "style", n: d.n + 1 }));
+                }}
+                className="rounded-lg bg-paper px-2 py-1.5 ring-1 ring-line"
+              >
                 <option value="">Auto: AI reads the drawing</option>
                 {STYLES.map((s) => (
                   <option key={s} value={s}>
@@ -278,7 +270,14 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
             </label>
             <label className="grid gap-1">
               <span className="text-xs font-semibold uppercase tracking-wider text-muted">Special move</span>
-              <select value={special} onChange={(e) => setSpecial(e.target.value as SpecialKind | "")} className="rounded-lg bg-paper px-2 py-1.5 ring-1 ring-line">
+              <select
+                value={special}
+                onChange={(e) => {
+                  setSpecial(e.target.value as SpecialKind | "");
+                  if (e.target.value) setDemo((d) => ({ kind: "special", n: d.n + 1 }));
+                }}
+                className="rounded-lg bg-paper px-2 py-1.5 ring-1 ring-line"
+              >
                 <option value="">Auto: AI picks and names it</option>
                 {SPECIAL_KINDS.map((k) => (
                   <option key={k} value={k}>
@@ -288,6 +287,13 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
               </select>
             </label>
           </div>
+          {demo.n > 0 && preview && (
+            <MovePreview
+              className="mt-3"
+              fighter={{ imageUrl: preview, rotation: turn, class: classFromItems(facts && facts.item !== "nothing" ? [facts.item] : []), style: style || null, specialKind: special || null }}
+              demo={demo}
+            />
+          )}
         </details>
       )}
 

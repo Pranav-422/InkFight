@@ -159,7 +159,7 @@ export function GameCanvas({ snaps, players, you, onInput }: Props) {
     let alive = true;
     renderer.classes = [players[0].class, players[1].class];
     players.forEach((p, i) =>
-      loadSpriteCached(p.imageUrl, p.pose, p.rotation)
+      loadSpriteCached(p.imageUrl, p.pose, p.rotation, p.flipItem)
         .then((s) => alive && (renderer.sprites[i] = s))
         .catch((err) => console.warn("[sprite]", err)),
     );
@@ -167,6 +167,7 @@ export function GameCanvas({ snaps, players, you, onInput }: Props) {
     const hud = {
       names: [players[0].name, players[1].name] as [string, string],
       specialNames: [players[0].specialMove, players[1].specialMove] as [string, string],
+      buffs: [!!players[0].buff, !!players[1].buff] as [boolean, boolean],
       you,
     };
 

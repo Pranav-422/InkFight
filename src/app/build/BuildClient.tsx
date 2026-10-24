@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { FighterAvatar } from "@/components/FighterAvatar";
+import { MovePreview, type Demo } from "@/components/MovePreview";
 import { useLeaveGuard } from "@/components/useLeaveGuard";
 import { SPECIAL_INFO, SPECIAL_KINDS, STYLE_INFO, STYLES, type SpecialKind, type Style } from "@/game/moves";
 import type { BoneName } from "@/game/skeleton";
@@ -29,10 +30,11 @@ const ITEM_NAME: Record<Item, string> = { sword: "Sword (Warrior)", book: "Spell
 
 type Build = { head: Head; ink: string; item: Item; style: Style; special: SpecialKind; name: string };
 
-// Draw the build as a stick-figure "drawing": 600 x 800, white paper, ink lines.
+// Draw the build as a stick-figure "drawing": 720 x 800, white paper, ink lines. Wide
+// enough that a sword held out front stays on the page (ink touching the edge is ignored).
 function render(b: Build): HTMLCanvasElement {
   const c = document.createElement("canvas");
-  c.width = 600;
+  c.width = 720;
   c.height = 800;
   const g = c.getContext("2d")!;
   g.fillStyle = "#fff";
@@ -125,7 +127,13 @@ export function BuildClient() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [demo, setDemo] = useState<Demo>({ kind: "style", n: 0 });
   const set = <K extends keyof Build>(k: K) => (v: Build[K]) => setB((x) => ({ ...x, [k]: v }));
+  // Picking a move plays it in the training room (again on every click, even the same pick).
+  const pick = <K extends "item" | "style" | "special">(k: K) => (v: Build[K]) => {
+    set(k)(v);
+    setDemo((d) => ({ kind: k, n: d.n + 1 }));
+  };
   const cls = useMemo(() => classFromItems(b.item === "nothing" ? [] : [b.item]), [b.item]);
   useLeaveGuard(!busy, "Your fighter isn't saved yet. Leave without building it?");
 
@@ -183,10 +191,10 @@ export function BuildClient() {
             ))}
           </div>
         </fieldset>
-        <Choice label="Weapon / item (sets the class)" value={b.item} options={ITEMS} onChange={set("item")} show={(i) => ITEM_NAME[i]} />
-        <Choice label="Fighting style" value={b.style} options={STYLES} onChange={set("style")} show={(s) => s} />
+        <Choice label="Weapon / item (sets the class)" value={b.item} options={ITEMS} onChange={pick("item")} show={(i) => ITEM_NAME[i]} />
+        <Choice label="Fighting style" value={b.style} options={STYLES} onChange={pick("style")} show={(s) => s} />
         <p className="-mt-2 px-1 text-xs text-muted">{STYLE_INFO[b.style].blurb}</p>
-        <Choice label="Special move" value={b.special} options={SPECIAL_KINDS} onChange={set("special")} show={(k) => k} />
+        <Choice label="Special move" value={b.special} options={SPECIAL_KINDS} onChange={pick("special")} show={(k) => k} />
         <p className="-mt-2 px-1 text-xs text-muted">{SPECIAL_INFO[b.special].looks}</p>
         <label className="grid gap-1 text-sm font-semibold">
           Name <span className="font-normal text-muted">(optional)</span>
@@ -201,9 +209,11 @@ export function BuildClient() {
       </div>
 
       <aside className="sticky top-20 grid gap-3">
-        <div className="aspect-[4/5] rounded-2xl bg-white ring-1 ring-line">
+        <div className="aspect-square rounded-2xl bg-white ring-1 ring-line">
           {preview && <FighterAvatar key={preview} fighter={{ imageUrl: preview, class: cls, style: b.style }} />}
         </div>
+        {preview && <MovePreview fighter={{ imageUrl: preview, class: cls, style: b.style, specialKind: b.special }} demo={demo} />}
+        <p className="-mt-1 text-center text-xs text-muted">Pick a style or special to try it on the dummy.</p>
         <p className="text-center text-sm">
           <span className="font-semibold">{cls}</span> · {b.style} · {b.special}
         </p>

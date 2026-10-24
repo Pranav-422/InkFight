@@ -6,7 +6,8 @@ export const ROOM_TTL_MS = 3 * 60 * 60 * 1000;
 
 export const isStale = (r: Room) => Date.now() - r.updatedAt.getTime() > ROOM_TTL_MS;
 
-export function publicFighter(c: Character): PublicFighter {
+// buff: the seat's player is an admin with the buff on (decided on the server, never sent by a client).
+export function publicFighter(c: Character, buff = false): PublicFighter {
   return {
     id: c.id,
     name: c.name,
@@ -19,7 +20,9 @@ export function publicFighter(c: Character): PublicFighter {
     spd: c.spd,
     pose: c.pose,
     rotation: c.rotation,
+    flipItem: c.flipItem,
     specialKind: c.specialKind,
     style: c.style,
+    ...(buff && { buff }),
   };
 }

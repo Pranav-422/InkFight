@@ -1,4 +1,4 @@
-import { isAdmin, requireUser } from "@/lib/auth";
+import { isAdmin, requireUser, sessionBuff } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { publicFighter } from "@/lib/rooms";
 import { CpuClient } from "./CpuClient";
@@ -11,10 +11,11 @@ export default async function CpuPage({ searchParams }: PageProps<"/play/cpu">) 
   const admin = isAdmin(user);
   const mine = admin ? all : all.filter((c) => c.ownerId === user.userId);
   const roster = admin ? all : all.filter((c) => c.cpu && !c.hidden);
+  const buff = await sessionBuff(user);
   return (
     <CpuClient
       userId={user.userId}
-      mine={mine.map(publicFighter)}
+      mine={mine.map((c) => publicFighter(c, buff))}
       gallery={roster.map((c) => ({ ...publicFighter(c), ownerHandle: c.ownerHandle }))}
       initialOpponent={typeof opponent === "string" ? opponent : null}
       initialFighter={typeof fighter === "string" ? fighter : null}

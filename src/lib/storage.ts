@@ -6,8 +6,9 @@ import path from "path";
 
 // On Vercel the filesystem is read-only/ephemeral, so drawings go to Vercel Blob.
 // Locally (no token) they go to ./uploads and are served by /api/uploads/[file].
-export async function saveDrawing(bytes: Buffer, ext: string, contentType: string): Promise<string> {
-  const filename = `${randomUUID()}.${ext}`;
+// prefix "cut-" marks a cut-out figure (not a raw photo), see the admin re-cut tool.
+export async function saveDrawing(bytes: Buffer, ext: string, contentType: string, prefix = ""): Promise<string> {
+  const filename = `${prefix}${randomUUID()}.${ext}`;
   if (process.env.BLOB_READ_WRITE_TOKEN) {
     const blob = await put(`drawings/${filename}`, bytes, { access: "public", contentType });
     return blob.url;

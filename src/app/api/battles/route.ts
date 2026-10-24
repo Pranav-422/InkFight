@@ -1,5 +1,5 @@
 import { rateLimit, tooMany } from "@/lib/rateLimit";
-import { getSession } from "@/lib/auth";
+import { buffOn, getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 // The host's browser runs the fight and reports the result once per match.
@@ -19,6 +19,8 @@ export async function POST(req: Request) {
   if (!room || room.hostUserId !== s.userId || !room.guestFighterId) return Response.json({ error: "Not your room." }, { status: 403 });
   if (body.winnerSlot !== 0 && body.winnerSlot !== 1) return Response.json({ error: "Bad result." }, { status: 400 });
   if (room.hostFighterId === room.guestFighterId) return Response.json({ ok: true, skipped: "mirror match" });
+  const players = await db.user.findMany({ where: { id: { in: [room.hostUserId, room.guestUserId ?? ""] } }, select: { email: true, buff: true } });
+  if (players.some(buffOn)) return Response.json({ ok: true, skipped: "admin buff" });
 
   const matchId = String(body.matchId ?? "").slice(0, 32);
   if (!matchId) return Response.json({ error: "Bad result." }, { status: 400 });
