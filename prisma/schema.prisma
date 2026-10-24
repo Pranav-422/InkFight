@@ -30,6 +30,10 @@ model Character {
   atk           Int
   def           Int
   spd           Int
+  agi           Int      @default(70) // AGI: jump, air control, hit recovery
+  iq            Int      @default(70) // IQ: energy gain, magic damage
+  element       String   @default("NONE") // FIRE, ELECTRIC, FROST, POISON, BLEED, GRAVITY, NONE (src/lib/stats.ts)
+  item          String?  // held item (sword, mace, book, staff, shield, bow, nothing); null → from class
   specialMove   String
   specialDesc   String   @default("")
   flavorText    String

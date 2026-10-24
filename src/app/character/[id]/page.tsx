@@ -13,7 +13,7 @@ import type { Analysis } from "@/lib/vision";
 
 export const dynamic = "force-dynamic";
 
-const LABEL = { hp: "HP", atk: "ATK", def: "DUR", spd: "SPD" } as const;
+const LABEL = { hp: "HP", atk: "STR", def: "DUR", spd: "SPD", agi: "AGI", iq: "IQ" } as const;
 
 const MOVE_LABEL: Partial<Record<MoveName, string>> = { uppercutP: "Uppercut", flyingKnee: "Flying knee", frontKick: "Front kick", spinKick: "Spinning back kick", axeKick: "Axe kick", lowKick: "Low kick" };
 const moveLabel = (m: MoveName) => MOVE_LABEL[m] ?? m[0].toUpperCase() + m.slice(1);

@@ -14,6 +14,7 @@ import {
   featuresFromMeasurements,
   type Features,
   type Measurements,
+  type StatLine,
   type Stats,
 } from "./stats";
 
@@ -97,7 +98,7 @@ export type Analysis = {
     features: Features;
     classReason: string;
     ruleStats: Stats;
-    modelStats: Stats | null;
+    modelStats: StatLine | null;
     adjustments: Adjustment[];
     note?: string;
   };
@@ -199,7 +200,7 @@ function build(
   name: string,
   items: string[],
   features: Features,
-  modelStats: Stats | null,
+  modelStats: StatLine | null,
   special: { kind: SpecialKind; name: string; description: string },
   style: Style,
   flavor: string,

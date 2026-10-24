@@ -1,11 +1,13 @@
-import { Heart, Shield, Swords, Zap, type LucideIcon } from "lucide-react";
+import { Brain, Heart, Shield, Swords, Wind, Zap, type LucideIcon } from "lucide-react";
 import { STAT_CAPS, type StatKey } from "@/lib/stats";
 
 const META: Record<StatKey, { label: string; icon: LucideIcon; color: string }> = {
   hp: { label: "HP", icon: Heart, color: "bg-ink" },
-  atk: { label: "ATK", icon: Swords, color: "bg-hit" },
+  atk: { label: "STR", icon: Swords, color: "bg-hit" }, // strength: physical damage
   def: { label: "DUR", icon: Shield, color: "bg-guard" }, // durability: how little damage it takes
   spd: { label: "SPD", icon: Zap, color: "bg-gold" },
+  agi: { label: "AGI", icon: Wind, color: "bg-emerald-600" }, // jump, air control, hit recovery
+  iq: { label: "IQ", icon: Brain, color: "bg-violet-600" }, // energy gain, magic damage
 };
 
 export function StatBar({ stat, value, compact = false }: { stat: StatKey; value: number; compact?: boolean }) {

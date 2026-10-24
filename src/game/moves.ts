@@ -2,6 +2,8 @@
 // Fighting styles give each fighter its own punch/kick combos; specials are
 // building blocks that Claude (or the offline generator) picks and names.
 
+import { normClass } from "../lib/stats";
+
 export const SPECIAL_KINDS = ["bolt", "arrow", "orb", "slash", "charge", "uppercut", "beam", "spiral", "wave", "teleport", "barrage", "meteor"] as const;
 export type SpecialKind = (typeof SPECIAL_KINDS)[number];
 
@@ -88,37 +90,41 @@ export const SPECIAL_TUNE: Record<SpecialKind, number> = {
   bolt: 2, arrow: 1.51, orb: 1.62, slash: 1.2, charge: 0.63, uppercut: 1.41, beam: 1.03, spiral: 2.27, wave: 2.21, teleport: 1.2, barrage: 0.61, meteor: 1.91,
 };
 
+// Damage factor per class, found by simulation like the two above (scripts/balance.ts --tune):
+// each class's usual stat line and kit wins about half its fights against every class.
+export const CLASS_TUNE: Record<string, number> = { Sword: 1, Mace: 1, Tank: 1, Attacker: 1, Fighter: 1 };
+// Strength of each element's status effect (1 = as described in sim.ts), tuned the same way.
+export const ELEMENT_TUNE: Record<string, number> = { NONE: 1, FIRE: 1, ELECTRIC: 1, FROST: 1, POISON: 1, BLEED: 1, GRAVITY: 1 };
+
 // Defaults for fighters made before moves were stored (and for unknown values).
+// Old class names (Warrior, Mage, ...) are mapped by normClass in src/lib/stats.ts.
 export const CLASS_SPECIAL: Record<string, SpecialKind> = {
-  Mage: "beam",
-  Ranger: "arrow",
-  Caster: "orb",
-  Warrior: "slash",
+  Sword: "slash",
+  Mace: "meteor",
   Tank: "charge",
-  Brawler: "barrage",
+  Attacker: "beam",
+  Fighter: "barrage",
 };
 export const CLASS_STYLE: Record<string, Style> = {
-  Mage: "Systema",
-  Ranger: "Taekwondo",
-  Caster: "Karate",
-  Warrior: "Karate",
+  Sword: "Karate",
+  Mace: "Street",
   Tank: "Muay Thai",
-  Brawler: "Boxing",
+  Attacker: "Karate",
+  Fighter: "Boxing",
 };
 
 export const specialOf = (kind: string | null | undefined, cls: string): SpecialKind =>
-  (SPECIAL_KINDS as readonly string[]).includes(kind ?? "") ? (kind as SpecialKind) : (CLASS_SPECIAL[cls] ?? "uppercut");
+  (SPECIAL_KINDS as readonly string[]).includes(kind ?? "") ? (kind as SpecialKind) : (CLASS_SPECIAL[normClass(cls)] ?? "uppercut");
 export const styleOf = (style: string | null | undefined, cls: string): Style =>
-  (STYLES as readonly string[]).includes(style ?? "") ? (style as Style) : (CLASS_STYLE[cls] ?? "Street");
+  (STYLES as readonly string[]).includes(style ?? "") ? (style as Style) : (CLASS_STYLE[normClass(cls)] ?? "Street");
 
 // Which specials suit each class, for the offline generator (Claude may pick any).
 export const CLASS_SPECIAL_POOL: Record<string, SpecialKind[]> = {
-  Mage: ["beam", "bolt", "spiral", "orb"],
-  Caster: ["orb", "wave", "beam", "spiral"],
-  Warrior: ["slash", "teleport", "meteor", "uppercut"],
+  Attacker: ["beam", "bolt", "orb", "arrow", "spiral", "wave"],
+  Sword: ["slash", "teleport", "meteor", "uppercut"],
+  Mace: ["meteor", "wave", "uppercut"],
   Tank: ["charge", "wave", "meteor"],
-  Ranger: ["arrow", "bolt", "teleport"],
-  Brawler: ["barrage", "uppercut", "spiral", "meteor"],
+  Fighter: ["barrage", "uppercut", "spiral", "meteor"],
 };
 
 // Offline names: [prefix-free name, description]. Playful, a little anime.

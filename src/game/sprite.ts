@@ -407,7 +407,7 @@ function inkColor(px: Uint8ClampedArray): string | null {
 
 // ---------------------------------------------------------------- measuring
 
-export const ITEMS = ["sword", "book", "staff", "shield", "bow", "nothing"] as const;
+export const ITEMS = ["sword", "mace", "book", "staff", "shield", "bow", "nothing"] as const;
 export type Item = (typeof ITEMS)[number];
 export type Measured = {
   fill: number; // ink pixels / figure box: bulk

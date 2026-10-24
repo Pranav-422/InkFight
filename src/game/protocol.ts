@@ -10,6 +10,10 @@ export type PublicFighter = {
   atk: number;
   def: number;
   spd: number;
+  agi?: number; // AGI: jump, air control, hit recovery
+  iq?: number; // IQ: energy gain, magic damage
+  element?: string; // status effect on special hits (src/lib/stats.ts ELEMENTS)
+  item?: string | null; // held item; null → from class
   pose?: string | null; // JSON keypoints from vision (see src/lib/vision.ts)
   rotation?: number; // degrees clockwise to stand the drawing upright
   specialKind?: string | null; // special-move building block (moves.ts); null → class default

@@ -23,7 +23,11 @@ const PASSIVE_ENERGY = 0.05; // per tick → a full meter in ~33s without fighti
 
 export type Slot = 0 | 1;
 
-export type FighterStats = { hp: number; atk: number; def: number; spd: number; class: string; specialKind?: string | null; style?: string | null; buff?: boolean };
+// agi/iq/element/item: InkFight 2.0 (src/lib/stats.ts); missing on old data → 70 / NONE / class item.
+export type FighterStats = {
+  hp: number; atk: number; def: number; spd: number; agi?: number; iq?: number;
+  class: string; specialKind?: string | null; style?: string | null; element?: string | null; item?: string | null; buff?: boolean;
+};
 
 // How a drawing's stats become game physics. Every stat matters in play.
 export type FighterDef = {

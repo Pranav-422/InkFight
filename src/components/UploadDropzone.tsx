@@ -10,12 +10,13 @@ import { MovePreview, type Demo } from "./MovePreview";
 import { useLeaveGuard } from "./useLeaveGuard";
 
 const ITEM_LABEL: Record<Item, string> = {
-  sword: "A sword / blade (Warrior)",
-  book: "A book (Mage)",
-  staff: "A staff / wand (Caster)",
+  sword: "A sword / blade (Sword)",
+  mace: "A mace / club / hammer (Mace)",
+  book: "A book (Attacker)",
+  staff: "A staff / wand (Attacker)",
   shield: "A shield (Tank)",
-  bow: "A bow (Ranger)",
-  nothing: "Nothing, bare fists (Brawler)",
+  bow: "A bow (Attacker)",
+  nothing: "Nothing, bare fists (Fighter)",
 };
 
 const LOADING_LINES = [

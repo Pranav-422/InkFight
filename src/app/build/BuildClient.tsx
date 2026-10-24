@@ -26,7 +26,7 @@ const INKS: [string, string][] = [
   ["Royal purple", "#5b2a9e"],
   ["Burnt orange", "#c25a0e"],
 ];
-const ITEM_NAME: Record<Item, string> = { sword: "Sword (Warrior)", book: "Spellbook (Mage)", staff: "Staff (Caster)", shield: "Shield (Tank)", bow: "Bow (Ranger)", nothing: "Bare fists (Brawler)" };
+const ITEM_NAME: Record<Item, string> = { sword: "Sword (Sword)", mace: "Mace (Mace)", book: "Spellbook (Attacker)", staff: "Staff (Attacker)", shield: "Shield (Tank)", bow: "Bow (Attacker)", nothing: "Bare fists (Fighter)" };
 
 type Build = { head: Head; ink: string; item: Item; style: Style; special: SpecialKind; name: string };
 
