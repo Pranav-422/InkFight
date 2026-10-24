@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { createHash } from "crypto";
 import { z } from "zod";
-import { CLASS_SPECIAL_POOL, CLASS_STYLE, SPECIAL_INFO, SPECIAL_KINDS, SPECIAL_NAMES, STYLE_INFO, STYLES, type SpecialKind, type Style } from "@/game/moves";
+import { CLASS_SPECIAL_POOL, CLASS_STYLE, CLASS_ULT, SPECIAL_INFO, SPECIAL_KINDS, SPECIAL_NAMES, STYLE_INFO, STYLES, ULT_NAMES, type SpecialKind, type Style } from "@/game/moves";
 import {
   blendStats,
   CLASSES,
@@ -25,13 +25,24 @@ export type DrawingFacts = Measurements & { colors: string[]; item: string };
 
 // What the player chose explicitly (correction panel or the category builder). These
 // always win over the AI. noAi: the image is our own rendering (builder), skip vision.
-export type Picks = { item?: string; style?: Style; special?: SpecialKind; element?: string; noAi?: boolean };
+export type Picks = { item?: string; style?: Style; special?: SpecialKind; ult?: SpecialKind; element?: string; noAi?: boolean };
 
 // A special the player picked gets a generated name, unless the AI named that same kind.
 function pickSpecial(p: Picks, ai: { kind: SpecialKind; name: string; description: string }, roll: number) {
   if (!p.special || p.special === ai.kind) return ai;
   const [name, description] = SPECIAL_NAMES[p.special][roll % SPECIAL_NAMES[p.special].length];
   return { kind: p.special, name, description };
+}
+
+// The same for the ultimate (S + L): the player's pick gets a generated name, unless the AI named that kind. An
+// ultimate that repeats slot 1 is moved on to the class's own, so the two slots are never the same move.
+type Named = { kind: SpecialKind; name: string; description: string };
+function pickUlt(p: Picks, ai: Named | undefined, slot1: SpecialKind, cls: CharacterClass, roll: number): Named {
+  const want = p.ult ?? ai?.kind;
+  const kind = want && (p.ult || want !== slot1) ? want : slot1 !== CLASS_ULT[cls] ? CLASS_ULT[cls] : (CLASS_SPECIAL_POOL[cls] ?? SPECIAL_KINDS).find((k) => k !== slot1) ?? "meteor";
+  if (ai && kind === ai.kind) return ai;
+  const [name, description] = ULT_NAMES[kind][roll % ULT_NAMES[kind].length];
+  return { kind, name, description };
 }
 
 export const MODEL = "claude-opus-5-5";
@@ -63,6 +74,13 @@ const VisionSchema = z.object({
     name: z.string(),
     description: z.string(),
   }),
+  ultimate: z
+    .object({
+      kind: z.enum(SPECIAL_KINDS).describe("A different building block from special_move: the finisher this fighter saves up for"),
+      name: z.string(),
+      description: z.string(),
+    })
+    .optional(),
   fighting_style: z.enum(STYLES).describe("The fighting style that fits the drawing's look and pose"),
   flavor_text: z.string(),
   head_points: z.enum(["up", "left", "right", "down"]).describe("Which edge of the image the figure's head points toward (up = drawn upright)"),
@@ -91,6 +109,7 @@ export type Analysis = {
   element: string;
   specialMove: { name: string; description: string };
   specialKind: SpecialKind;
+  ultimate: { kind: SpecialKind; name: string; description: string };
   style: Style;
   flavorText: string;
   pose: PoseKeypoints | null;
@@ -118,6 +137,7 @@ Look only at what is actually drawn. Report:
 - a special move. First pick its kind, the one that best matches the drawing's vibe:
 ${SPECIAL_KINDS.map((k) => `  - ${k}: ${SPECIAL_INFO[k].looks}`).join("\n")}
   Then name it like an over-the-top anime finisher that only THIS drawing could have: riff on something specific you see (the hair, a scribble, a hat, the item, the ink colour, the paper). Puns, fake-Japanese-sounding names and homages to famous anime moves are welcome (e.g. "Ink-ame-hameha", "Scribble-gan"), but make it fresh, never a straight copy. Description: one vivid sentence of what it looks like
+- an ultimate: a second, bigger finisher the fighter saves a full meter for. It grabs the opponent and pounds them before launching them. Pick its kind from the same list but NOT the same kind as the special move, name it even more over-the-top ("... Final", "... Apocalypse", "... Overdrive"), and give a one-sentence description
 - a fighting style, from how the figure stands and what it looks like. Read the cues: fists up or arms forward → Boxing; long legs, a leg raised, tall and thin → Taekwondo; wide low stance, knees bent, bulky → Muay Thai; neat straight lines, upright and calm → Karate; messy, scribbly, wild or rough → Street; loose, relaxed, odd or tricky pose → Systema. Don't default to Karate; pick what the drawing really suggests:
 ${STYLES.map((s) => `  - ${s}: ${STYLE_INFO[s].blurb}`).join("\n")}
 - a one-line flavor text, playful trash-talk tone, under 90 characters
@@ -207,6 +227,7 @@ function build(
   features: Features,
   modelStats: StatLine | null,
   special: { kind: SpecialKind; name: string; description: string },
+  ultimate: { kind: SpecialKind; name: string; description: string },
   style: Style,
   flavor: string,
   pose: PoseKeypoints | null,
@@ -224,6 +245,7 @@ function build(
     element,
     specialMove: { name: special.name.slice(0, 40), description: special.description.slice(0, 160) },
     specialKind: special.kind,
+    ultimate: { kind: ultimate.kind, name: ultimate.name.slice(0, 40), description: ultimate.description.slice(0, 160) },
     style,
     flavorText: flavor.slice(0, 140),
     pose,
@@ -281,6 +303,9 @@ function offlineAnalysis(image: Buffer, note: string, facts: DrawingFacts | null
   const cls = classFromItems(items);
   const kind = pick(CLASS_SPECIAL_POOL[cls] ?? ["uppercut"], 6);
   const [name, description] = pick(SPECIAL_NAMES[kind], 7);
+  const special = pickSpecial(picks, { kind, name, description }, h[9]);
+  // The ultimate: the class's own (or the next pool entry when the pick took it), named from the ultimate list.
+  const ult = pickUlt(picks, undefined, special.kind, cls, h[10]);
   const element = picks.element ?? suggestElement(facts?.colors ?? features.dominant_colors);
   return build(
     "offline",
@@ -288,7 +313,8 @@ function offlineAnalysis(image: Buffer, note: string, facts: DrawingFacts | null
     items,
     features,
     null,
-    pickSpecial(picks, { kind, name, description }, h[9]),
+    special,
+    ult,
     picks.style ?? styleFromLook(features, cls, h[8]),
     "Drawn in thirty seconds, fights like it took thirty years.",
     null, // the browser estimates the skeleton from the ink
@@ -309,14 +335,17 @@ export async function analyzeDrawing(image: Buffer, mediaType: MediaType, facts:
       const v = ai === "gemini" ? await callGemini(image, mediaType) : await callClaude(image, mediaType);
       const seen = v.detected_items.map((i) => i.toLowerCase());
       const element = picks.element ?? v.element ?? suggestElement(facts?.colors ?? v.detected_features.dominant_colors);
+      const items = picks.item ? itemList({ item: picks.item } as DrawingFacts) : seen.length || !facts ? seen : itemList(facts);
+      const special = pickSpecial(picks, v.special_move, image.length);
       return build(
         ai,
         v.name,
         // The player's explicit correction wins; then the AI's read; then the browser's guess.
-        picks.item ? itemList({ item: picks.item } as DrawingFacts) : seen.length || !facts ? seen : itemList(facts),
+        items,
         facts ? featuresFromMeasurements(facts, v.detected_features.dominant_colors) : v.detected_features,
         v.stats,
-        pickSpecial(picks, v.special_move, image.length),
+        special,
+        pickUlt(picks, v.ultimate, special.kind, classFromItems(items), image.length + 1),
         picks.style ?? v.fighting_style,
         v.flavor_text,
         validPose(v.pose),

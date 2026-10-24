@@ -30,6 +30,7 @@ function parsePicks(form: FormData): Picks {
     item: one("pick_item", ["sword", "mace", "book", "staff", "shield", "bow", "nothing"] as const),
     style: one("pick_style", STYLES),
     special: one("pick_special", SPECIAL_KINDS),
+    ult: one("pick_ult", SPECIAL_KINDS),
     element: one("pick_element", ELEMENTS),
     noAi: form.get("builder") === "1",
   };
@@ -95,6 +96,9 @@ export async function POST(request: Request) {
       specialMove: a.specialMove.name,
       specialDesc: a.specialMove.description,
       specialKind: a.specialKind,
+      ultKind: a.ultimate.kind,
+      ultName: a.ultimate.name,
+      ultDesc: a.ultimate.description,
       style: a.style,
       sideSkill: typeof skill === "string" && (SIDE_SKILLS as readonly string[]).includes(skill) ? skill : null,
       flavorText: a.flavorText,

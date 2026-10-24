@@ -2,6 +2,7 @@
 
 import { RotateCw } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
+import { ultTitle } from "@/game/moves";
 import type { LobbyPlayer } from "@/game/protocol";
 import { Renderer } from "@/game/render";
 import { ARENA, EMPTY_INPUT, TICK_HZ, type Input, type Slot } from "@/game/sim";
@@ -25,7 +26,7 @@ const subscribeNoop = () => () => {};
 const isTouchDevice = () => window.matchMedia("(pointer: coarse)").matches;
 const TAPS = new Set<Control>(["jump", "attack", "kick", "special", "skill"]); // sent as press counters
 
-// A/D or ←/→ move · W/↑/Space jump · S/↓ block (hold) · J punch · K kick · L special · U side skill
+// A/D or ←/→ move · W/↑/Space jump · S/↓ block (hold) · J punch · K kick · L special (half a meter) · S+L ultimate (full meter) · U side skill
 // S+K sweeps low, toward+K opens with a roundhouse, J/K in the air is an air move.
 const KEYS: Record<string, Control> = {
   KeyA: "left",
@@ -193,6 +194,7 @@ export function GameCanvas({ snaps, players, you, onInput, onExit, children }: P
     const hud = {
       names: [players[0].name, players[1].name] as [string, string],
       specialNames: [players[0].specialMove, players[1].specialMove] as [string, string],
+      ultNames: players.map((p) => ultTitle(p.ultMove, p.ultKind, p.class)) as [string, string],
       buffs: [!!players[0].buff, !!players[1].buff] as [boolean, boolean],
       you,
     };

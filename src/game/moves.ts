@@ -141,6 +141,21 @@ export const itemOf = (item: string | null | undefined, cls: string): string => 
 
 export const specialOf = (kind: string | null | undefined, cls: string): SpecialKind =>
   (SPECIAL_KINDS as readonly string[]).includes(kind ?? "") ? (kind as SpecialKind) : (CLASS_SPECIAL[normClass(cls)] ?? "uppercut");
+
+// Two special slots: L spends SLOT1_COST energy on the first special, S + L spends ULT_COST on the ultimate
+// (the same twelve building blocks, plus a hit-lock: see lockOn in sim.ts). Old fighters have no ultimate
+// stored, so they get their class's.
+export const SLOT1_COST = 50;
+export const ULT_COST = 100;
+export const CLASS_ULT: Record<string, SpecialKind> = {
+  Sword: "teleport",
+  Mace: "uppercut",
+  Tank: "meteor",
+  Attacker: "spiral",
+  Fighter: "beam",
+};
+export const ultOf = (kind: string | null | undefined, cls: string): SpecialKind =>
+  (SPECIAL_KINDS as readonly string[]).includes(kind ?? "") ? (kind as SpecialKind) : (CLASS_ULT[normClass(cls)] ?? "meteor");
 export const styleOf = (style: string | null | undefined, cls: string): Style =>
   (STYLES as readonly string[]).includes(style ?? "") ? (style as Style) : (CLASS_STYLE[normClass(cls)] ?? "Street");
 
@@ -172,7 +187,8 @@ export const CLASS_SPECIAL_POOL: Record<string, SpecialKind[]> = {
   Fighter: ["barrage", "uppercut", "spiral", "meteor"],
 };
 
-// Offline names: [prefix-free name, description]. Playful, a little anime.
+// Offline names: [prefix-free name, description]. Playful, a little anime. SPECIAL_NAMES is for the first
+// special, ULT_NAMES for the ultimate (bigger, louder, more final).
 export const SPECIAL_NAMES: Record<SpecialKind, [string, string][]> = {
   bolt: [["Ballpoint Bolt", "A crackling shot of pure ink"], ["Footnote Zap", "Cites you. Painfully."]],
   arrow: [["Pencil Javelin", "Sharpened to a deadly point"], ["Ruler Railshot", "Perfectly straight, perfectly rude"]],
@@ -187,3 +203,21 @@ export const SPECIAL_NAMES: Record<SpecialKind, [string, string][]> = {
   barrage: [["Ink Ink Ink Rush", "Fifty punches, zero hesitation"], ["Scribble Storm Fists", "A flurry so fast it smudges"]],
   meteor: [["Staple Meteor", "Drops from the sky like a heavy-duty staple"], ["Margin Drop Kick", "Leaves a crater in the page"]],
 };
+
+export const ULT_NAMES: Record<SpecialKind, [string, string][]> = {
+  bolt: [["Final Footnote", "One citation, delivered at lightning speed, then the pages keep coming"], ["Thesis Thunder", "A bolt that drags you in and grades you in person"]],
+  arrow: [["Last Line Volley", "The arrow lands, the ruler follows, the margin cheers"], ["Pencil Rain Execution", "Sharpened to a point, then sharpened again, on you"]],
+  orb: [["Total Blot Eclipse", "The orb swallows you whole and spits out a stain"], ["Rubber Planet Crush", "A world of eraser, rolling over one fighter"]],
+  beam: [["Ink-ame-hameha: Full Page", "Every line on the page lights up behind one scream"], ["Margin Sun Cannon", "A beam so wide the page gets a new border"], ["Highlighter Judgement", "Neon. Final. Unforgivable."]],
+  wave: [["Spine Crack Apocalypse", "The whole notebook folds and you are in the crease"], ["Seismic Staple Storm", "The ground rips, the wave grabs, the finale hits"]],
+  slash: [["Ten Thousand Cuts of Ink", "One stroke, then ten thousand, all before you blink"], ["Guillotine Margin", "The cut that ends the chapter"]],
+  charge: [["Hardcover Stampede", "A falling textbook, but it keeps falling"], ["Binder Breaker Rush", "Three rings of armor and zero brakes"]],
+  uppercut: [["Doodle Dragon Ascension", "A flaming fist, a locked grip, and a one-way trip to the ceiling"], ["Rising Sharpie Finale", "Leaves a permanent mark on the sky"]],
+  spiral: [["Scribble-gan: Maximum Tangle", "A sphere of scribbles that does not let go"], ["Great Spiral Notebook", "Spins until the page runs out"]],
+  teleport: [["Eraser Step: Infinite Redraw", "Erased, redrawn, erased again, always behind you"], ["Page Flip Massacre", "Turns every page at once, appears on all of them"]],
+  barrage: [["Ink Ink Ink Ink Rush", "Five hundred punches and not one apology"], ["Scribble Storm Overdrive", "So fast the paper smokes"]],
+  meteor: [["Staple Meteor: Armageddon", "Drops from orbit, takes you with it"], ["Margin Crater Finale", "Leaves a crater in the page and the page in the crater"]],
+};
+
+// The name to show for a fighter's ultimate: its own, or a stock one for old fighters that were made without.
+export const ultTitle = (name: string | null | undefined, kind: string | null | undefined, cls: string) => name || ULT_NAMES[ultOf(kind, cls)][0][0];

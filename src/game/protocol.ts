@@ -17,6 +17,8 @@ export type PublicFighter = {
   pose?: string | null; // JSON keypoints from vision (see src/lib/vision.ts)
   rotation?: number; // degrees clockwise to stand the drawing upright
   specialKind?: string | null; // special-move building block (moves.ts); null → class default
+  ultMove?: string; // the ultimate's name
+  ultKind?: string | null; // ultimate building block; null → class default
   style?: string | null; // fighting style; null → class default
   sideSkill?: string | null; // side skill (moves.ts SIDE_SKILLS); null → class default
   flipItem?: boolean; // the held item is drawn upside down: swap grip and tip

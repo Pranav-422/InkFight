@@ -1,7 +1,7 @@
 "use client";
 
 import { Settings2, X } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Control } from "./Controller";
 import { Joystick } from "./Joystick";
 
@@ -35,10 +35,22 @@ export function TouchControls({ press, lit, energy, skill, onExit }: { press: (k
     } catch {}
   };
   const s = prefs.size;
-  const ready = energy >= 100;
+  const ready = energy >= 50; // SPECIAL: the first special
+  const ult = energy >= 100; // BLOCK + SPECIAL: the ultimate
   const skillReady = skill >= 100;
+  // A full meter turns SPECIAL into the ultimate by pressing BLOCK with it (S + L), so one thumb is enough.
+  const guardedUlt = useRef(false);
   const tap = (k: Control, down: boolean) => {
     if (down) buzz(10);
+    if (k === "special") {
+      if (down && ult) {
+        guardedUlt.current = true;
+        press("block", true);
+      } else if (!down && guardedUlt.current) {
+        guardedUlt.current = false;
+        press("block", false);
+      }
+    }
     press(k, down);
   };
 
@@ -47,7 +59,7 @@ export function TouchControls({ press, lit, energy, skill, onExit }: { press: (k
     ["attack", "PUNCH", "bg-hit/80 text-white", 84, 16, 16],
     ["kick", "KICK", "bg-white/80 text-ink ring-1 ring-ink/20", 60, 116, 12],
     ["block", "BLOCK", "bg-guard/75 text-white", 60, 100, 86],
-    ["special", "SPECIAL", ready ? "animate-pulse bg-gold text-ink" : "overflow-hidden bg-ink/55 text-white", 64, 24, 114],
+    ["special", ult ? "ULT" : "SPECIAL", ult ? "animate-pulse bg-hit text-white" : ready ? "bg-gold text-ink" : "overflow-hidden bg-ink/55 text-white", 64, 24, 114],
     ["skill", "SKILL", skillReady ? "bg-guard/85 text-white" : "overflow-hidden bg-ink/55 text-white/70", 52, 96, 150],
   ];
 
@@ -74,7 +86,7 @@ export function TouchControls({ press, lit, energy, skill, onExit }: { press: (k
             } ${cls}`}
             style={{ width: size * s, height: size * s, [prefs.lefty ? "left" : "right"]: right * s, bottom: bottom * s }}
           >
-            {k === "special" && !ready && <span className="absolute inset-x-0 bottom-0 bg-gold/70" style={{ height: `${Math.max(0, Math.min(100, energy))}%` }} />}
+            {k === "special" && !ult && <span className={`absolute inset-x-0 bottom-0 ${ready ? "bg-hit/50" : "bg-gold/70"}`} style={{ height: `${Math.max(0, Math.min(100, ready ? (energy - 50) * 2 : energy * 2))}%` }} />}
             {k === "skill" && !skillReady && <span className="absolute inset-x-0 bottom-0 bg-guard/60" style={{ height: `${Math.max(0, Math.min(100, skill))}%` }} />}
             <span className="relative">{label}</span>
           </button>

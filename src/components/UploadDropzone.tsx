@@ -46,6 +46,7 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
   const [itemPicked, setItemPicked] = useState(false);
   const [style, setStyle] = useState<Style | "">("");
   const [special, setSpecial] = useState<SpecialKind | "">("");
+  const [ult, setUlt] = useState<SpecialKind | "">("");
   const [skill, setSkill] = useState<SideSkill | "">("");
   const [element, setElement] = useState<Element | "">("");
   const [demo, setDemo] = useState<Demo>({ kind: "style", n: 0 });
@@ -101,6 +102,7 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
       if (itemPicked && facts) body.append("pick_item", facts.item);
       if (style) body.append("pick_style", style);
       if (special) body.append("pick_special", special);
+      if (ult) body.append("pick_ult", ult);
       if (skill) body.append("pick_skill", skill);
       if (element) body.append("pick_element", element);
       const res = await fetch("/api/characters", { method: "POST", body });
@@ -255,7 +257,7 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
 
       {preview && !busy && (
         <details className="rounded-xl bg-card px-4 py-3 text-sm ring-1 ring-line">
-          <summary className="cursor-pointer font-semibold">Correct the AI (optional): style, special move, side skill</summary>
+          <summary className="cursor-pointer font-semibold">Correct the AI (optional): style, specials, side skill</summary>
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
             <label className="grid gap-1">
               <span className="text-xs font-semibold uppercase tracking-wider text-muted">Fighting style</span>
@@ -276,12 +278,30 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
               </select>
             </label>
             <label className="grid gap-1">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted">Special move</span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted">Special move (L)</span>
               <select
                 value={special}
                 onChange={(e) => {
                   setSpecial(e.target.value as SpecialKind | "");
                   if (e.target.value) setDemo((d) => ({ kind: "special", n: d.n + 1 }));
+                }}
+                className="rounded-lg bg-paper px-2 py-1.5 ring-1 ring-line"
+              >
+                <option value="">Auto: AI picks and names it</option>
+                {SPECIAL_KINDS.map((k) => (
+                  <option key={k} value={k}>
+                    {k}: {SPECIAL_INFO[k].looks}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted">Ultimate (S + L)</span>
+              <select
+                value={ult}
+                onChange={(e) => {
+                  setUlt(e.target.value as SpecialKind | "");
+                  if (e.target.value) setDemo((d) => ({ kind: "ult", n: d.n + 1 }));
                 }}
                 className="rounded-lg bg-paper px-2 py-1.5 ring-1 ring-line"
               >
@@ -330,7 +350,7 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
           {demo.n > 0 && preview && (
             <MovePreview
               className="mt-3"
-              fighter={{ imageUrl: preview, rotation: turn, class: classFromItems(facts && facts.item !== "nothing" ? [facts.item] : []), style: style || null, specialKind: special || null, sideSkill: skill || null }}
+              fighter={{ imageUrl: preview, rotation: turn, class: classFromItems(facts && facts.item !== "nothing" ? [facts.item] : []), style: style || null, specialKind: special || null, ultKind: ult || null, sideSkill: skill || null }}
               demo={demo}
             />
           )}

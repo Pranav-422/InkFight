@@ -44,6 +44,9 @@ model Character {
   specialKind   String?  // special-move building block (src/game/moves.ts); null → class default
   style         String?  // fighting style (Boxing, Taekwondo, ...); null → class default
   sideSkill     String?  // side skill (src/game/moves.ts SIDE_SKILLS); null → class default
+  ultKind       String?  // ultimate (S + L): a special building block; null → the class's (CLASS_ULT)
+  ultName       String   @default("")
+  ultDesc       String   @default("")
   cpu           Boolean  @default(true)  // admin: the computer may play this design
   hidden        Boolean  @default(false) // admin: kept off gallery, leaderboard and CPU lists
   createdAt     DateTime @default(now())

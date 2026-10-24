@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FighterAvatar } from "@/components/FighterAvatar";
 import { MovePreview, type Demo } from "@/components/MovePreview";
 import { useLeaveGuard } from "@/components/useLeaveGuard";
-import { CLASS_SKILL, SIDE_SKILLS, SKILL_INFO, SPECIAL_INFO, SPECIAL_KINDS, STYLE_INFO, STYLES, type SideSkill, type SpecialKind, type Style } from "@/game/moves";
+import { CLASS_SKILL, CLASS_ULT, SIDE_SKILLS, SKILL_INFO, SPECIAL_INFO, SPECIAL_KINDS, STYLE_INFO, STYLES, type SideSkill, type SpecialKind, type Style } from "@/game/moves";
 import type { BoneName } from "@/game/skeleton";
 import { ITEMS, measureDrawing, type Item } from "@/game/sprite";
 import { drawStick, HEAD_R, solveStick } from "@/game/stickman";
@@ -36,7 +36,7 @@ const INK_COLOR_NAMES: Record<string, string> = {
 };
 const ITEM_NAME: Record<Item, string> = { sword: "Sword (Sword)", mace: "Mace (Mace)", book: "Spellbook (Attacker)", staff: "Staff (Attacker)", shield: "Shield (Tank)", bow: "Bow (Attacker)", nothing: "Bare fists (Fighter)" };
 
-type Build = { head: Head; ink: string; item: Item; style: Style; special: SpecialKind; skill: SideSkill | ""; element: Element; name: string }; // skill "": the class's
+type Build = { head: Head; ink: string; item: Item; style: Style; special: SpecialKind; ult: SpecialKind | ""; skill: SideSkill | ""; element: Element; name: string }; // skill, ult "": the class's
 
 // Draw the build as a stick-figure "drawing": 720 x 800, white paper, ink lines. Wide
 // enough that a sword held out front stays on the page (ink touching the edge is ignored).
@@ -131,14 +131,14 @@ function Choice<T extends string>({ label, value, options, onChange, show }: { l
 
 export function BuildClient() {
   const router = useRouter();
-  const [b, setB] = useState<Build>({ head: "round", ink: INKS[0][1], item: "sword", style: "Karate", special: "slash", skill: "", element: "NONE", name: "" });
+  const [b, setB] = useState<Build>({ head: "round", ink: INKS[0][1], item: "sword", style: "Karate", special: "slash", ult: "", skill: "", element: "NONE", name: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [demo, setDemo] = useState<Demo>({ kind: "style", n: 0 });
   const set = <K extends keyof Build>(k: K) => (v: Build[K]) => setB((x) => ({ ...x, [k]: v }));
   // Picking a move plays it in the training room (again on every click, even the same pick).
-  const pick = <K extends "item" | "style" | "special" | "skill">(k: K) => (v: Build[K]) => {
+  const pick = <K extends "item" | "style" | "special" | "ult" | "skill">(k: K) => (v: Build[K]) => {
     set(k)(v);
     setDemo((d) => ({ kind: k, n: d.n + 1 }));
   };
@@ -165,6 +165,7 @@ export function BuildClient() {
       form.append("pick_item", b.item);
       form.append("pick_style", b.style);
       form.append("pick_special", b.special);
+      if (b.ult) form.append("pick_ult", b.ult);
       if (b.skill) form.append("pick_skill", b.skill);
       form.append("pick_element", b.element);
       if (b.name.trim()) form.append("name", b.name.trim());
@@ -205,8 +206,10 @@ export function BuildClient() {
         <Choice label="Weapon / item (sets the class)" value={b.item} options={ITEMS} onChange={pick("item")} show={(i) => ITEM_NAME[i]} />
         <Choice label="Fighting style" value={b.style} options={STYLES} onChange={pick("style")} show={(s) => s} />
         <p className="-mt-2 px-1 text-xs text-muted">{STYLE_INFO[b.style].blurb}</p>
-        <Choice label="Special move" value={b.special} options={SPECIAL_KINDS} onChange={pick("special")} show={(k) => k} />
+        <Choice label="Special move (L, half a meter)" value={b.special} options={SPECIAL_KINDS} onChange={pick("special")} show={(k) => k} />
         <p className="-mt-2 px-1 text-xs text-muted">{SPECIAL_INFO[b.special].looks}</p>
+        <Choice label="Ultimate (S + L, full meter)" value={b.ult} options={["", ...SPECIAL_KINDS] as const} onChange={pick("ult")} show={(k) => (k ? k : `Class: ${CLASS_ULT[cls]}`)} />
+        <p className="-mt-2 px-1 text-xs text-muted">Grabs the opponent and pounds them before launching them. {SPECIAL_INFO[b.ult || CLASS_ULT[cls]].looks}</p>
         <Choice label="Side skill (U)" value={b.skill} options={["", ...SIDE_SKILLS] as const} onChange={pick("skill")} show={(k) => (k ? SKILL_INFO[k].name : `Class: ${SKILL_INFO[CLASS_SKILL[cls]].name}`)} />
         <p className="-mt-2 px-1 text-xs text-muted">{SKILL_INFO[b.skill || CLASS_SKILL[cls]].how}</p>
         <Choice label="Element" value={b.element} options={ELEMENTS} onChange={set("element")} show={(e) => e} />
@@ -227,10 +230,10 @@ export function BuildClient() {
         <div className="aspect-square rounded-2xl bg-white ring-1 ring-line">
           {preview && <FighterAvatar key={preview} fighter={{ imageUrl: preview, class: cls, item: b.item, style: b.style }} />}
         </div>
-        {preview && <MovePreview fighter={{ imageUrl: preview, class: cls, item: b.item, style: b.style, specialKind: b.special, sideSkill: b.skill || null }} demo={demo} />}
-        <p className="-mt-1 text-center text-xs text-muted">Pick a style or special to try it on the dummy.</p>
+        {preview && <MovePreview fighter={{ imageUrl: preview, class: cls, item: b.item, style: b.style, specialKind: b.special, ultKind: b.ult || null, sideSkill: b.skill || null }} demo={demo} />}
+        <p className="-mt-1 text-center text-xs text-muted">Pick a style, special or ultimate to try it on the dummy.</p>
         <p className="text-center text-sm">
-          <span className="font-semibold">{cls}</span> · {b.style} · {b.special} · {b.element}
+          <span className="font-semibold">{cls}</span> · {b.style} · {b.special} / {b.ult || CLASS_ULT[cls]} · {b.element}
         </p>
         <button onClick={create} disabled={busy} className="inline-flex items-center justify-center gap-2 rounded-xl bg-hit px-6 py-3 font-semibold text-white hover:brightness-110 disabled:opacity-50">
           {busy && <Loader2 className="size-4 animate-spin" />}

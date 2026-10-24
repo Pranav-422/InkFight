@@ -27,7 +27,7 @@ type F = Snapshot["fighters"][number];
 type Doodle = { x: number; y: number; kind: number; speed: number; spin: number; size: number };
 
 // buffs: the admin buff is on for that side (shown, so the other player knows).
-export type HudInfo = { names: [string, string]; specialNames: [string, string]; you: Slot; buffs?: [boolean, boolean] };
+export type HudInfo = { names: [string, string]; specialNames: [string, string]; ultNames?: [string, string]; you: Slot; buffs?: [boolean, boolean] };
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 // Element status colours: the halo on the stickman and the badge beside its head.
@@ -158,9 +158,11 @@ export class Renderer {
       }
       if (e.special) this.flash = Math.max(this.flash, 3);
     } else if (e.type === "special") {
-      this.banner = { text: `${hud.specialNames[e.by]}!`, color: C.hit, life: 80 };
-      this.dim = { slot: e.by, life: 24 };
-      this.shake = Math.max(this.shake, 4);
+      const name = (e.ult && hud.ultNames?.[e.by]) || hud.specialNames[e.by];
+      this.banner = { text: `${name}!`, color: C.hit, life: e.ult ? 100 : 60 };
+      // Only the ultimate gets the full blackout and speed lines; slot 1 is a quick flourish.
+      this.dim = { slot: e.by, life: e.ult ? 24 : 8 };
+      this.shake = Math.max(this.shake, e.ult ? 4 : 2);
     } else if (e.type === "dodge") {
       // A quick afterimage ring and a word, no damage number.
       this.rings.push({ x: e.x, y: e.y, r: 18, grow: 3, life: 0, max: 10, color: C.guard, width: 2 });
@@ -246,7 +248,7 @@ export class Renderer {
 
     // Whoever is doing a special is drawn on top.
     const order = [...fighters].sort((a, b) => (a.action === "special" ? 1 : 0) - (b.action === "special" ? 1 : 0));
-    for (const f of order) this.fighter(f, cur.specials[f.slot], cur.styles[f.slot], now, hud.you === f.slot, cur.skills?.[f.slot]);
+    for (const f of order) this.fighter(f, (f.ult ? cur.ults?.[f.slot] : null) ?? cur.specials[f.slot], cur.styles[f.slot], now, hud.you === f.slot, cur.skills?.[f.slot]);
     this.lastNow = now;
     for (const p of projectiles) this.projectile(p.kind, p.x, p.y, p.r, p.vx, now, p.owner);
     this.fx();
@@ -928,14 +930,19 @@ export class Renderer {
       this.bar(left ? x : x + barW - 72, 76, 72, 7, skillPct, skillPct >= 1 ? C.guard : C.muted, !left);
 
       // Energy / special meter
+      // Half a meter fires the first special (L), a full one the ultimate (S + L): a notch marks the half.
       const full = f.energy >= 100;
+      const half = f.energy >= 50;
       const ex = left ? x + 80 : x;
-      this.bar(ex, 76, barW - 80, 7, f.energy / 100, full ? (Math.floor(now / 200) % 2 ? C.hit : C.gold) : C.gold, !left);
-      if (full) {
+      const ew = barW - 80;
+      this.bar(ex, 76, ew, 7, f.energy / 100, full ? (Math.floor(now / 200) % 2 ? C.hit : C.gold) : C.gold, !left);
+      ctx.fillStyle = C.ink;
+      ctx.fillRect(ex + ew / 2 - 1, 74, 2, 11);
+      if (half) {
         ctx.font = `800 ${Math.round(12 * z)}px ${this.fontDisplay}`;
-        ctx.fillStyle = C.hit;
+        ctx.fillStyle = full ? C.hit : C.gold;
         ctx.textAlign = left ? "right" : "left";
-        ctx.fillText("SPECIAL READY", left ? x + barW : x, 98 + 6 * (z - 1));
+        ctx.fillText(full ? "ULTIMATE READY" : "SPECIAL READY", left ? x + barW : x, 98 + 6 * (z - 1));
       }
       // Combo counter while a chain is running.
       if ((f.action === "attack" || f.action === "kick") && f.combo > 0) {

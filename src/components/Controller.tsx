@@ -17,7 +17,8 @@ type Props = {
 // An on-screen gamepad: D-pad on the left, face buttons on the right.
 // Works with mouse, touch and pen; keyboard and real gamepads light it up too.
 export function Controller({ press, lit, energy, skill, showKeys, gamepad }: Props) {
-  const ready = energy >= 100;
+  const ready = energy >= 50; // L: the first special
+  const ult = energy >= 100; // S + L: the ultimate
   const skillReady = skill >= 100;
   const btn = (k: Control, label: string, keyHint: string, cls: string, extra?: React.ReactNode) => (
     <button
@@ -57,6 +58,7 @@ export function Controller({ press, lit, energy, skill, showKeys, gamepad }: Pro
         <div className="hidden flex-col items-center text-center text-[11px] text-white/50 sm:flex">
           <Gamepad2 className="mb-1 size-5" />
           {gamepad ? <span className="text-gold">Gamepad connected</span> : <span>Plug in a gamepad<br />or use the keys</span>}
+          <span className="mt-2 text-white/70">SPECIAL: half meter<br />BLOCK + SPECIAL: ultimate</span>
         </div>
 
         {/* Face buttons */}
@@ -66,9 +68,9 @@ export function Controller({ press, lit, energy, skill, showKeys, gamepad }: Pro
             "special",
             "SPECIAL",
             "L",
-            ready ? "animate-pulse bg-gold text-ink" : "overflow-hidden bg-white/15 text-white",
-            !ready && (
-              <span className="absolute inset-x-0 bottom-0 rounded-2xl bg-gold/60" style={{ height: `${Math.max(0, Math.min(100, energy))}%` }} />
+            ult ? "animate-pulse bg-hit text-white" : ready ? "bg-gold text-ink" : "overflow-hidden bg-white/15 text-white",
+            !ult && (
+              <span className={`absolute inset-x-0 bottom-0 rounded-2xl ${ready ? "bg-hit/40" : "bg-gold/60"}`} style={{ height: `${Math.max(0, Math.min(100, ready ? (energy - 50) * 2 : energy * 2))}%` }} />
             ),
           )}
           {btn(

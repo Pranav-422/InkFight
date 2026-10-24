@@ -1,17 +1,21 @@
 // Computer opponent. Reads the match like a player would (with a reaction delay,
 // so it isn't frame-perfect) and drives the same Input a human would send.
 
-import { MOVES, SPECIAL_INFO } from "./moves";
+import { MOVES, SLOT1_COST, SPECIAL_INFO, ULT_COST, type SpecialKind } from "./moves";
 import { ARENA, BLAST_REACH, BODY, holds, moveReach, type Input, type Match, type Slot } from "./sim";
 
 export type Level = "easy" | "normal" | "hard";
 
-// skill: how often it uses its side skill when the moment comes.
-const LEVELS: Record<Level, { react: number; block: number; aggro: number; dodge: number; think: number; skill: number }> = {
-  easy: { react: 24, block: 0.15, aggro: 0.35, dodge: 0.2, think: 14, skill: 0 },
-  normal: { react: 14, block: 0.42, aggro: 0.6, dodge: 0.5, think: 8, skill: 0.5 },
-  hard: { react: 7, block: 0.72, aggro: 0.85, dodge: 0.8, think: 4, skill: 1 },
+// skill: how often it uses its side skill when the moment comes. ult: how often it saves its meter for the
+// ultimate (100) instead of spending half on slot 1 (50).
+const LEVELS: Record<Level, { react: number; block: number; aggro: number; dodge: number; think: number; skill: number; ult: number }> = {
+  easy: { react: 24, block: 0.15, aggro: 0.35, dodge: 0.2, think: 14, skill: 0, ult: 0.2 },
+  normal: { react: 14, block: 0.42, aggro: 0.6, dodge: 0.5, think: 8, skill: 0.5, ult: 0.4 },
+  hard: { react: 7, block: 0.72, aggro: 0.85, dodge: 0.8, think: 4, skill: 1, ult: 0.5 },
 };
+
+// How close it must be before a special is worth throwing: ranged ones from afar, the rest up close.
+const specialRange = (kind: SpecialKind) => (SPECIAL_INFO[kind].ranged ? 650 : kind === "teleport" ? 400 : kind === "meteor" || kind === "spiral" ? 300 : 170);
 
 // How often a sword steps back after a chain. Every time makes a slow class unable to ever reach it
 // (Sword vs Mace 64%); never throws its reach away (32%). Tuned with scripts/balance.ts.
@@ -28,9 +32,11 @@ export type CpuBrain = {
   retreatUntil: number;
   stepBack: boolean | null; // after this chain, step back out of range? (rolled once per chain, null between chains)
   skillUse: number; // chance to use the side skill when the moment comes (scripts/balance.ts sets 0 to price a skill)
+  ultUse: number; // chance that it saves up for the ultimate (scripts/balance.ts sets 1 / 0 to price the ultimate)
+  saving: boolean; // rolled after every special: this meter goes to the ultimate, slot 1 stays unused
 };
 
-export const newBrain = (level: Level): CpuBrain => ({ level, tick: 0, history: [], blockUntil: 0, nextThink: 0, reactedTo: "", guardFor: "", retreatUntil: 0, stepBack: null, skillUse: LEVELS[level].skill });
+export const newBrain = (level: Level): CpuBrain => ({ level, tick: 0, history: [], blockUntil: 0, nextThink: 0, reactedTo: "", guardFor: "", retreatUntil: 0, stepBack: null, skillUse: LEVELS[level].skill, ultUse: LEVELS[level].ult, saving: Math.random() < LEVELS[level].ult });
 
 export function cpuThink(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
   const L = LEVELS[brain.level];
@@ -62,7 +68,7 @@ export function cpuThink(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
   // the opponent's reach; a ranged special (a beam crosses the arena, and can't be jumped) from anywhere.
   const opReach = BODY.w / 2 + Math.max(moveReach(opDef, "attack"), moveReach(opDef, "kick")) + 40;
   const threat =
-    ((seen === "attack" || seen === "kick") && dist < opReach) || (seen === "special" && (SPECIAL_INFO[opDef.special].ranged || dist < 300));
+    ((seen === "attack" || seen === "kick") && dist < opReach) || (seen === "special" && (SPECIAL_INFO[op.ult ? opDef.ult : opDef.special].ranged || dist < 300));
   const attackId = `${op.action}:${brain.tick - op.t}`;
   if (threat && brain.reactedTo !== attackId) {
     brain.reactedTo = attackId;
@@ -105,13 +111,17 @@ export function cpuThink(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
   if (brain.tick < brain.nextThink) return;
   brain.nextThink = brain.tick + L.think + Math.floor(Math.random() * L.think);
 
-  // Special as soon as it's useful.
-  const kind = m.defs[slot].special;
-  const ranged = SPECIAL_INFO[kind].ranged;
-  // Teleport and meteor reach from mid-range; the rest need to be close.
-  const range = ranged ? 650 : kind === "teleport" ? 400 : kind === "meteor" || kind === "spiral" ? 300 : 170;
-  if (me.energy >= 100 && dist < range && Math.random() < L.aggro) {
+  // Specials as soon as they're useful: the ultimate (S + L) with a full meter, slot 1 from half a meter unless
+  // it is saving up. Teleport and meteor reach from mid-range; the rest need to be close.
+  if (me.energy >= ULT_COST && me.grounded && dist < specialRange(myDef.ult) && Math.random() < L.aggro) {
+    input.block = true;
     input.special++;
+    brain.saving = Math.random() < brain.ultUse;
+    return;
+  }
+  if (me.energy >= SLOT1_COST && !brain.saving && dist < specialRange(myDef.special) && Math.random() < L.aggro) {
+    input.special++;
+    brain.saving = Math.random() < brain.ultUse;
     return;
   }
 

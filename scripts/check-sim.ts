@@ -3,8 +3,8 @@
 //   npx tsx scripts/check-sim.ts
 
 import assert from "node:assert/strict";
-import { STYLE_INFO } from "../src/game/moves";
-import { createMatch, EMPTY_INPUT, step, TICK_HZ, type FighterStats, type Input, type Match } from "../src/game/sim";
+import { CLASS_ULT, SLOT1_COST, SPECIAL_KINDS, STYLE_INFO, ULT_COST } from "../src/game/moves";
+import { createMatch, deriveDef, EMPTY_INPUT, step, TICK_HZ, type FighterStats, type Input, type Match } from "../src/game/sim";
 import { CLASSES, ruleStats } from "../src/lib/stats";
 
 const neutral = { size: "medium", pose: "neutral", dominant_colors: [] } as const;
@@ -102,6 +102,64 @@ for (const [att, stays] of [["Fighter", true], ["Mace", false]] as const) {
   }
   assert.equal(x.m.fighters[0].move, STYLE_INFO.Boxing.mix, "no mix finisher");
   assert.ok(x.m.fighters[0].mix);
+}
+
+// Two special slots. L costs half a meter, S + L the whole one; a lone S + L below a full meter falls back to slot 1.
+{
+  const x = fight(fighter("Fighter"), fighter("Fighter"));
+  x.m.fighters[0].energy = SLOT1_COST - 1;
+  x.ia.special++;
+  run(x, 1);
+  assert.equal(x.m.fighters[0].action, "idle", "slot 1 fired below its cost");
+  x.m.fighters[0].energy = SLOT1_COST;
+  x.ia.special++;
+  run(x, 1);
+  const f = x.m.fighters[0];
+  assert.ok(f.action === "special" && !f.ult, "L didn't start slot 1");
+  assert.ok(f.energy < 1, "slot 1 should cost the 50 it had");
+  assert.equal(x.m.freeze, 6, "slot 1 freezes 6 ticks");
+  assert.equal(events(x.m, "special").length, 1);
+}
+{
+  const x = fight(fighter("Fighter"), fighter("Fighter"));
+  const f = x.m.fighters[0];
+  f.energy = ULT_COST - 1;
+  x.ia.block = true;
+  x.ia.special++;
+  run(x, 1);
+  assert.ok(f.action === "special" && !f.ult, "S + L below a full meter should fire slot 1");
+  const y = fight(fighter("Fighter"), fighter("Fighter"));
+  y.m.fighters[0].energy = ULT_COST;
+  y.ia.block = true;
+  y.ia.special++;
+  run(y, 1);
+  const g = y.m.fighters[0];
+  assert.ok(g.action === "special" && g.ult, "S + L didn't start the ultimate");
+  assert.ok(g.energy < 1);
+  assert.equal(y.m.freeze, 16, "the ultimate freezes 16 ticks");
+  const e = events(y.m, "special")[0];
+  assert.ok(e.type === "special" && e.ult && e.kind === CLASS_ULT.Fighter);
+}
+// The ultimate defaults to the class's, a stored kind overrides it, junk is ignored; slot 1 is never used twice by default.
+for (const c of CLASSES) {
+  const d = deriveDef(fighter(c));
+  assert.equal(d.ult, CLASS_ULT[c]);
+  assert.ok(d.ult !== d.special, `${c}: both slots default to ${d.ult}`);
+}
+assert.equal(deriveDef(fighter("Sword", { ultKind: "orb" })).ult, "orb");
+assert.equal(deriveDef(fighter("Sword", { ultKind: "nonsense" })).ult, CLASS_ULT.Sword);
+// Every kind runs as slot 1 and as the ultimate without throwing, and ends (nobody stays in the special forever).
+for (const kind of SPECIAL_KINDS) {
+  for (const ult of [false, true]) {
+    const x = fight(fighter("Fighter", { specialKind: kind, ultKind: kind }), fighter("Fighter"), 150);
+    x.m.fighters[0].energy = 100;
+    x.ia.block = ult;
+    x.ia.special++;
+    run(x, 1);
+    x.ia.block = false;
+    run(x, 400);
+    assert.notEqual(x.m.fighters[0].action, "special", `${kind} ${ult ? "ult" : "slot 1"} never ended`);
+  }
 }
 
 console.log("check-sim: all good");

@@ -11,8 +11,8 @@ import { ARENA, createMatch, deriveDef, EMPTY_INPUT, snapshot, step, TICK_HZ, ty
 import { loadSpriteCached } from "@/game/sprite";
 import { ruleStats } from "@/lib/stats";
 
-export type Demo = { kind: "style" | "special" | "item" | "skill"; n: number };
-type Look = { imageUrl: string; class: string; item?: string | null; element?: string | null; style?: string | null; specialKind?: string | null; sideSkill?: string | null; pose?: string | null; rotation?: number; flipItem?: boolean };
+export type Demo = { kind: "style" | "special" | "ult" | "item" | "skill"; n: number };
+type Look = { imageUrl: string; class: string; item?: string | null; element?: string | null; style?: string | null; specialKind?: string | null; ultKind?: string | null; sideSkill?: string | null; pose?: string | null; rotation?: number; flipItem?: boolean };
 
 const TICK_MS = 1000 / TICK_HZ;
 const HOME: [number, number] = [400, 540]; // close enough for the punches to land
@@ -20,10 +20,11 @@ const NEUTRAL = { size: "medium", pose: "neutral", dominant_colors: [] } as cons
 
 // The class's usual stat line, since the real one is only known once the fighter is made.
 function statsFor(f: Look): FighterStats {
-  return { ...ruleStats(f.class, { ...NEUTRAL, dominant_colors: [] }), class: f.class, item: f.item, element: f.element, style: f.style, specialKind: f.specialKind, sideSkill: f.sideSkill };
+  return { ...ruleStats(f.class, { ...NEUTRAL, dominant_colors: [] }), class: f.class, item: f.item, element: f.element, style: f.style, specialKind: f.specialKind, ultKind: f.ultKind, sideSkill: f.sideSkill };
 }
 
-type Room = { m: Match; input: Input; script: { type: "attack" | "kick"; left: number }[] };
+// ultPress: S + L still has to be pressed (block held with the special), then BLOCK is let go once it started.
+type Room = { m: Match; input: Input; script: { type: "attack" | "kick"; left: number }[]; ultPress?: boolean; guard?: boolean };
 
 // Back to the start marks, then play the pick: a style's punch and kick chains, the
 // special at full energy, or one swing with the new item.
@@ -31,10 +32,16 @@ function play(r: Room, f: Look, kind: Demo["kind"]) {
   const { m, input } = r;
   m.defs[0] = deriveDef(statsFor(f));
   m.projectiles = [];
-  m.fighters.forEach((x, i) => Object.assign(x, { x: HOME[i], y: ARENA.ground, vx: 0, vy: 0, grounded: true, hp: 200, action: "idle", t: 0, cooldown: 0, combo: 0, comboT: 0, buffer: null, energy: 0, status: null, skillCd: 0, skillT: 0, bubble: 0, skillQ: false, mix: false }));
+  m.fighters.forEach((x, i) => Object.assign(x, { x: HOME[i], y: ARENA.ground, vx: 0, vy: 0, grounded: true, hp: 200, action: "idle", t: 0, cooldown: 0, combo: 0, comboT: 0, buffer: null, energy: 0, status: null, skillCd: 0, skillT: 0, bubble: 0, skillQ: false, mix: false, ult: false }));
+  r.ultPress = r.guard = false;
+  input.block = false;
   if (kind === "special") {
-    m.fighters[0].energy = 100;
+    m.fighters[0].energy = 50; // L: the first special costs half a meter
     input.special++;
+    r.script = [];
+  } else if (kind === "ult") {
+    m.fighters[0].energy = 100;
+    r.ultPress = true;
     r.script = [];
   } else if (kind === "skill") {
     input.skill++; // then one swing, so a blade or a bubble has something to show on
@@ -92,6 +99,15 @@ export function MovePreview({ fighter, demo, className = "" }: { fighter: Look; 
           input[next.type]++;
           if (--next.left <= 0) r.script.shift();
         }
+      }
+      if (r.ultPress) {
+        r.ultPress = false;
+        r.guard = true;
+        input.block = true;
+        input.special++;
+      } else if (r.guard && me.action === "special") {
+        r.guard = false;
+        input.block = false;
       }
       // The room never ends: no timer, and the dummy can't be knocked out.
       m.timer = 60 * TICK_HZ;
