@@ -3,7 +3,7 @@
 
 import { MOVES, type MoveName } from "./moves";
 import type { PoseTargets } from "./skeleton";
-import { BEAM, type SpecialKind, type Snapshot } from "./sim";
+import { BEAM, SPECIAL_DURATION, type SpecialKind, type Snapshot } from "./sim";
 
 type F = Snapshot["fighters"][number];
 
@@ -231,6 +231,17 @@ export function ceremonyPose(kind: "intro" | "win", slot: number, now: number): 
 function specialPose(kind: SpecialKind, f: F, now: number): BodyMotion {
   const t = f.t;
   const wide = { thighF: abs(DOWN - 0.55), shinF: abs(DOWN - 0.2), thighB: abs(DOWN + 0.55), shinB: abs(DOWN + 0.3) };
+  // An ultimate that has grabbed its target pounds them with alternating fists once its own move has played out.
+  if (f.ult && f.ultEnd > 0 && t >= SPECIAL_DURATION[kind]) {
+    const left = Math.floor(t / 3) % 2 === 0;
+    const jitter = Math.sin(t * 2.3) * 0.2;
+    return still(
+      left
+        ? { upperF: abs(jitter), foreF: abs(jitter), upperB: abs(1.6), foreB: abs(-1.0), torso: rel(0.24), ...wide }
+        : { upperB: abs(jitter), foreB: abs(jitter), upperF: abs(1.5), foreF: abs(-1.1), torso: rel(0.3), ...wide },
+      { lunge: 6 },
+    );
+  }
   switch (kind) {
     case "bolt":
     case "arrow":

@@ -22,6 +22,11 @@ const SLOT1_FREEZE = 6; // the first special is quick: it must not stall the fig
 const KO_SLOWMO = 54; // slow-motion ticks after a knockout blow
 const PASSIVE_ENERGY = 0.05; // per tick → a full meter in ~33s without fighting
 const BLAST = { speed: 9, r: 10, range: 110 }; // Attacker punch projectile
+// Ultimate hit-lock: the first unblocked hit holds the opponent `gap` px in front of the attacker for `ticks`
+// (echo hits every `every` ticks), and the end launches them. Beam and barrage already hit several times, so they
+// hold for their own length instead.
+export const LOCK = { gap: 60, ticks: 42, every: 7, launch: 12 };
+const MULTI_HIT: SpecialKind[] = ["beam", "barrage"];
 
 export type Slot = 0 | 1;
 
@@ -59,7 +64,7 @@ export type FighterDef = {
 // Spans per stat (see scripts/balance.ts: one stat alone should win 50-60% against an all-70 fighter).
 export const TUNE = { SPEED_SPAN: 3, AGI_SPEED: 1, STR_EXP: 1.2093, DUR_EXP: 0.9269, IQ_EXP: 1.8058, SPD_COOLDOWN: 8, TEMPO_GAIN: 0.0047, JUMP_SPAN: 6, AIR_SPAN: 0.5, STUN_SPAN: 8, BLOCK_SPAN: 0.05, IQ_ENERGY: 0.01, DODGE_SPAN: 0.4648 };
 // Class traits (see the class list in src/lib/stats.ts), tuned with scripts/balance.ts like TUNE.
-export const TRAIT = { SWORD_REACH: 20, MACE_STUN: 6, TANK_BLOCK: 0.7, TANK_PUSH: 6, TANK_GUARD_WALK: 0.4, MACE_ARMOR_LEAD: 2, MACE_BREAK: 0.625, ATTACKER_ENERGY: 1, SPECIAL_IQ: 1, BACKWALK: 0.8, MACE_POISE: 0, BLAST_MULT: 0.6, FIGHTER_TEMPO: 1.15, BLADE: 1.15, BUBBLE_PUSH: 7, BUBBLE_HITS: 2, REFLECT: 0.5, SLOT1_SCALE: 0.55, ULT_SCALE: 1 };
+export const TRAIT = { SWORD_REACH: 20, MACE_STUN: 6, TANK_BLOCK: 0.7, TANK_PUSH: 6, TANK_GUARD_WALK: 0.4, MACE_ARMOR_LEAD: 2, MACE_BREAK: 0.625, ATTACKER_ENERGY: 1, SPECIAL_IQ: 1, BACKWALK: 0.8, MACE_POISE: 0, BLAST_MULT: 0.6, FIGHTER_TEMPO: 1.15, BLADE: 1.15, BUBBLE_PUSH: 7, BUBBLE_HITS: 2, REFLECT: 0.5, SLOT1_SCALE: 0.55, ULT_SCALE: 1, ECHO_MULT: 0.35, FINALE_MULT: 1 };
 // Admin buff (set by the server, see buffOn in src/lib/auth.ts): deals more, takes less.
 const BUFF = { dealt: 1.3, taken: 0.75 };
 
@@ -149,6 +154,8 @@ export type Fighter = {
   skillT: number; // ticks left of the side skill's effect
   bubble: number; // ink bubble: hits it can still absorb
   ult: boolean; // the special in progress is the ultimate (S + L), not slot 1
+  ultEnd: number; // attacker: special tick at which a hit-lock ends (0: the move's own length)
+  locked: boolean; // victim: held in place by an ultimate until it ends
   skillQ: boolean; // a skill press made while reeling: used the moment it can be, not lost
   seen: { jump: number; attack: number; kick: number; special: number; skill: number };
 };
@@ -219,6 +226,8 @@ function spawn(slot: Slot, def: FighterDef, seen: Fighter["seen"]): Fighter {
     skillT: 0,
     bubble: 0,
     ult: false,
+    ultEnd: 0,
+    locked: false,
     skillQ: false,
     seen: { jump: seen.jump, attack: seen.attack, kick: seen.kick, special: seen.special, skill: seen.skill ?? 0 },
   };
@@ -316,6 +325,7 @@ function applyHit(
   // Mid-teleport the body isn't there.
   if (vic.action === "special" && kindOf(m, vic) === "teleport" && vic.t >= 3 && vic.t < 12) return;
   const dir = vic.x >= att.x ? 1 : -1;
+  const held = vic.locked; // already held by an ultimate before this blow
   const facingAttacker = vic.facing === -dir;
   const blocked = vic.blocking && facingAttacker && !opts.low; // a low strike goes under a standing guard
   // Agility: a grounded fighter that isn't reeling sometimes slips a normal hit, even mid-swing. The
@@ -373,6 +383,11 @@ function applyHit(
   const armored =
     (!opts.special && ((def.cls === "Mace" && ((striking && heavy) || poised)) || (striking && !!mv!.armor))) || // shield bash: armor while it hits
     (def.skill === "poise" && vic.skillT > 0); // iron poise: nothing staggers
+  // An ultimate that gets through the guard grabs: a melee ult is already mid-move, a projectile one pulls the
+  // attacker back into it (unless they were hit meanwhile).
+  const lockIt =
+    !!opts.ult && !blocked && !vic.locked && vic.hp > 0 &&
+    (opts.proj ? att.action === "idle" || att.action === "attack" || att.action === "kick" || (att.action === "special" && att.ult) : att.action === "special" && att.ult);
   if (blocked) {
     vic.vx = dir * opts.knock * 0.4;
     // A tank's guard shoves a melee attacker back.
@@ -382,6 +397,11 @@ function applyHit(
       const back = full * TRAIT.REFLECT / def.armor; // undo the defender's armor; the attacker's own applies
       applyHit(m, vic, att, back, { knock: 8, special: false, at: { x: att.x + dir * 20, y: att.y - BODY.h * 0.6 } });
     }
+  } else if (vic.locked) {
+    // held: the blows land, but nothing flinches or shoves
+  } else if (lockIt) {
+    lockOn(m, att, vic);
+    if (opts.special && ad.element !== "NONE") infect(att, vic, ad.element, dir);
   } else if (!armored) {
     vic.action = "hit";
     vic.t = 0;
@@ -398,9 +418,10 @@ function applyHit(
   }
   emit(m, { type: "hit", x: opts.at.x, y: opts.at.y, dmg: dealt, blocked, special: opts.special, by: att.slot, ...(opts.ult && { ult: true }) });
   // Hit-stop sells the impact: bigger hits hold a little longer.
-  m.freeze = Math.max(m.freeze, blocked ? 2 : opts.special ? 6 : Math.min(6, 2 + Math.round(dealt / 4)));
+  m.freeze = Math.max(m.freeze, blocked ? 2 : held ? 3 : opts.special ? 6 : Math.min(6, 2 + Math.round(dealt / 4)));
 
   if (vic.hp <= 0) {
+    vic.locked = false;
     vic.action = "ko";
     vic.t = 0;
     m.slow = KO_SLOWMO;
@@ -419,6 +440,40 @@ function endRound(m: Match, winner: Slot | null, reason: "ko" | "time") {
   }
 }
 
+const pinned = (att: Fighter) => Math.min(ARENA.w - ARENA.wall - BODY.w / 2, Math.max(ARENA.wall + BODY.w / 2, att.x + att.facing * LOCK.gap));
+
+function lockOn(m: Match, att: Fighter, vic: Fighter) {
+  const kind = m.defs[att.slot].ult;
+  if (att.action !== "special") {
+    // A projectile ultimate connected: the attacker steps back into the move, at its pounding phase.
+    att.action = "special";
+    att.ult = true;
+    att.t = SPECIAL_DURATION[kind];
+    att.landed = true;
+    att.hitN = 0;
+    att.facing = vic.x >= att.x ? 1 : -1;
+  }
+  att.ultEnd = MULTI_HIT.includes(kind) ? 0 : att.t + LOCK.ticks;
+  vic.locked = true;
+  vic.action = "hit";
+  vic.t = 0;
+  vic.stun = 9999;
+  vic.vx = vic.vy = 0;
+  vic.x = pinned(att);
+}
+
+// The hold ends. `finale`: the ultimate ran its course, so it ends with a launching blow; otherwise the attacker was
+// interrupted and the victim just drops.
+function releaseLock(m: Match, att: Fighter, vic: Fighter, finale: number | null) {
+  vic.locked = false;
+  if (vic.action === "ko") return;
+  vic.action = "hit";
+  vic.t = 0;
+  vic.stun = m.defs[vic.slot].stun;
+  if (finale === null) return;
+  applyHit(m, att, vic, finale, { knock: 14, launch: LOCK.launch, special: true, ult: true, at: { x: vic.x, y: vic.y - BODY.h * 0.6 } });
+}
+
 // The special in progress: slot 1 or the ultimate.
 const kindOf = (m: Match, f: Fighter): SpecialKind => (f.ult ? m.defs[f.slot].ult : m.defs[f.slot].special);
 
@@ -431,6 +486,7 @@ function startSpecial(m: Match, f: Fighter, ult: boolean) {
   f.landed = false;
   f.hitN = 0;
   f.energy = Math.max(0, f.energy - (ult ? ULT_COST : SLOT1_COST));
+  f.ultEnd = 0;
   if (kind === "charge") f.armorTicks = 3 * TICK_HZ;
   m.freeze = Math.max(m.freeze, ult ? SUPER_FREEZE : SLOT1_FREEZE);
   emit(m, { type: "special", by: f.slot, kind, ult });
@@ -463,6 +519,21 @@ function updateSpecial(m: Match, f: Fighter, opp: Fighter) {
   };
   const hit = (mult: number, knock: number, launch = 0, y = 0.55) =>
     applyHit(m, f, opp, punch * mult, { knock, launch, special: true, ult: f.ult, at: { x: opp.x - f.facing * 20, y: opp.y - BODY.h * y } });
+  // The special is over: it has run its length, and a hit-lock (ultimate) has run out too. A lock ends with a launching blow.
+  const finish = () => {
+    if (t < f.ultEnd) return false;
+    f.action = "idle";
+    f.ultEnd = 0;
+    if (opp.locked) releaseLock(m, f, opp, punch * TRAIT.FINALE_MULT);
+    return true;
+  };
+  // Hit-lock: echo blows every few ticks while the opponent is held, and the attacker plants itself once its own
+  // animation has played out.
+  if (f.ult && f.ultEnd && opp.locked) {
+    const left = f.ultEnd - t;
+    if (t >= SPECIAL_DURATION[kind]) f.vx = 0;
+    if (left > 0 && left < LOCK.ticks && left % LOCK.every === 0) hit(TRAIT.ECHO_MULT, 0);
+  }
 
   if (proj) {
     if (t === proj.at) {
@@ -554,10 +625,10 @@ function updateSpecial(m: Match, f: Fighter, opp: Fighter) {
         hit(1.6, 10, 6, 0.2);
       }
     }
-    if ((f.hitN && t >= f.hitN + 12) || t >= SPECIAL_DURATION.meteor) f.action = "idle";
+    if ((f.hitN && t >= f.hitN + 12) || t >= SPECIAL_DURATION.meteor) finish();
     return;
   }
-  if (t >= SPECIAL_DURATION[kind]) f.action = "idle";
+  if (t >= SPECIAL_DURATION[kind]) finish();
 }
 
 // J swings the class's weapon (Fighter: the style's punches); K is always the style's kicks.
@@ -643,6 +714,11 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
   }
   f.moving = false;
 
+  // Held by an ultimate: no input, no recovery until the attacker lets go.
+  if (f.locked) {
+    f.action = "hit";
+    f.stun = 9999;
+  }
   if (f.action === "hit" && f.t >= f.stun) f.action = "idle";
   if ((f.action === "attack" || f.action === "kick") && f.move) {
     const type = f.action;
@@ -758,6 +834,10 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
     f.grounded = false;
   }
   f.x = Math.min(ARENA.w - ARENA.wall - BODY.w / 2, Math.max(ARENA.wall + BODY.w / 2, f.x));
+  if (f.locked) {
+    f.x = pinned(opp);
+    f.vx = 0;
+  }
   if (canAct) f.energy = Math.min(100, f.energy + PASSIVE_ENERGY * def.energyMul);
 }
 
@@ -832,6 +912,11 @@ export function step(m: Match, inputs: [Input, Input]) {
   // During intro/roundEnd, inputs are still consumed (so stale presses don't fire later) but ignored.
   updateFighter(m, a, b, inputs[0]);
   updateFighter(m, b, a, inputs[1]);
+  // An attacker knocked out of their ultimate lets the opponent go.
+  for (const f of m.fighters) {
+    const v = m.fighters[1 - f.slot];
+    if (v.locked && !(f.action === "special" && f.ult)) releaseLock(m, f, v, null);
+  }
   separate(a, b);
 
   for (const p of m.projectiles) {

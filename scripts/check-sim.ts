@@ -162,4 +162,92 @@ for (const kind of SPECIAL_KINDS) {
   }
 }
 
+// Hit-lock: an ultimate that connects holds the opponent (no input, pinned 60 px in front), keeps hitting, and ends
+// with a launch. Slot 1 never locks, a guard stops the lock, and interrupting the attacker lets go.
+const ultOn = (kind: string, gap: number, defender: Partial<FighterStats> = {}) => {
+  const x = fight(fighter("Fighter", { specialKind: "bolt", ultKind: kind }), fighter("Fighter", defender), gap);
+  x.m.fighters[0].energy = 100;
+  x.ia.block = true;
+  x.ia.special++;
+  run(x, 1);
+  x.ia.block = false;
+  return x;
+};
+{
+  const x = ultOn("slash", 110);
+  const [a, b] = x.m.fighters;
+  let held = 0, lockedAt = -1;
+  for (let i = 0; i < 200 && a.action === "special"; i++) {
+    x.ib.attack++; // the victim mashes: nothing may come of it
+    x.ib.jump++;
+    run(x, 1);
+    if (b.locked) {
+      held++;
+      if (lockedAt < 0) lockedAt = i;
+      assert.equal(b.action, "hit", "a held fighter acts");
+      assert.ok(Math.abs(b.x - Math.min(930 - 35, Math.max(65, a.x + a.facing * 60))) < 0.5, `held ${Math.round(Math.abs(b.x - a.x))} px away, not 60`);
+    }
+  }
+  assert.ok(lockedAt >= 0 && held >= 30, `slash ult held the opponent for ${held} ticks`);
+  assert.ok(!b.locked, "still locked after the ultimate ended");
+  assert.ok(b.vy < -8 && b.action === "hit", `no launch at the end (vy ${b.vy})`);
+  const hits = x.m.events.filter((e) => e.type === "hit" && e.by === 0).length;
+  assert.ok(hits >= 4, `only ${hits} hits recorded (opener + echoes + finale)`);
+  assert.ok(b.hp < 200 - 10);
+}
+for (const kind of ["beam", "barrage", "teleport", "uppercut", "spiral", "meteor", "charge"]) {
+  const x = ultOn(kind, kind === "beam" ? 350 : kind === "meteor" || kind === "teleport" ? 200 : 110);
+  const b = x.m.fighters[1];
+  let was = false;
+  for (let i = 0; i < 200 && x.m.fighters[0].action === "special"; i++) {
+    run(x, 1);
+    was ||= b.locked;
+  }
+  assert.ok(was, `${kind} ultimate never locked the opponent`);
+  assert.ok(!b.locked, `${kind} ultimate never let go`);
+}
+// A projectile ultimate pulls the attacker back into the move and locks on contact.
+for (const kind of ["bolt", "arrow", "orb", "wave"]) {
+  const x = ultOn(kind, 300);
+  const [a, b] = x.m.fighters;
+  let was = false;
+  for (let i = 0; i < 400 && !was; i++) {
+    run(x, 1);
+    was = b.locked;
+  }
+  assert.ok(was && a.action === "special" && a.ult && a.ultEnd > 0, `${kind} ultimate didn't lock on contact`);
+  for (let i = 0; i < 200 && b.locked; i++) run(x, 1);
+  assert.ok(!b.locked && b.vy < -8, `${kind} ultimate didn't end with a launch`);
+}
+{
+  const x = fight(fighter("Fighter", { specialKind: "slash" }), fighter("Fighter"), 110); // slot 1 (L), not the ultimate
+  x.m.fighters[0].energy = 100;
+  x.ia.special++;
+  for (let i = 0; i < 40; i++) {
+    run(x, 1);
+    assert.ok(!x.m.fighters[1].locked, "slot 1 locked the opponent");
+  }
+}
+{
+  const x = fight(fighter("Fighter", { ultKind: "slash" }), fighter("Fighter"), 110);
+  x.ib.block = true; // a guard stops the grab (the blocked blow still chips)
+  x.m.fighters[0].energy = 100;
+  x.ia.block = true;
+  x.ia.special++;
+  run(x, 1);
+  x.ia.block = false;
+  for (let i = 0; i < 60; i++) {
+    run(x, 1);
+    assert.ok(!x.m.fighters[1].locked, "a blocked ultimate locked");
+  }
+}
+{
+  const x = ultOn("slash", 110);
+  const [a, b] = x.m.fighters;
+  while (!b.locked) run(x, 1);
+  Object.assign(a, { action: "hit", t: 0, stun: 10 }); // the attacker is knocked out of it
+  run(x, 10); // (the hit-stop of the blow that locked has to play out first)
+  assert.ok(!b.locked && b.vy > -3, "the victim wasn't let go (or was launched anyway)");
+}
+
 console.log("check-sim: all good");

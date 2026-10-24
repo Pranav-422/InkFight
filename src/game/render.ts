@@ -7,7 +7,7 @@ import { itemOf, MOVES, SKILL_INFO, STYLE_INFO, type SideSkill } from "./moves";
 import { ceremonyPose, poseFor } from "./poses";
 import { resolvePose, type BoneName, type Vec } from "./skeleton";
 import type { Sprite } from "./sprite";
-import { ARENA, BEAM, BODY, TICK_HZ, WINS_NEEDED, type GameEvent, type Slot, type Snapshot, type SpecialKind } from "./sim";
+import { ARENA, BEAM, BODY, SPECIAL_DURATION, TICK_HZ, WINS_NEEDED, type GameEvent, type Slot, type Snapshot, type SpecialKind } from "./sim";
 import { drawStick, solveStick, STICK_REST, type StickPose } from "./stickman";
 
 const C = {
@@ -42,6 +42,7 @@ export class Renderer {
   private shake = 0;
   private flash = 0; // white screen flash, frames left
   private dim: { slot: Slot; life: number } | null = null; // special start: darken + speed lines
+  private cine = 0; // 0..1: how far into the ultimate's blackout we are (eased)
   private banner: { text: string; color: string; life: number } | null = null;
   private lastEventId = 0;
   private fontDisplay = "sans-serif";
@@ -222,6 +223,11 @@ export class Renderer {
       tz = 1.35;
       tx = (loser.x + fighters[1 - loser.slot].x) / 2;
       ty = loser.y - BODY.h * 0.6;
+    } else if (cur.fighters.some((f) => f.locked)) {
+      // An ultimate has grabbed its target: push in on the pair.
+      tz = 1.35;
+      tx = (fighters[0].x + fighters[1].x) / 2;
+      ty = ARENA.ground - BODY.h * 0.6;
     } else if (sp) {
       tz = 1.14;
       tx = sp.x + sp.facing * 80;
@@ -244,6 +250,13 @@ export class Renderer {
     }
     this.background();
     this.drawStains();
+    // The ultimate blacks out the page (fighters and effects are drawn over it).
+    const ultOn = cur.fighters.some((f) => f.action === "special" && f.ult);
+    this.cine += ((ultOn ? 1 : 0) - this.cine) * ease;
+    if (this.cine > 0.01) {
+      ctx.fillStyle = `rgba(5,5,12,${0.62 * this.cine})`;
+      ctx.fillRect(-20, -20, ARENA.w + 40, ARENA.h + 40);
+    }
     if (this.dim) this.speedLines(fighters[this.dim.slot]);
 
     // Whoever is doing a special is drawn on top.
@@ -639,7 +652,7 @@ export class Renderer {
         ctx.lineTo(x, y - 50);
         ctx.stroke();
       }
-    } else if (kind === "barrage" && t >= 6 && t < 42) {
+    } else if ((kind === "barrage" && t >= 6 && t < 42) || (f.ult && f.ultEnd > 0 && t >= SPECIAL_DURATION[kind])) {
       // Ghost fists everywhere in front.
       ctx.fillStyle = C.ink;
       ctx.globalAlpha = 0.35;
