@@ -824,4 +824,52 @@ const p2 = (): BossSpec => bossOf("curse-marks", { phase2: { stats: { ...fighter
   }
 }
 
+// An S + L pressed during hit-stun is queued (like the side skill) and the ultimate starts the moment the fighter recovers,
+// if the meter is full then; a plain L in hit-stun is still lost, a stale queue never fires later, a held fighter can't queue.
+{
+  const reeling = (energy: number, block: boolean) => {
+    const x = fight(fighter("Fighter"), fighter("Fighter"), 400);
+    const f = x.m.fighters[0];
+    Object.assign(f, { action: "hit", t: 0, stun: 20, energy });
+    x.ia.block = block;
+    x.ia.special++;
+    run(x, 1);
+    x.ia.block = false;
+    return { x, f };
+  };
+  const { x, f } = reeling(100, true);
+  assert.ok(f.ultQ && f.action === "hit", "the press during hit-stun wasn't queued");
+  run(x, 25);
+  assert.ok((f.action as string) === "special" && f.ult, "the queued ultimate never started"); // (the earlier assert narrowed action to "hit")
+  assert.ok(f.energy < 20, "the queued ultimate should spend the meter");
+  assert.ok(!f.ultQ, "the queue should be used up");
+  const plain = reeling(100, false);
+  assert.ok(!plain.f.ultQ, "a plain L must not queue an ultimate");
+  run(plain.x, 25);
+  assert.notEqual(plain.f.action as string, "special", "a lost L press fired later");
+  const low = reeling(60, true);
+  run(low.x, 25);
+  assert.ok(!(low.f.action === "special" && low.f.ult) && !low.f.ultQ, "an ultimate with a half meter should be dropped, and the queue cleared");
+  // The meter is checked when they recover, not when they pressed: if it was drained meanwhile, nothing fires.
+  const y = reeling(100, true);
+  y.f.energy = 60; // the meter dropped before they recovered (say, the opponent stole it)
+  run(y.x, 25);
+  assert.notEqual(y.f.action as string, "special", "the ultimate fired without a full meter");
+  // A fighter held by an ultimate can't queue anything.
+  const z = fight(fighter("Fighter", { ultKind: "slash" }), fighter("Fighter"), 110);
+  z.m.fighters[0].energy = 100;
+  z.ia.block = true;
+  z.ia.special++;
+  run(z, 1);
+  z.ia.block = false;
+  const held = z.m.fighters[1];
+  for (let i = 0; i < 40 && !held.locked; i++) run(z, 1);
+  assert.ok(held.locked, "setup: slash ultimate should lock");
+  held.energy = 100;
+  z.ib.block = true;
+  z.ib.special++;
+  run(z, 1);
+  assert.ok(!held.ultQ, "a held fighter queued an ultimate");
+}
+
 console.log("check-sim: all good");

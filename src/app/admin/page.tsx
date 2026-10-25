@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { SKILL_INFO, skillOf, specialOf, ultOf, ultTitle } from "@/game/moves";
 import { isAdmin, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AdminDesigns, type AdminDesign } from "./AdminDesigns";
@@ -34,6 +35,10 @@ export default async function AdminPage() {
       style: c.style,
       specialKind: c.specialKind,
       specialMove: c.specialMove,
+      // What the fight will actually use: the stored pick, or the class default (marked "default").
+      special: `${specialOf(c.specialKind, c.class)}${c.specialKind ? "" : " (default)"}`,
+      ult: `${ultOf(c.ultKind, c.class)}${c.ultKind ? "" : " (default)"}: ${ultTitle(c.ultName, c.ultKind, c.class)}`,
+      skill: `${SKILL_INFO[skillOf(c.sideSkill, c.class)].name}${c.sideSkill ? "" : " (default)"}`,
       pose: c.pose,
       rotation: c.rotation,
       flipItem: c.flipItem,

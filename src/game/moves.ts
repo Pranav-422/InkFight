@@ -127,7 +127,7 @@ export const SPECIAL_TUNE: Record<SpecialKind, number> = { bolt: 1.323, arrow: 1
 
 // Damage factor per class, found by simulation like the two above (scripts/balance.ts --tune):
 // each class's usual stat line and kit wins about half its fights against every class.
-export const CLASS_TUNE: Record<string, number> = { Sword: 1.027, Mace: 1.099, Tank: 1.168, Attacker: 1.203, Fighter: 1.208 };
+export const CLASS_TUNE: Record<string, number> = { Sword: 1.017, Mace: 1.109, Tank: 1.144, Attacker: 1.214, Fighter: 1.211 };
 // Strength of each element's status effect (1 = as described in sim.ts), tuned the same way.
 export const ELEMENT_TUNE: Record<string, number> = { NONE: 1, FIRE: 1, ELECTRIC: 1, FROST: 1, POISON: 1, BLEED: 1, GRAVITY: 1 };
 

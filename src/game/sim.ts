@@ -182,6 +182,7 @@ export type Fighter = {
   tension: number; // 0..1: builds while below TENSION_HP of max health and speeds the energy meter up (see energyGain)
   hitHigh: boolean; // the blow that put them in hit-stun landed above 70% of body height (head snaps back; else the torso folds)
   skillQ: boolean; // a skill press made while reeling: used the moment it can be, not lost
+  ultQ: boolean; // the same for an S + L press made while reeling: the ultimate starts the moment they recover (if the meter is full then)
   seen: { jump: number; attack: number; kick: number; special: number; skill: number };
 };
 
@@ -263,6 +264,7 @@ function spawn(slot: Slot, def: FighterDef, seen: Fighter["seen"]): Fighter {
     hitHigh: false,
     tension: 0,
     skillQ: false,
+    ultQ: false,
     seen: { jump: seen.jump, attack: seen.attack, kick: seen.kick, special: seen.special, skill: seen.skill ?? 0 },
   };
 }
@@ -628,6 +630,7 @@ function lockOn(m: Match, att: Fighter, vic: Fighter) {
   }
   att.ultEnd = MULTI_HIT.includes(kind) ? 0 : att.t + LOCK.ticks;
   vic.locked = true;
+  vic.ultQ = false; // a held fighter has no inputs
   vic.action = "hit";
   vic.t = 0;
   vic.stun = 9999;
@@ -975,6 +978,8 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
     if (def.skill === "bubble") f.bubble = TRAIT.BUBBLE_HITS;
     emit(m, { type: "skill", by: f.slot, kind: def.skill });
   }
+  // Ultimate press while reeling (S held with L): queued like the skill press, not lost. A held fighter can't queue.
+  if (specialP && canAct && f.action === "hit" && !f.locked && input.block) f.ultQ = true;
   if (canAct && f.status) tickStatus(m, f);
   if (canAct && def.passive) bossTick(m, f, opp, def.passive);
   f.t++;
@@ -1081,6 +1086,9 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
   if (f.action === "special") updateSpecial(m, f, opp);
 
   if (f.action === "idle" && canAct && !swapping(m, f)) {
+    // The queued ultimate is used on the first free tick or dropped (a stale press must not fire seconds later).
+    const queuedUlt = f.ultQ && f.energy >= ULT_COST;
+    f.ultQ = false;
     f.facing = opp.x >= f.x ? 1 : -1;
     f.blocking = input.block && f.grounded;
     const toward = (input.right ? 1 : 0) - (input.left ? 1 : 0) === f.facing;
@@ -1097,6 +1105,8 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
       startMove(f, def, "kick", "roundhouse"); // toward+K opens with a roundhouse
     } else if (kickP && f.cooldown === 0 && !f.blocking) {
       startMove(f, def, "kick");
+    } else if (queuedUlt) {
+      startSpecial(m, f, true); // an S + L pressed during hit-stun
     } else if (specialP && f.blocking && f.energy >= ULT_COST) {
       startSpecial(m, f, true); // S + L
     } else if (specialP && f.energy >= SLOT1_COST) {

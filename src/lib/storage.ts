@@ -6,7 +6,7 @@ import path from "path";
 
 // On Vercel the filesystem is read-only/ephemeral, so drawings go to Vercel Blob.
 // Locally (no token) they go to ./uploads and are served by /api/uploads/[file].
-// prefix "cut-" marks a cut-out figure (not a raw photo), see the admin re-cut tool.
+// prefix CUT_PREFIX (src/lib/cutout.ts) marks a transparent cut-out figure, see the admin re-cut tool.
 export async function saveDrawing(bytes: Buffer, ext: string, contentType: string, prefix = ""): Promise<string> {
   const filename = `${prefix}${randomUUID()}.${ext}`;
   if (process.env.BLOB_READ_WRITE_TOKEN) {

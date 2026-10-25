@@ -18,6 +18,8 @@ function loadPrefs(): Prefs {
   }
 }
 
+const GUARD_HOLD_MS = 160; // how long the ULT tap keeps BLOCK down after the finger lifts
+
 const buzz = (ms: number) => {
   try {
     navigator.vibrate?.(ms);
@@ -49,7 +51,9 @@ export function TouchControls({ press, lit, energy, skill, onExit }: { press: (k
         press("block", true);
       } else if (!down && guardedUlt.current) {
         guardedUlt.current = false;
-        press("block", false);
+        // Let go of the guard a moment after the finger, so even a flick of a tap holds BLOCK through a sim tick
+        // (the fight reads S + L on the tick it runs, not at the instant of the press).
+        setTimeout(() => press("block", false), GUARD_HOLD_MS);
       }
     }
     press(k, down);
