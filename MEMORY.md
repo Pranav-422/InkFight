@@ -199,3 +199,12 @@ To fight yourself, use one normal window + one incognito window (the split-scree
   - **Phase 2** (floor 10): clamp to exactly half HP, new def, `phase` event, `Match.hazards` (Red Margin Lines), resets each round. **New kinds** shatter/counter/dash_slash/pull/remote_detonation in `SPECIAL_KINDS`; `BASE_KINDS` (12) is what the AI/offline generator may pick. **Unlocks:** `UNLOCK_FLOOR`, `VARIANTS`, `specialChoices(cleared)`, `lockedReason`; `POST /api/characters` 403s locked `pick_special/ult/variant`; `/build` and `/create` list only unlocked.
   - **Balance/dungeon:** dungeon budgets `[350,311,327,354,297,320,331,304,328,330]`, curve 84→14%. Lessons: a tuned factor at the bisection edge (pull 2.989) means a mechanic is too weak, not that the number is wrong (pull base damage 0.8→3.0x); a cached boss spec froze the second form's budget (the tuner moved floor 10 to 245 and it then played at 88%): `bossRun` refreshes it; fights in `check-sim.ts` zero dodge (`ruleStats` + `agi: 40` is rebalanced up, so "no agility" fighters still slipped hits).
   - **Not verified:** a full climb winning several floors; most passive tells by eye; Sprint 4's two review fixes (see docs) may not be on `origin/sprint-4-online`.
+
+## State on 2026-10-25 (after Sprints 2-5)
+
+- **Live:** Sprints 2, 3, 4 and 5 (both parts) are merged into `main` and deployed. Gate at the merge: class pairs 41-59%, stat lines 47-55%, dungeon curve 84% → 14%.
+- **Online between two real devices fails without TURN** (Wi-Fi client isolation, carrier NAT). `/api/turn` returns Cloudflare Realtime TURN credentials once `TURN_KEY_ID` and `TURN_KEY_API_TOKEN` are set on Vercel (the owner creates the key); until then it's STUN only. Two browsers on one machine always connect, so local tests can't show this.
+- **Props must touch the hand** (`propSide` in sprite.ts follows the ink connected through the forearm); the builder's cap brim and stray scan marks used to float by the hand.
+- **AI analysis is capped at 20 s** (vision.ts), then the offline generator.
+- **Next:** `docs/tasks/sprint-6.md` (sound, share cards, admin follow-ups, scan cleanup; mobile redesign and arena art once the owner brings designs made from `docs/design/prompts.md`).
+- **Local DB gotcha:** `prisma dev` dies now and then and leaves `%LOCALAPPDATA%\prisma-dev-nodejs\Data\durable-streams\inkfight-local\server.lock.lock`; with no prisma process running, delete it and start `npx prisma dev -n inkfight-local --detach` again.
