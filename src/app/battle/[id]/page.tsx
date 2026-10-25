@@ -43,7 +43,7 @@ export default async function BattlePage({ params }: PageProps<"/battle/[id]">) 
         <p className="flex items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-muted">
           <Swords className="size-4" /> Result · {b.createdAt.toLocaleDateString("en-GB")}
         </p>
-        <h1 className="mt-1 font-display text-4xl font-extrabold tracking-tight">{winner.name} wins</h1>
+        <h1 className="mt-1 font-display text-4xl font-extrabold">{winner.name} wins</h1>
         <p className="mt-1 font-display text-5xl font-extrabold tabular-nums">
           {sa} – {sb}
         </p>

@@ -31,11 +31,11 @@ export function RoomStart({ dark = false }: { dark?: boolean }) {
           placeholder="Friend's code"
           aria-label="Room code"
           maxLength={8}
-          className={`min-w-0 flex-1 rounded-xl px-4 py-3 font-display font-extrabold tracking-widest outline-none ring-1 placeholder:font-sans placeholder:font-normal placeholder:tracking-normal focus:ring-2 ${
-            dark ? "bg-white/10 text-white ring-white/20 placeholder:text-white/50 focus:ring-white" : "bg-paper ring-line placeholder:text-muted focus:ring-ink"
+          className={`min-w-0 flex-1 border-[3px] px-4 py-3 font-display text-lg tracking-widest outline-none placeholder:font-sans placeholder:text-base placeholder:font-semibold placeholder:tracking-normal focus:shadow-[3px_3px_0_var(--gold)] ${
+            dark ? "border-white/40 bg-white/10 text-white placeholder:text-white/50" : "border-ink bg-white placeholder:text-muted"
           }`}
         />
-        <button disabled={!valid} className={`rounded-xl px-5 py-3 font-semibold disabled:opacity-40 ${dark ? "bg-white text-ink" : "bg-ink text-white"}`}>
+        <button disabled={!valid} className={`press border-[3px] border-ink px-5 py-3 font-display text-lg disabled:opacity-40 ${dark ? "bg-white text-ink" : "bg-ink text-gold"}`}>
           Join
         </button>
       </form>

@@ -195,7 +195,7 @@ export function BuildClient({ cleared }: { cleared: number }) {
     <div className="grid gap-8 md:grid-cols-[1fr_minmax(0,340px)] md:items-start">
       <div className="grid gap-4">
         <div>
-          <h1 className="font-display text-4xl font-extrabold tracking-tight">Build a fighter</h1>
+          <h1 className="font-display text-4xl font-extrabold">Build a fighter</h1>
           <p className="mt-1 text-sm text-muted">No drawing needed: pick the parts. Stats are split fairly from the budget everyone shares.</p>
         </div>
         <Choice label="Head" value={b.head} options={HEADS} onChange={set("head")} show={(h) => h[0].toUpperCase() + h.slice(1)} />

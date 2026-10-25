@@ -23,7 +23,7 @@ export default async function CreatePage({ searchParams }: PageProps<"/create">)
     <div className="grid gap-10 md:grid-cols-[1.3fr_1fr] md:items-start">
       <section>
         <p className="text-sm text-muted">Hey {user.name} 👋</p>
-        <h1 className="font-display text-4xl font-extrabold leading-[1.05] tracking-tight">Scan a new fighter</h1>
+        <h1 className="font-display text-4xl font-extrabold leading-[1.05]">Scan a new fighter</h1>
         <Link href="/build" className="text-sm font-semibold text-hit underline-offset-2 hover:underline">
           No drawing? Build one from parts →
         </Link>

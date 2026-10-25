@@ -38,7 +38,7 @@ export function TabBar() {
               <Link
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className={`flex flex-col items-center gap-0.5 py-2 font-display text-[10px] font-extrabold uppercase tracking-wider ${active ? "text-ink" : "text-muted"}`}
+                className={`flex flex-col items-center gap-0.5 py-2 text-[10px] font-extrabold uppercase tracking-wider ${active ? "text-ink" : "text-muted"}`}
               >
                 <span className={`px-3 py-0.5 ${active ? "bg-gold outline-2 outline-ink" : ""}`}>
                   <Icon className="size-5" strokeWidth={active ? 2.5 : 2} />

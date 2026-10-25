@@ -32,7 +32,7 @@ export function OptionsMenu({ className = "" }: { className?: string }) {
       </button>
       <dialog ref={ref} className="lift m-auto w-[min(92vw,26rem)] bg-card p-0 text-ink backdrop:bg-ink/50">
         <div className="flex items-center justify-between border-b-[3px] border-ink bg-gold px-4 py-3">
-          <p className="font-display text-xl font-black uppercase tracking-tighter">Options</p>
+          <p className="font-display text-xl font-black">Options</p>
           <button onClick={() => ref.current?.close()} aria-label="Close" className="border-2 border-ink bg-white p-1">
             <X className="size-4" />
           </button>

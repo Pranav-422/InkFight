@@ -21,7 +21,7 @@ export function Versus({ left, right, title = "Face-off", children }: { left: Ve
     <section className="lift relative overflow-hidden bg-card">
       <header className="flex items-center justify-between gap-2 border-b-[3px] border-ink bg-card px-3 py-2">
         <span className="tag bg-ink text-gold">Round 1</span>
-        <h2 className="-rotate-1 border-[3px] border-ink bg-gold px-3 py-1 font-display text-lg font-black shadow-[3px_3px_0_var(--ink)] sm:text-2xl">{title}</h2>
+        <h2 className="-rotate-1 border-[3px] border-ink bg-gold px-3 py-1 font-comic text-2xl shadow-[3px_3px_0_var(--ink)] sm:text-3xl">{title}</h2>
         <span className="tag bg-white">1 vs 1</span>
       </header>
 
@@ -34,7 +34,7 @@ export function Versus({ left, right, title = "Face-off", children }: { left: Ve
           <div className="slam relative size-28 sm:size-32">
             <div className="burst absolute inset-0 bg-ink" />
             <div className="burst absolute inset-[7px] flex items-center justify-center bg-gold">
-              <span className="font-display text-4xl font-black italic tracking-tighter sm:text-5xl">VS</span>
+              <span className="font-comic text-5xl sm:text-6xl">VS</span>
             </div>
           </div>
         </div>
@@ -59,7 +59,7 @@ function Side({ side, flip }: { side: VersusSide; flip: boolean }) {
           <FighterAvatar fighter={f} />
         </div>
         <div className={`card-edge min-w-0 flex-1 bg-card p-3 ${slide}`}>
-          <p className="truncate font-display text-2xl font-black uppercase leading-none tracking-tighter sm:text-3xl">{f.name}</p>
+          <p className="line-clamp-2 font-display text-2xl leading-none break-words sm:text-3xl">{f.name}</p>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             <ClassBadge cls={f.class} />
             {owner && <span className="truncate text-xs font-semibold text-muted">@{owner}</span>}
@@ -72,7 +72,7 @@ function Side({ side, flip }: { side: VersusSide; flip: boolean }) {
             {f.iq != null && <StatBar stat="iq" value={f.iq} compact />}
           </div>
           <p className="mt-2 border-2 border-ink bg-cream px-2 py-1 text-[11px] leading-snug">
-            <span className="font-display font-extrabold uppercase tracking-wider text-hit">Special</span> {f.specialMove}
+            <span className="font-extrabold uppercase tracking-wider text-hit">Special</span> {f.specialMove}
           </p>
         </div>
       </div>

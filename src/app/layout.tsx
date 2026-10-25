@@ -1,6 +1,6 @@
 import { LogOut } from "lucide-react";
 import type { Metadata, Viewport } from "next";
-import { Epilogue, Manrope } from "next/font/google";
+import { Bangers, Lilita_One, Manrope } from "next/font/google";
 import Link from "next/link";
 import { BackButton } from "@/components/BackButton";
 import { InstallButton } from "@/components/InstallButton";
@@ -10,7 +10,9 @@ import { getSession, isAdmin } from "@/lib/auth";
 import { logout } from "./(auth)/actions";
 import "./globals.css";
 
-const display = Epilogue({ variable: "--font-display", subsets: ["latin"], weight: ["700", "800", "900"] });
+// Lilita One for headings and buttons, Bangers only for comic moments (logo, VS, K.O.), Manrope for reading.
+const display = Lilita_One({ variable: "--font-display", subsets: ["latin"], weight: "400" });
+const comic = Bangers({ variable: "--font-comic", subsets: ["latin"], weight: "400" });
 const body = Manrope({ variable: "--font-body", subsets: ["latin"], weight: ["500", "600", "700", "800"] });
 
 export const metadata: Metadata = {
@@ -37,17 +39,17 @@ const NAV_OUT: NavItem[] = [
   { href: "/leaderboard", label: "Leaderboard", short: "Ranks" },
 ];
 
-const linkCls = "px-2.5 py-1.5 font-display text-xs font-extrabold uppercase tracking-wider text-muted whitespace-nowrap hover:bg-gold hover:text-ink sm:px-3";
+const linkCls = "px-2.5 py-1.5 text-sm font-bold text-muted whitespace-nowrap hover:bg-gold hover:text-ink sm:px-3";
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const session = await getSession();
   return (
-    <html lang="en" className={`${display.variable} ${body.variable} h-full antialiased`}>
+    <html lang="en" className={`${display.variable} ${comic.variable} ${body.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col font-sans">
         <header className="sticky top-0 z-20 border-b-[3px] border-ink bg-paper">
           <nav className="mx-auto flex max-w-5xl items-center gap-2 px-4 py-3 sm:gap-4">
             <BackButton home={session ? "/home" : "/"} />
-            <Link href={session ? "/home" : "/"} className="font-display text-2xl font-black uppercase tracking-tighter [text-shadow:2px_2px_0_var(--gold)]">
+            <Link href={session ? "/home" : "/"} className="font-comic text-3xl leading-none tracking-wide [text-shadow:2px_2px_0_var(--gold)]">
               Ink<span className="text-hit">fight</span>
             </Link>
             <div className="ml-auto flex items-center text-sm sm:gap-1">
@@ -73,7 +75,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               {session ? (
                 <form action={logout} className="ml-1 flex items-center gap-2">
                   <Link href={`/player/${session.userId}`} title={session.email} className="flex items-center gap-2">
-                    <span className="flex size-8 items-center justify-center rounded-full bg-ink font-display text-sm font-extrabold uppercase text-white">
+                    <span className="flex size-8 items-center justify-center rounded-full bg-ink font-display text-sm font-extrabold text-white">
                       {session.name.slice(0, 1)}
                     </span>
                     <span className="hidden max-w-28 truncate font-semibold lg:inline">{session.name}</span>

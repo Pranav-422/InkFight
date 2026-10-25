@@ -66,7 +66,7 @@ export function DungeonClient({ userId, cleared: initialCleared, mine }: { userI
     <div className="grid gap-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="flex items-center gap-2 font-display text-4xl font-extrabold tracking-tight">
+          <h1 className="flex items-center gap-2 font-display text-4xl font-extrabold">
             <Skull className="size-8" /> The Dungeon
           </h1>
           <p className="mt-1 text-sm text-muted">Ten floors, one boss each, every one tougher than the last. Beat a boss to copy its move.</p>

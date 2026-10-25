@@ -12,7 +12,7 @@ import { logout } from "../(auth)/actions";
 
 export const dynamic = "force-dynamic";
 
-const item = "group flex w-full items-center gap-3 border-b-2 border-dashed border-ink/20 py-3 font-display text-xl font-black uppercase tracking-tighter hover:bg-gold/40 sm:text-2xl";
+const item = "group flex w-full items-center gap-3 border-b-2 border-dashed border-ink/20 py-3 font-display text-xl hover:bg-gold/40 sm:text-2xl";
 
 function MenuItem({ href, icon: Icon, label, note }: { href: string; icon: LucideIcon; label: string; note?: string }) {
   return (
@@ -46,10 +46,10 @@ export default async function HomePage() {
         {/* Left: the logo block and the menu. */}
         <section>
           <p className="tag bg-hit text-white">Hey {user.name}</p>
-          <h1 className="mt-2 font-display text-5xl leading-[0.9] sm:text-6xl">
+          <h1 className="mt-2 hidden font-comic text-7xl leading-[0.9] md:block">
             Ink<span className="text-hit [text-shadow:3px_3px_0_var(--gold)]">fight</span>
           </h1>
-          <p className="mt-2 flex flex-wrap items-center gap-2 font-display text-xs font-extrabold uppercase tracking-[0.2em] text-muted">
+          <p className="mt-2 flex flex-wrap items-center gap-2 text-xs font-extrabold uppercase tracking-[0.2em] text-muted">
             Margin of glory
             <span className="tag bg-gold tracking-wider text-ink">
               {wins}W · {losses}L{best && ` · #${best}`}
@@ -60,7 +60,7 @@ export default async function HomePage() {
           <nav className="mt-6">
             <Link
               href="/play"
-              className="press sticker flex items-center gap-3 bg-hit px-4 py-4 font-display text-2xl font-black uppercase tracking-tighter text-white sm:text-3xl"
+              className="press sticker flex items-center gap-3 bg-hit px-4 py-4 font-display text-2xl font-black text-white sm:text-3xl"
             >
               <Play className="size-6 fill-gold text-gold" />
               <span className="flex-1">Play</span>
@@ -70,12 +70,12 @@ export default async function HomePage() {
             <div className="mt-3 grid grid-cols-2 gap-3">
               <Link href="/create" className="press sticker flex flex-col gap-1 bg-gold px-3 py-3">
                 <Camera className="size-6" />
-                <span className="font-display text-lg font-black uppercase leading-none tracking-tighter">Scan a drawing</span>
+                <span className="font-display text-lg font-black leading-none">Scan a drawing</span>
                 <span className="text-xs font-semibold text-ink/70">Photo of your stick figure</span>
               </Link>
               <Link href="/build" className="press sticker flex flex-col gap-1 bg-white px-3 py-3">
                 <Blocks className="size-6" />
-                <span className="font-display text-lg font-black uppercase leading-none tracking-tighter">Build from parts</span>
+                <span className="font-display text-lg font-black leading-none">Build from parts</span>
                 <span className="text-xs font-semibold text-muted">No paper needed</span>
               </Link>
             </div>
@@ -97,10 +97,10 @@ export default async function HomePage() {
         {/* Right: the hero panel with the newest fighter mid-swing. */}
         <section className="lift relative order-first overflow-hidden bg-card md:order-none">
           <div className="relative aspect-[5/4] bg-[radial-gradient(rgba(23,23,23,.14)_1.2px,transparent_1.4px)] [background-size:10px_10px]">
-            <span className="absolute top-3 right-[-34px] rotate-45 border-y-[3px] border-ink bg-gold px-10 py-0.5 font-display text-[11px] font-black uppercase tracking-widest">
+            <span className="absolute top-3 right-[-34px] rotate-45 border-y-[3px] border-ink bg-gold px-10 py-0.5 text-[11px] font-extrabold uppercase tracking-widest">
               Chapter {cleared + 1}
             </span>
-            <p className="absolute top-4 left-4 -rotate-6 font-display text-6xl font-black italic tracking-tighter text-gold [-webkit-text-stroke:2px_var(--ink)] [text-shadow:3px_3px_0_var(--ink),6px_6px_0_var(--hit)] sm:text-7xl">
+            <p className="absolute top-4 left-4 -rotate-6 font-comic text-7xl text-gold [-webkit-text-stroke:2px_var(--ink)] [text-shadow:3px_3px_0_var(--ink),6px_6px_0_var(--hit)] sm:text-7xl">
               Shink!
             </p>
             <div className="absolute inset-x-0 bottom-14 mx-auto h-[62%] w-[55%]">
@@ -113,15 +113,15 @@ export default async function HomePage() {
               >
                 <span className="size-3 shrink-0 rounded-full bg-hit" />
                 <span className="min-w-0 flex-1">
-                  <span className="block font-display text-[10px] font-extrabold uppercase tracking-widest text-hit">{hero.class}</span>
-                  <span className="block truncate font-display text-sm font-black uppercase">{hero.name}</span>
+                  <span className="block text-[10px] font-extrabold uppercase tracking-widest text-hit">{hero.class}</span>
+                  <span className="block truncate font-display text-sm font-black">{hero.name}</span>
                 </span>
                 <span className="font-display text-xs font-extrabold">
                   STR <span className="text-hit">{hero.atk}</span> · SPD <span className="bg-gold px-1">{hero.spd}</span>
                 </span>
               </Link>
             ) : (
-              <Link href="/create" className="press sticker absolute right-3 bottom-3 left-3 bg-gold px-4 py-3 text-center font-display font-black uppercase">
+              <Link href="/create" className="press sticker absolute right-3 bottom-3 left-3 bg-gold px-4 py-3 text-center font-display font-black">
                 Scan your first fighter
               </Link>
             )}

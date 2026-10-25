@@ -30,7 +30,7 @@ export function ResultPanel({
   const won = w === you;
   const them = (1 - you) as 0 | 1;
   const winner = players[w];
-  const btn = "press sticker flex flex-1 items-center justify-center gap-2 px-3 py-2.5 font-display text-sm font-black uppercase tracking-tight disabled:opacity-60";
+  const btn = "press sticker flex flex-1 items-center justify-center gap-2 px-3 py-2.5 font-display text-base disabled:opacity-60";
   const act = (a: Action, cls: string) =>
     a.href ? (
       <Link href={a.href} className={`${btn} ${cls}`}>
@@ -49,17 +49,17 @@ export function ResultPanel({
           <div className="slam relative size-20 shrink-0">
             <div className="burst absolute inset-0 bg-ink" />
             <div className="burst absolute inset-[6px] flex items-center justify-center bg-gold">
-              <span className="font-display text-xl font-black italic tracking-tighter text-hit">K.O.!</span>
+              <span className="font-comic text-3xl text-hit">K.O.!</span>
             </div>
           </div>
           <div className="min-w-0 flex-1">
             <p className="tag bg-ink text-gold">{won ? "Victorious duelist" : "Defeated"}</p>
-            <p className={`mt-1 font-display text-3xl font-black uppercase leading-none tracking-tighter ${won ? "text-hit" : "text-muted"}`}>
+            <p className={`mt-1 font-display text-3xl font-black leading-none ${won ? "text-hit" : "text-muted"}`}>
               {won ? "Victory" : "Defeat"}
             </p>
           </div>
           <div className="card-edge shrink-0 bg-card px-3 py-1 text-center">
-            <p className="font-display text-[10px] font-extrabold uppercase tracking-widest text-muted">Final</p>
+            <p className="text-[10px] font-extrabold uppercase tracking-widest text-muted">Final</p>
             <p className="font-display text-3xl font-black tabular-nums leading-none">
               <span className={won ? "text-hit" : ""}>{over.wins[you]}</span>–{over.wins[them]}
             </p>
@@ -71,7 +71,7 @@ export function ResultPanel({
             <div className="aspect-[4/5] bg-white">
               <FighterAvatar fighter={winner} />
             </div>
-            <p className="mt-1 truncate text-center font-display text-xs font-black uppercase">{winner.name}</p>
+            <p className="mt-1 truncate text-center font-display text-xs font-black">{winner.name}</p>
           </div>
           <div className="grid content-start gap-2 [@media(max-height:480px)]:grid-cols-3">
             <Stat label="Damage dealt" value={Math.round(over.damage[you])} unit="dmg" hot />
@@ -95,10 +95,10 @@ export function ResultPanel({
 function Stat({ label, value, unit, hot }: { label: string; value: number; unit: string; hot?: boolean }) {
   return (
     <div className="flex items-baseline justify-between gap-2 border-2 border-ink bg-cream px-3 py-1.5">
-      <span className="font-display text-[11px] font-extrabold uppercase tracking-widest">{label}</span>
+      <span className="text-[11px] font-extrabold uppercase tracking-widest">{label}</span>
       <span className="truncate text-right">
         <span className={`font-display text-xl font-black tabular-nums ${hot ? "text-hit" : ""}`}>{value}</span>{" "}
-        <span className="font-display text-[10px] font-extrabold uppercase tracking-wider text-muted [@media(max-height:480px)]:hidden">{unit}</span>
+        <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted [@media(max-height:480px)]:hidden">{unit}</span>
       </span>
     </div>
   );

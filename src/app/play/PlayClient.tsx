@@ -8,7 +8,7 @@ export function PlayClient() {
   return (
     <div className="mx-auto grid max-w-3xl gap-6">
       <div>
-        <h1 className="font-display text-4xl font-extrabold tracking-tight">Pick a fight</h1>
+        <h1 className="font-display text-4xl font-extrabold">Pick a fight</h1>
         <p className="mt-1 text-muted">Your drawing&apos;s power comes from how you drew it.</p>
       </div>
 

@@ -17,7 +17,7 @@ export function StatBar({ stat, value, compact = false }: { stat: StatKey; value
   return (
     <div className="flex items-center gap-2">
       <Icon className={`${compact ? "size-3" : "size-4"} shrink-0 text-muted`} />
-      <span className={`w-8 shrink-0 font-display font-extrabold tracking-wider ${compact ? "text-[10px]" : "text-xs"}`}>{label}</span>
+      <span className={`w-8 shrink-0 font-extrabold tracking-wider ${compact ? "text-[10px]" : "text-xs"}`}>{label}</span>
       {/* A segmented meter in an ink track. */}
       <div className={`relative flex-1 overflow-hidden border-2 border-ink bg-white ${compact ? "h-2.5" : "h-3.5"}`}>
         <div

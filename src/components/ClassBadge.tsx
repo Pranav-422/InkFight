@@ -14,7 +14,7 @@ export function ClassBadge({ cls, size = "sm" }: { cls: string; size?: "sm" | "m
   const big = size === "md";
   return (
     <span
-      className={`inline-flex items-center gap-1.5 bg-ink font-display font-extrabold uppercase tracking-wider text-gold ${
+      className={`inline-flex items-center gap-1.5 bg-ink font-extrabold uppercase tracking-wider text-gold ${
         big ? "px-2.5 py-1 text-xs" : "px-1.5 py-0.5 text-[10px]"
       }`}
     >

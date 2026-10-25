@@ -136,7 +136,7 @@ function Room({ code, fighterId, userId, onChangeFighter }: { code: string; figh
           <p className="text-xs font-semibold uppercase tracking-widest text-muted">Room</p>
           <h1 className="font-display text-4xl font-extrabold tracking-wider">{lobby.code}</h1>
         </div>
-        <button onClick={onChangeFighter} className="press card-edge shrink-0 bg-card px-3 py-1.5 font-display text-xs font-extrabold uppercase tracking-wider">
+        <button onClick={onChangeFighter} className="press card-edge shrink-0 bg-card px-3 py-1.5 font-display text-sm">
           Change fighter
         </button>
       </div>
@@ -152,7 +152,7 @@ function Room({ code, fighterId, userId, onChangeFighter }: { code: string; figh
       ) : (
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4">
           <SeatCard p={p0} you={lobby.you === 0} />
-          <span className="rotate-[-8deg] border-[3px] border-ink bg-gold px-2 py-0.5 font-display text-xl font-black italic sm:text-2xl">VS</span>
+          <span className="rotate-[-8deg] border-[3px] border-ink bg-gold px-2 py-0.5 font-comic text-2xl sm:text-3xl">VS</span>
           <SeatCard p={p1} you={lobby.you === 1} />
         </div>
       )}
@@ -164,7 +164,7 @@ function Room({ code, fighterId, userId, onChangeFighter }: { code: string; figh
         <button
           onClick={() => send({ t: "ready", ready: !me.ready })}
           disabled={!both}
-          className={`press sticker w-full max-w-sm px-6 py-3.5 font-display text-xl font-black uppercase tracking-tighter transition disabled:cursor-not-allowed disabled:border-ink/30 disabled:bg-card disabled:text-muted disabled:shadow-none ${
+          className={`press sticker w-full max-w-sm px-6 py-3.5 font-display text-xl font-black transition disabled:cursor-not-allowed disabled:border-ink/30 disabled:bg-card disabled:text-muted disabled:shadow-none ${
             me.ready ? "bg-ink text-gold" : "bg-gold text-ink"
           }`}
         >

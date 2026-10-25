@@ -30,7 +30,7 @@ export default async function PlayerPage({ params }: PageProps<"/player/[id]">) 
       <section className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm text-muted">Player · since {user.createdAt.toLocaleDateString("en-GB", { month: "short", year: "numeric" })}</p>
-          <h1 className="font-display text-4xl font-extrabold tracking-tight">@{user.name}</h1>
+          <h1 className="font-display text-4xl font-extrabold">@{user.name}</h1>
         </div>
         <dl className="flex gap-2 text-center">
           {[

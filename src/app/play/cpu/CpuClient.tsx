@@ -163,7 +163,7 @@ function FaceOff({ me, cpu, level, onGo }: { me: PublicFighter; cpu: GalleryFigh
         left={{ fighter: me, tone: "hit", tag: "P1 (you) // Locked in" }}
         right={{ fighter: cpu, tone: "guard", tag: `CPU // ${level}`, owner: cpu.ownerHandle }}
       >
-        <p className="text-center font-display text-sm font-extrabold uppercase tracking-widest text-muted">Get ready… tap to skip</p>
+        <p className="text-center font-display text-lg text-muted">Get ready… tap to skip</p>
       </Versus>
     </button>
   );

@@ -35,7 +35,7 @@ export default async function Landing() {
       <section className="grid items-center gap-10 md:grid-cols-[1.1fr_1fr]">
         <div>
           <p className="text-sm font-semibold uppercase tracking-widest text-hit">Draw · Scan · Fight</p>
-          <h1 className="mt-2 font-display text-5xl font-extrabold leading-[1.02] tracking-tight sm:text-6xl">
+          <h1 className="mt-2 font-display text-5xl font-extrabold leading-[1.02] sm:text-6xl">
             Your doodle.
             <br />
             Your <span className="text-hit">fighter.</span>
