@@ -15,6 +15,9 @@ model User {
   passwordHash String
   buff         Boolean     @default(false) // admin only: their own side hits harder and takes less (fights not recorded)
   dungeonFloor Int         @default(0) // highest dungeon floor cleared (src/game/dungeon.ts)
+  resetHash    String?     // password reset: HMAC of the emailed code (src/app/(auth)/actions.ts)
+  resetExpires DateTime?
+  resetTries   Int         @default(0) // wrong codes since it was sent
   createdAt    DateTime    @default(now())
   characters   Character[]
 }

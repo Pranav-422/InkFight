@@ -1,8 +1,10 @@
 "use server";
 
+import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import { redirect } from "next/navigation";
 import { endSession, hashPassword, startSession, verifyPassword } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { sendMail } from "@/lib/mail";
 import { clientIp, rateLimit } from "@/lib/rateLimit";
 
 // Compared against when the email is unknown, so a wrong email takes as long as a wrong password.
@@ -57,4 +59,56 @@ export async function logout(form?: FormData) {
   await endSession();
   const to = form?.get("to");
   redirect(typeof to === "string" && /^\/(login|signup)(\?|$)/.test(to) ? to : "/");
+}
+
+// Password reset: a 6-digit code goes to the account's email, good for 15 minutes and 5 tries.
+const RESET_MS = 15 * 60_000;
+const RESET_TRIES = 5;
+const codeHash = (userId: string, code: string) => createHmac("sha256", process.env.AUTH_SECRET!).update(`reset:${userId}:${code}`).digest();
+
+export type ResetState = { error?: string; email?: string; sent?: boolean };
+
+export async function requestReset(_prev: ResetState, form: FormData): Promise<ResetState> {
+  const email = String(form.get("email") ?? "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "That email doesn't look right.", email };
+  if (!(await rateLimit(`reset-ip:${await clientIp()}`, 6, 15 * 60_000)) || !(await rateLimit(`reset:${email}`, 3, 15 * 60_000))) {
+    return { error: "Too many codes asked for. Wait 15 minutes and try again.", email };
+  }
+  const user = await db.user.findUnique({ where: { email } });
+  // Same answer whether or not the account exists, so this can't be used to find out who's signed up.
+  if (user) {
+    const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
+    await db.user.update({
+      where: { id: user.id },
+      data: { resetHash: codeHash(user.id, code).toString("hex"), resetExpires: new Date(Date.now() + RESET_MS), resetTries: 0 },
+    });
+    const ok = await sendMail(
+      email,
+      `Your InkFight code: ${code}`,
+      `Hi ${user.name},\n\nYour InkFight password reset code is ${code}. It works for 15 minutes.\n\nDidn't ask for it? Ignore this email; your password stays the same.`,
+    );
+    if (!ok) return { error: "Couldn't send the email right now. Try again in a minute.", email };
+  }
+  return { sent: true, email };
+}
+
+export async function resetPassword(_prev: ResetState, form: FormData): Promise<ResetState> {
+  const email = String(form.get("email") ?? "").trim().toLowerCase();
+  const code = String(form.get("code") ?? "").replace(/\D/g, "");
+  const password = String(form.get("password") ?? "");
+  const back = { sent: true, email };
+  if (code.length !== 6) return { ...back, error: "The code has 6 digits." };
+  if (password.length < 8 || password.length > 200) return { ...back, error: "Password needs at least 8 characters." };
+  if (!(await rateLimit(`reset-try-ip:${await clientIp()}`, 20, 15 * 60_000))) return { ...back, error: "Too many tries. Wait 15 minutes." };
+
+  const user = await db.user.findUnique({ where: { email } });
+  const live = user?.resetHash && user.resetExpires && user.resetExpires.getTime() > Date.now() && user.resetTries < RESET_TRIES;
+  if (!user || !live) return { ...back, error: "That code has expired or had too many wrong tries. Ask for a new one." };
+  if (!timingSafeEqual(codeHash(user.id, code), Buffer.from(user.resetHash!, "hex"))) {
+    await db.user.update({ where: { id: user.id }, data: { resetTries: { increment: 1 } } });
+    return { ...back, error: "Wrong code. Check the email again." };
+  }
+  await db.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(password), resetHash: null, resetExpires: null, resetTries: 0 } });
+  await startSession({ userId: user.id, name: user.name, email: user.email });
+  redirect("/home");
 }

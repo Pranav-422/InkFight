@@ -27,6 +27,11 @@ export function AuthForm({ mode, next, demo }: { mode: "login" | "signup"; next?
           placeholder={isLogin ? "••••••••" : "At least 8 characters"}
           autoComplete={isLogin ? "current-password" : "new-password"}
         />
+        {isLogin && (
+          <Link href="/forgot" className="-mt-1 justify-self-end text-xs font-semibold text-muted underline-offset-2 hover:text-ink hover:underline">
+            Forgot password?
+          </Link>
+        )}
         {state.error && <p className="rounded-xl bg-hit/10 px-3 py-2 text-sm text-hit">{state.error}</p>}
         <button
           disabled={pending}
