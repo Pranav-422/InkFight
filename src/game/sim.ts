@@ -6,11 +6,12 @@ import { CLASS_CHAIN, CLASS_CHAIN_POWER, CLASS_TUNE, COMBO_WINDOW, ELEMENT_TUNE,
 
 export type { SpecialKind } from "./moves";
 
-export const TICK_HZ = 60;
-export const ARENA = { w: 960, h: 540, ground: 480, wall: 30 };
-export const BODY = { w: 70, h: 170 };
+import { ARENA_TUNE, arenaBoost, arenaClampX, arenaStep, arenaSurface, cloneArena, newArena, standingOn, type ArenaGameEvent, type ArenaId, type ArenaState } from "./arena";
+import { ARENA, BODY, TICK_HZ } from "./space";
 
-const GRAVITY = 0.75;
+export { ARENA, BODY, TICK_HZ };
+
+export const GRAVITY = 0.75;
 const ROUND_TICKS = 60 * TICK_HZ;
 const INTRO_TICKS = 2.5 * TICK_HZ;
 const ROUND_END_TICKS = 2.5 * TICK_HZ;
@@ -196,7 +197,8 @@ export type GameEvent =
   | { id: number; type: "dodge"; x: number; y: number; by: Slot } // an agile fighter slipped a hit
   | { id: number; type: "skill"; by: Slot; kind: SideSkill }
   | { id: number; type: "clash"; x: number; y: number } // two strikes met: neither lands
-  | { id: number; type: "phase"; slot: Slot; n: number; cls: string; item: string }; // a boss changed form
+  | { id: number; type: "phase"; slot: Slot; n: number; cls: string; item: string } // a boss changed form
+  | ArenaGameEvent; // the arena's cues (src/game/arena.ts): scene changes, cracks, meteors, rising rocks
 
 export type Phase = "intro" | "fight" | "roundEnd" | "matchEnd";
 
@@ -213,6 +215,7 @@ export type Match = {
   projectiles: Projectile[];
   hazards: Hazard[];
   boss?: { slot: Slot; phase: 1 | 2; base: FighterDef; spec: BossSpec }; // dungeon fight: which seat, which form
+  arena?: ArenaState; // an arena fight (createMatch option): one 5-minute round on a floor that changes, see src/game/arena.ts
   events: GameEvent[]; // recent, capped; clients dedupe by id
   nextId: number;
   defs: [FighterDef, FighterDef];
@@ -269,15 +272,23 @@ function spawn(slot: Slot, def: FighterDef, seen: Fighter["seen"]): Fighter {
   };
 }
 
-export function createMatch(a: FighterStats, b: FighterStats, inputs: [Input, Input], opts: { boss?: BossSpec } = {}): Match {
+export function createMatch(a: FighterStats, b: FighterStats, inputs: [Input, Input], opts: { boss?: BossSpec; arena?: ArenaId } = {}): Match {
   const defs: [FighterDef, FighterDef] = [deriveDef(a), deriveDef(b)];
+  // Arena fight: a bigger health pool, so a fight lasts minutes and the scenes get played (ARENA_TUNE.hpMul).
+  if (opts.arena) {
+    for (const d of defs) {
+      d.maxHp *= ARENA_TUNE.hpMul;
+      d.punch *= ARENA_TUNE.classTune[d.cls] ?? 1;
+      d.magic *= ARENA_TUNE.classTune[d.cls] ?? 1;
+    }
+  }
   // The only place a passive enters a fight: the dungeon names the boss's seat.
   if (opts.boss) defs[opts.boss.slot] = { ...defs[opts.boss.slot], passive: opts.boss.passive };
   const m: Match = {
     phase: "intro",
     phaseT: 0,
     round: 1,
-    timer: ROUND_TICKS,
+    timer: opts.arena ? ARENA_TUNE.matchTicks : ROUND_TICKS,
     wins: [0, 0],
     roundWinner: null,
     matchWinner: null,
@@ -286,6 +297,7 @@ export function createMatch(a: FighterStats, b: FighterStats, inputs: [Input, In
     projectiles: [],
     hazards: [],
     ...(opts.boss && { boss: { slot: opts.boss.slot, phase: 1 as const, base: defs[opts.boss.slot], spec: opts.boss } }),
+    ...(opts.arena && { arena: newArena(opts.arena) }),
     events: [],
     nextId: 1,
     defs,
@@ -401,6 +413,7 @@ function applyHit(
   }
   const def = m.defs[vic.slot];
   const ad = m.defs[att.slot];
+  if (m.arena) raw *= 1 - m.arena.weak[att.slot]; // lava and cracks weaken a fighter's hits for a while (ARENA_TUNE.weak)
   // Slip-weave: the hit is slipped and the weaver's next move comes out fast, to punish with
   // (an automatic counter stunned the attacker every time: a free win, not a read).
   if (def.skill === "weave" && vic.skillT > 0 && !opts.proj && vic.action !== "hit") {
@@ -609,13 +622,17 @@ function endRound(m: Match, winner: Slot | null, reason: "ko" | "time") {
   m.phaseT = 0;
   m.roundWinner = winner;
   m.roundReason = reason;
+  if (m.arena) m.arena.cracks = m.arena.meteors = []; // the match is over: no hazard lands after it
   if (winner !== null) {
     m.wins[winner]++;
     emit(m, { type: "ko", loser: (1 - winner) as Slot });
   }
 }
 
-const pinned = (att: Fighter) => Math.min(ARENA.w - ARENA.wall - BODY.w / 2, Math.max(ARENA.wall + BODY.w / 2, att.x + att.facing * LOCK.gap));
+const pinned = (att: Fighter, m: Match) => {
+  const x = Math.min(ARENA.w - ARENA.wall - BODY.w / 2, Math.max(ARENA.wall + BODY.w / 2, att.x + att.facing * LOCK.gap));
+  return m.arena ? arenaClampX(m, att, x) : x; // on an arena platform the hold stays on the platform
+};
 
 function lockOn(m: Match, att: Fighter, vic: Fighter) {
   const kind = m.defs[att.slot].ult;
@@ -635,7 +652,7 @@ function lockOn(m: Match, att: Fighter, vic: Fighter) {
   vic.t = 0;
   vic.stun = 9999;
   vic.vx = vic.vy = 0;
-  vic.x = pinned(att);
+  vic.x = pinned(att, m);
 }
 
 // The hold ends. `finale`: the ultimate ran its course, so it ends with a launching blow; otherwise the attacker was
@@ -962,6 +979,7 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
   const specialP = pressed("special");
   const skillP = pressed("skill");
   const canAct = m.phase === "fight";
+  const boost = arenaBoost(m); // scene 5 of an arena fight: a little more jump and air control (1 / 1 everywhere else)
 
   f.cooldown = Math.max(0, f.cooldown - 1);
   f.comboT = Math.max(0, f.comboT - 1);
@@ -1119,12 +1137,16 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
       if (f.grounded) f.vx = (f.blocking ? (def.cls === "Tank" ? TRAIT.TANK_GUARD_WALK : 0) : 1) * dir * def.speed * slow * back; // a tank can inch forward behind its shield
       else {
         // Agility = air control, capped so a hop can't fling across the arena (slowing down is always allowed).
-        const nv = f.vx + dir * def.air;
+        const nv = f.vx + dir * def.air * boost.air;
         if (Math.abs(nv) <= def.speed * 1.3 || Math.abs(nv) < Math.abs(f.vx)) f.vx = nv;
       }
       f.moving = dir !== 0 && (!f.blocking || def.cls === "Tank");
       if (jumpP && f.grounded && !f.blocking) {
-        f.vy = -def.jump;
+        f.vy = -def.jump * boost.jump;
+        f.grounded = false;
+      } else if (jumpP && f.grounded && f.blocking && m.arena && standingOn(m, f)) {
+        m.arena.drop[f.slot] = ARENA_TUNE.dropTicks; // S + jump on a platform: fall through it
+        f.vy = 1;
         f.grounded = false;
       }
     }
@@ -1136,9 +1158,12 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
   if (!canAct || f.action === "hit" || f.action === "ko" || ((f.action === "attack" || f.action === "kick") && f.grounded) || swapping(m, f)) f.vx *= 0.85;
   f.vy += GRAVITY;
   f.x += f.vx;
+  const prevY = f.y;
   f.y += f.vy;
-  if (f.y >= ARENA.ground) {
-    f.y = ARENA.ground;
+  // The floor, or in an arena fight the highest platform top crossed this tick (src/game/arena.ts).
+  const top = m.arena ? arenaSurface(m, f, prevY) : f.y >= ARENA.ground ? ARENA.ground : null;
+  if (top !== null) {
+    f.y = top;
     f.vy = 0;
     f.grounded = true;
   } else {
@@ -1146,7 +1171,7 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
   }
   f.x = Math.min(ARENA.w - ARENA.wall - BODY.w / 2, Math.max(ARENA.wall + BODY.w / 2, f.x));
   if (f.locked) {
-    f.x = pinned(opp);
+    f.x = pinned(opp, m);
     f.vx = 0;
   }
   if (canAct) {
@@ -1267,6 +1292,9 @@ export function step(m: Match, inputs: [Input, Input]) {
   }
   m.hazards = m.hazards.filter((h) => h.left > 0);
 
+  // The arena acts after the fighters, only while the fight is on: a knockout earlier this tick has already ended it.
+  if (m.arena && m.phase === "fight") arenaStep(m, { roll, emit: (mm, e) => emit(mm, e as NewEvent) });
+
   if (m.phase === "fight") {
     m.timer--;
     if (m.timer <= 0) {
@@ -1274,6 +1302,9 @@ export function step(m: Match, inputs: [Input, Input]) {
       const fb = b.hp / m.defs[1].maxHp;
       endRound(m, fa === fb ? null : fa > fb ? 0 : 1, "time");
     }
+  } else if (m.phase === "roundEnd" && m.phaseT >= ROUND_END_TICKS && m.arena) {
+    m.phase = "matchEnd"; // an arena fight is one round: a knockout or the clock decides (equal health on the clock: a draw, matchWinner null)
+    m.matchWinner = m.roundWinner;
   } else if (m.phase === "roundEnd" && m.phaseT >= ROUND_END_TICKS) {
     const champ = m.wins[0] >= WINS_NEEDED ? 0 : m.wins[1] >= WINS_NEEDED ? 1 : null;
     if (champ !== null) {
@@ -1315,6 +1346,7 @@ export function snapshot(m: Match): Snapshot {
     roundReason: m.roundReason,
     projectiles: m.projectiles,
     hazards: m.hazards,
+    ...(m.arena && { arena: cloneArena(m.arena) }),
     passives: [m.defs[0].passive ?? null, m.defs[1].passive ?? null],
     ...(m.boss && { bossPhase: m.boss.phase }),
     events: m.events,
@@ -1335,7 +1367,8 @@ export function snapshot(m: Match): Snapshot {
 // in the guest's browser when the host leaves. Inputs start "already seen", so nothing
 // held at that moment fires twice.
 export function resumeMatch(s: Snapshot, a: FighterStats, b: FighterStats, inputs: [Input, Input]): Match {
-  const m = createMatch(a, b, inputs);
+  const m = createMatch(a, b, inputs, s.arena ? { arena: s.arena.id } : {});
+  if (s.arena) m.arena = cloneArena(s.arena);
   Object.assign(m, {
     phase: s.phase,
     phaseT: s.phaseT,
