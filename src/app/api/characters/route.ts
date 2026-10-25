@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { lockedReason, VARIANTS } from "@/game/dungeon";
+import { clearedFloors } from "@/lib/dungeonProgress";
 import { getSession, isAdmin } from "@/lib/auth";
 import { cleanName } from "@/lib/names";
 import { rateLimit, tooMany } from "@/lib/rateLimit";
@@ -75,6 +77,18 @@ export async function POST(request: Request) {
   if (!type) return Response.json({ error: "That's not a JPG, PNG, WEBP or GIF." }, { status: 400 });
   const facts = parseFacts(form.get("features"));
   const picks = parsePicks(form);
+  // The dungeon's rewards: a special kind or a named variant that is still locked is refused (admins have every floor).
+  const cleared = await clearedFloors(session);
+  const variantId = form.get("pick_variant");
+  const variant = typeof variantId === "string" && variantId ? VARIANTS.find((v) => v.id === variantId) : undefined;
+  if (typeof variantId === "string" && variantId && !variant) return Response.json({ error: "That special doesn't exist." }, { status: 400 });
+  if (variant && variant.floor > cleared) return Response.json({ error: `${variant.name} is locked: beat floor ${variant.floor} of the Dungeon to copy it.` }, { status: 403 });
+  const locked = [picks.special, picks.ult].map((k) => (k ? lockedReason(k, cleared) : null)).find(Boolean);
+  if (locked) return Response.json({ error: locked }, { status: 403 });
+  if (variant) {
+    picks.special = variant.kind; // the variant is its kind plus its element and its own name
+    picks.element = variant.element;
+  }
   const [imageUrl, a] = await Promise.all([saveDrawing(bytes, TYPES[type], type, "cut-"), analyzeDrawing(bytes, type, facts, picks)]);
   const element = picks.element ?? a.element ?? suggestElement(facts?.colors ?? [], facts?.penWidth);
   const item = picks.item ?? facts?.item ?? null;
@@ -94,8 +108,8 @@ export async function POST(request: Request) {
       iq: a.stats.iq,
       element,
       item,
-      specialMove: a.specialMove.name,
-      specialDesc: a.specialMove.description,
+      specialMove: variant?.name ?? a.specialMove.name,
+      specialDesc: variant?.description ?? a.specialMove.description,
       specialKind: a.specialKind,
       ultKind: a.ultimate.kind,
       ultName: a.ultimate.name,

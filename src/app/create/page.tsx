@@ -2,6 +2,7 @@ import Link from "next/link";
 import { UploadDropzone } from "@/components/UploadDropzone";
 import { ROOM_CODE } from "@/game/protocol";
 import { requireUser } from "@/lib/auth";
+import { clearedFloors } from "@/lib/dungeonProgress";
 import { hasApiKey } from "@/lib/vision";
 
 const TIPS = [
@@ -35,7 +36,7 @@ export default async function CreatePage({ searchParams }: PageProps<"/create">)
           </p>
         )}
         <div className="mt-6">
-          <UploadDropzone returnRoom={returnRoom} returnTo={returnTo} />
+          <UploadDropzone returnRoom={returnRoom} returnTo={returnTo} cleared={await clearedFloors(user)} />
         </div>
         {!hasApiKey() && (
           <p className="mt-3 text-xs text-muted">

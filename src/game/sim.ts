@@ -27,12 +27,28 @@ const BLAST = { speed: 9, r: 10, range: 110 }; // Attacker punch projectile
 // hold for their own length instead.
 export const LOCK = { gap: 60, ticks: 42, every: 7, launch: 12 };
 const MULTI_HIT: SpecialKind[] = ["beam", "barrage"];
+const COUNTER_WINDOW = 24; // ticks of the counter stance in which a melee hit is answered
+const PULL = { gap: 80, steal: 25, range: 300 }; // Iron Reel: where it drags the target, how much meter it takes, how far it flies
 
 export type Slot = 0 | 1;
+
+// Dungeon boss passives (src/game/dungeon.ts has the rules, hints and counterplay). A passive lives on FighterDef and is
+// set only by createMatch(..., { boss }), never from a stat line or from anything a player stores.
+export const PASSIVES = ["afterimage", "heat-stacks", "sheathed-draw", "whiteout-guard", "royal-pride", "endless-dance", "pencil-case", "unbending-spine", "infinite-margin", "curse-marks", "red-margin-lines"] as const;
+export type PassiveId = (typeof PASSIVES)[number];
+export type BossSpec = {
+  slot: Slot;
+  passive: PassiveId;
+  // Phase 2 (floor 10): at half health the boss's def is replaced by this one.
+  phase2?: { stats: FighterStats; passive: PassiveId; cls: string; item: string };
+};
+// Timed floor hazards: a ruled line that cuts (Redline Regent phase 2) or a delayed vertical cut (remote_detonation).
+export type Hazard = { id: number; x: number; w: number; left: number; max: number; dmg: number; owner: Slot; kind: "line" | "cut"; ult?: boolean };
 
 // agi/iq/element/item: InkFight 2.0 (src/lib/stats.ts); missing on old data → 70 / NONE / class item.
 export type FighterStats = {
   hp: number; atk: number; def: number; spd: number; agi?: number; iq?: number;
+  budget?: number; cap?: number; // dungeon bosses only (clampStats)
   class: string; specialKind?: string | null; ultKind?: string | null; style?: string | null; element?: string | null; item?: string | null; sideSkill?: string | null; buff?: boolean;
 };
 
@@ -52,6 +68,7 @@ export type FighterDef = {
   energyMul: number; // IQ (and Attacker) → faster special meter
   dodge: number; // AGI → chance to slip a normal hit (not while reeling or airborne)
   crit: number; // IQ → chance that a chain finisher is an Ink Flash (×1.5 damage)
+  passive?: PassiveId; // dungeon bosses only
   special: SpecialKind; // slot 1 (L)
   ult: SpecialKind; // slot 2 (S + L)
   skill: SideSkill;
@@ -63,9 +80,9 @@ export type FighterDef = {
 };
 
 // Spans per stat (see scripts/balance.ts: one stat alone should win 50-60% against an all-70 fighter).
-export const TUNE = { SPEED_SPAN: 3, AGI_SPEED: 1, STR_EXP: 1.1363, DUR_EXP: 0.7417, IQ_EXP: 1.2562, SPD_COOLDOWN: 8, TEMPO_GAIN: 0.0045, JUMP_SPAN: 6, AIR_SPAN: 0.5, STUN_SPAN: 8, BLOCK_SPAN: 0.05, IQ_ENERGY: 0.01, DODGE_SPAN: 0.5688 };
+export const TUNE = { SPEED_SPAN: 3, AGI_SPEED: 1, STR_EXP: 1.1266, DUR_EXP: 0.8008, IQ_EXP: 1.3839, SPD_COOLDOWN: 8, TEMPO_GAIN: 0.0048, JUMP_SPAN: 6, AIR_SPAN: 0.5, STUN_SPAN: 8, BLOCK_SPAN: 0.05, IQ_ENERGY: 0.01, DODGE_SPAN: 0.4848 };
 // Class traits (see the class list in src/lib/stats.ts), tuned with scripts/balance.ts like TUNE.
-export const TRAIT = { SWORD_REACH: 20, MACE_STUN: 6, TANK_BLOCK: 0.7, TANK_PUSH: 6, TANK_GUARD_WALK: 0.4, MACE_ARMOR_LEAD: 2, MACE_BREAK: 0.625, ATTACKER_ENERGY: 1, SPECIAL_IQ: 1, BACKWALK: 0.8, MACE_POISE: 0, BLAST_MULT: 0.6, FIGHTER_TEMPO: 1.15, BLADE: 1.15, BUBBLE_PUSH: 7, BUBBLE_HITS: 2, REFLECT: 0.5, SLOT1_SCALE: 0.55, ULT_SCALE: 0.783, ECHO_MULT: 0.35, FINALE_MULT: 1, TENSION_HP: 0.3, TENSION_RISE: 1 / 240, TENSION_HIT: 0.1, TENSION_ENERGY: 0.8 };
+export const TRAIT = { SWORD_REACH: 20, MACE_STUN: 6, TANK_BLOCK: 0.7, TANK_PUSH: 6, TANK_GUARD_WALK: 0.4, MACE_ARMOR_LEAD: 2, MACE_BREAK: 0.625, ATTACKER_ENERGY: 1, SPECIAL_IQ: 1, BACKWALK: 0.8, MACE_POISE: 0, BLAST_MULT: 0.6, FIGHTER_TEMPO: 1.15, BLADE: 1.15, BUBBLE_PUSH: 7, BUBBLE_HITS: 2, REFLECT: 0.5, SLOT1_SCALE: 0.55, ULT_SCALE: 0.728, ECHO_MULT: 0.35, FINALE_MULT: 1, TENSION_HP: 0.3, TENSION_RISE: 1 / 240, TENSION_HIT: 0.1, TENSION_ENERGY: 0.8 };
 // Admin buff (set by the server, see buffOn in src/lib/auth.ts): deals more, takes less.
 const BUFF = { dealt: 1.3, taken: 0.75 };
 
@@ -158,13 +175,17 @@ export type Fighter = {
   ult: boolean; // the special in progress is the ultimate (S + L), not slot 1
   ultEnd: number; // attacker: special tick at which a hit-lock ends (0: the move's own length)
   locked: boolean; // victim: held in place by an ultimate until it ends
+  pv: Record<string, number>; // a boss's passive state (timers, stacks), named by the passive; empty for everyone else
+  marks: number; // Curse Marks on this fighter (placed by the Redline Regent)
+  markT: number; // ticks since the last mark was added (one fades every 120)
+  draw: boolean; // this swing is a Sheathed Draw (boss passive)
   tension: number; // 0..1: builds while below TENSION_HP of max health and speeds the energy meter up (see energyGain)
   hitHigh: boolean; // the blow that put them in hit-stun landed above 70% of body height (head snaps back; else the torso folds)
   skillQ: boolean; // a skill press made while reeling: used the moment it can be, not lost
   seen: { jump: number; attack: number; kick: number; special: number; skill: number };
 };
 
-export type Projectile = { id: number; owner: Slot; kind: SpecialKind | "blast"; x: number; y: number; vx: number; r: number; dmg: number; life: number; ult?: boolean };
+export type Projectile = { id: number; owner: Slot; kind: SpecialKind | "blast"; x: number; y: number; vx: number; r: number; dmg: number; life: number; ult?: boolean; delay?: number };
 
 export type GameEvent =
   | { id: number; type: "hit"; x: number; y: number; dmg: number; blocked: boolean; special: boolean; by: Slot; ult?: boolean; crit?: boolean }
@@ -173,7 +194,8 @@ export type GameEvent =
   | { id: number; type: "round"; round: number }
   | { id: number; type: "dodge"; x: number; y: number; by: Slot } // an agile fighter slipped a hit
   | { id: number; type: "skill"; by: Slot; kind: SideSkill }
-  | { id: number; type: "clash"; x: number; y: number }; // two strikes met: neither lands
+  | { id: number; type: "clash"; x: number; y: number } // two strikes met: neither lands
+  | { id: number; type: "phase"; slot: Slot; n: number; cls: string; item: string }; // a boss changed form
 
 export type Phase = "intro" | "fight" | "roundEnd" | "matchEnd";
 
@@ -188,6 +210,8 @@ export type Match = {
   roundReason: "ko" | "time" | null;
   fighters: [Fighter, Fighter];
   projectiles: Projectile[];
+  hazards: Hazard[];
+  boss?: { slot: Slot; phase: 1 | 2; base: FighterDef; spec: BossSpec }; // dungeon fight: which seat, which form
   events: GameEvent[]; // recent, capped; clients dedupe by id
   nextId: number;
   defs: [FighterDef, FighterDef];
@@ -232,6 +256,10 @@ function spawn(slot: Slot, def: FighterDef, seen: Fighter["seen"]): Fighter {
     ult: false,
     ultEnd: 0,
     locked: false,
+    pv: {},
+    marks: 0,
+    markT: 0,
+    draw: false,
     hitHigh: false,
     tension: 0,
     skillQ: false,
@@ -239,8 +267,10 @@ function spawn(slot: Slot, def: FighterDef, seen: Fighter["seen"]): Fighter {
   };
 }
 
-export function createMatch(a: FighterStats, b: FighterStats, inputs: [Input, Input]): Match {
+export function createMatch(a: FighterStats, b: FighterStats, inputs: [Input, Input], opts: { boss?: BossSpec } = {}): Match {
   const defs: [FighterDef, FighterDef] = [deriveDef(a), deriveDef(b)];
+  // The only place a passive enters a fight: the dungeon names the boss's seat.
+  if (opts.boss) defs[opts.boss.slot] = { ...defs[opts.boss.slot], passive: opts.boss.passive };
   const m: Match = {
     phase: "intro",
     phaseT: 0,
@@ -252,6 +282,8 @@ export function createMatch(a: FighterStats, b: FighterStats, inputs: [Input, In
     roundReason: null,
     fighters: [spawn(0, defs[0], inputs[0]), spawn(1, defs[1], inputs[1])],
     projectiles: [],
+    hazards: [],
+    ...(opts.boss && { boss: { slot: opts.boss.slot, phase: 1 as const, base: defs[opts.boss.slot], spec: opts.boss } }),
     events: [],
     nextId: 1,
     defs,
@@ -292,7 +324,14 @@ const POISON_CUT = 0.15; // poisoned fighters deal 15% less
 const FROST_SLOW = 0.3; // frozen fighters walk 30% slower
 
 // Energy a fighter earns from `base`: their IQ multiplier, plus up to TENSION_ENERGY more at full tension.
-const energyGain = (m: Match, f: Fighter, base: number) => base * m.defs[f.slot].energyMul * (1 + TRAIT.TENSION_ENERGY * f.tension);
+// Royal Pride (boss): below 40% health the Prince's meter fills twice as fast.
+const prideful = (m: Match, f: Fighter) => m.defs[f.slot].passive === "royal-pride" && f.hp / m.defs[f.slot].maxHp < 0.4;
+const energyGain = (m: Match, f: Fighter, base: number) => base * m.defs[f.slot].energyMul * (1 + TRAIT.TENSION_ENERGY * f.tension) * (prideful(m, f) ? 2 : 1);
+
+// Pencil Case (boss): the class traits follow the weapon in hand (mace, sword, shield); everyone else keeps their class.
+const WEAPON_CLASS = ["Mace", "Sword", "Tank"];
+const traitCls = (m: Match, f: Fighter) => (m.defs[f.slot].passive === "pencil-case" ? WEAPON_CLASS[f.pv.weapon ?? 0] : m.defs[f.slot].cls);
+const swapping = (m: Match, f: Fighter) => m.defs[f.slot].passive === "pencil-case" && (f.pv.swap ?? 0) > 0;
 
 function infect(att: Fighter, vic: Fighter, kind: string, dir: number) {
   const k = ELEMENT_TUNE[kind] ?? 1;
@@ -321,6 +360,7 @@ function tickStatus(m: Match, f: Fighter) {
     }
   }
   if (--s.t <= 0) f.status = null;
+  checkPhase2(m, f); // a burn can carry a boss under half health too
 }
 
 function applyHit(
@@ -328,7 +368,7 @@ function applyHit(
   att: Fighter,
   vic: Fighter,
   raw: number,
-  opts: { knock: number; launch?: number; special: boolean; ult?: boolean; proj?: boolean; finisher?: boolean; low?: boolean; down?: number; at: { x: number; y: number } },
+  opts: { knock: number; launch?: number; special: boolean; ult?: boolean; proj?: boolean; finisher?: boolean; low?: boolean; down?: number; unblock?: boolean; pull?: boolean; noCounter?: boolean; at: { x: number; y: number } },
 ) {
   if (vic.action === "ko" || m.phase !== "fight") return;
   // Mid-teleport the body isn't there.
@@ -336,7 +376,19 @@ function applyHit(
   const dir = vic.x >= att.x ? 1 : -1;
   const held = vic.locked; // already held by an ultimate before this blow
   const facingAttacker = vic.facing === -dir;
-  const blocked = vic.blocking && facingAttacker && !opts.low; // a low strike goes under a standing guard
+  const blocked = vic.blocking && facingAttacker && !opts.low && !opts.unblock; // a low strike goes under a standing guard; a grab ignores it
+  // Counter stance: a melee hit that lands in its window does nothing and is answered at once (projectiles go through).
+  if (vic.action === "special" && kindOf(m, vic) === "counter" && vic.t < COUNTER_WINDOW && !opts.proj && !opts.noCounter) {
+    counterStrike(m, vic, att, opts.at);
+    return;
+  }
+  // Afterimage (boss passive): once per recharge, the first hit that would land on it while it walks just misses.
+  if (!blocked && m.defs[vic.slot].passive === "afterimage" && vic.moving && (vic.pv.cd ?? 0) === 0) {
+    vic.pv.cd = 360;
+    vic.x = Math.min(ARENA.w - ARENA.wall - BODY.w / 2, Math.max(ARENA.wall + BODY.w / 2, vic.x + dir * 60));
+    emit(m, { type: "dodge", x: vic.x, y: vic.y - BODY.h * 0.6, by: vic.slot });
+    return;
+  }
   // Agility: a grounded fighter that isn't reeling sometimes slips a normal hit, even mid-swing. The
   // roll comes from the match clock, not Math.random, so the sim stays deterministic.
   const canSlip = vic.action === "idle" || vic.action === "attack" || vic.action === "kick";
@@ -360,7 +412,7 @@ function applyHit(
   }
   // Ink bubble: soaks the hit and shoves a melee attacker back. A mace pops it in one blow.
   if (vic.bubble > 0 && vic.skillT > 0) {
-    if (--vic.bubble === 0 || (ad.cls === "Mace" && !opts.proj)) vic.bubble = vic.skillT = 0;
+    if (--vic.bubble === 0 || (traitCls(m, att) === "Mace" && !opts.proj)) vic.bubble = vic.skillT = 0;
     if (!opts.proj) att.vx = -dir * TRAIT.BUBBLE_PUSH;
     emit(m, { type: "hit", x: opts.at.x, y: opts.at.y, dmg: 0, blocked: true, special: opts.special, by: att.slot });
     m.freeze = Math.max(m.freeze, 3);
@@ -373,11 +425,22 @@ function applyHit(
   // Ink Flash: a chain finisher that lands clean sometimes hits half again as hard (the roll comes from the match clock).
   const crit = !!opts.finisher && !opts.special && !blocked && roll(m, 10 + att.slot) < ad.crit;
   if (crit) dmg *= 1.5;
-  if (vic.armorTicks > 0) dmg *= ad.cls === "Mace" ? TRAIT.MACE_BREAK : 0.5; // a mace cracks armor: ×1.25 on the halving (×1.5 made Tank vs Mace 35%)
+  if (vic.armorTicks > 0) dmg *= traitCls(m, att) === "Mace" ? TRAIT.MACE_BREAK : 0.5; // a mace cracks armor: ×1.25 on the halving (×1.5 made Tank vs Mace 35%)
+  // Boss passives that change what a blow does to the boss: Unbending Spine (armored startup), Pencil Case (a swap
+  // lowers the guard), Infinite Margin (projectiles barely hurt it, unless it is reeling or mid-special).
+  const mvV = vic.move ? MOVES[vic.move] : null;
+  const spine = def.passive === "unbending-spine" && (vic.action === "attack" || vic.action === "kick") && mvV !== null && vic.t < mvV.from && !opts.special && !opts.launch;
+  if (spine) dmg *= 0.8;
+  if (swapping(m, vic)) dmg *= 1.25;
+  if (def.passive === "infinite-margin" && opts.proj && vic.action !== "hit" && vic.action !== "special") dmg *= opts.special ? 0.6 : 0.4;
   const full = dmg;
   // Specials punch through a block harder than normal hits.
-  if (blocked) dmg *= 1 - def.blockReduce * (opts.special ? 0.6 : 1);
-  const dealt = Math.max(1, Math.round(dmg));
+  const blockRed = traitCls(m, vic) === "Tank" ? TRAIT.TANK_BLOCK : def.blockReduce;
+  if (blocked) dmg *= 1 - blockRed * (opts.special ? 0.6 : 1);
+  let dealt = Math.max(1, Math.round(dmg));
+  // Phase 2 (boss): the blow that would take the boss under half health leaves it exactly there, so a big combo can't skip the form change.
+  const half = def.maxHp / 2;
+  if (m.boss?.spec.phase2 && m.boss.phase === 1 && vic.slot === m.boss.slot && vic.hp > half && vic.hp - dealt < half) dealt = vic.hp - half;
 
   vic.hp = Math.max(0, vic.hp - dealt);
   m.damage[att.slot] += dealt;
@@ -386,6 +449,8 @@ function applyHit(
   vic.energy = Math.min(100, vic.energy + energyGain(m, vic, 7));
   // Tension builds with every blow taken while hurt (and by the tick, in updateFighter).
   if (vic.hp / def.maxHp < TRAIT.TENSION_HP) vic.tension = Math.min(1, vic.tension + TRAIT.TENSION_HIT);
+  if (!blocked && vic.pv.shimmer) vic.pv.shimmer = vic.pv.near = 0; // Infinite Margin: a clean hit during the shimmer cancels the blink
+  bossHits(m, att, vic, blocked, opts, dir);
 
   // Mace: its heavy finisher doesn't flinch from normal hits (a heavy trades blows instead of being out-paced).
   const mv = vic.move ? MOVES[vic.move] : null;
@@ -396,7 +461,8 @@ function applyHit(
   const poised = TRAIT.MACE_POISE > 0 && !!opts.proj && vic.action !== "hit";
   const armored =
     (!opts.special && ((def.cls === "Mace" && ((striking && heavy) || poised)) || (striking && !!mv!.armor))) || // shield bash: armor while it hits
-    (def.skill === "poise" && vic.skillT > 0); // iron poise: nothing staggers
+    (def.skill === "poise" && vic.skillT > 0) || // iron poise: nothing staggers
+    spine; // the boss's Unbending Spine: its wind-up isn't interrupted
   // An ultimate that gets through the guard grabs: a melee ult is already mid-move, a projectile one pulls the
   // attacker back into it (unless they were hit meanwhile).
   const lockIt =
@@ -405,7 +471,7 @@ function applyHit(
   if (blocked) {
     vic.vx = dir * opts.knock * 0.4;
     // A tank's guard shoves a melee attacker back.
-    if (def.cls === "Tank" && !opts.special && !opts.proj) att.vx = -dir * TRAIT.TANK_PUSH;
+    if (traitCls(m, vic) === "Tank" && !opts.special && !opts.proj) att.vx = -dir * TRAIT.TANK_PUSH;
     // Reflect shield: half the blocked blow bounces back (as a normal hit, so it can't loop).
     if (def.skill === "reflect" && vic.skillT > 0 && !opts.proj && att.action !== "ko") {
       const back = full * TRAIT.REFLECT / def.armor; // undo the defender's armor; the attacker's own applies
@@ -421,7 +487,7 @@ function applyHit(
     vic.hitHigh = (vic.y - opts.at.y) / BODY.h > 0.7;
     vic.action = "hit";
     vic.t = 0;
-    vic.stun = def.stun + (ad.cls === "Mace" && opts.finisher ? TRAIT.MACE_STUN : 0) + (opts.down ?? 0); // Mace: only a chain finisher, a reward, not a lock
+    vic.stun = def.stun + (traitCls(m, att) === "Mace" && opts.finisher ? TRAIT.MACE_STUN : 0) + (opts.down ?? 0); // Mace: only a chain finisher, a reward, not a lock
     vic.vx = dir * opts.knock;
     if (opts.launch) {
       vic.vy = -opts.launch;
@@ -436,15 +502,106 @@ function applyHit(
   // Hit-stop sells the impact: bigger hits hold a little longer.
   m.freeze = Math.max(m.freeze, blocked ? 2 : held ? 3 : opts.special ? 6 : Math.min(6, 2 + Math.round(dealt / 4)));
 
+  // Iron Reel: an unblocked pull drags the target in front of the attacker and takes some of their meter.
+  if (opts.pull && !blocked && vic.hp > 0) {
+    vic.x = Math.min(ARENA.w - ARENA.wall - BODY.w / 2, Math.max(ARENA.wall + BODY.w / 2, att.x + att.facing * PULL.gap));
+    const stolen = Math.min(vic.energy, PULL.steal);
+    vic.energy -= stolen;
+    att.energy = Math.min(100, att.energy + stolen);
+  }
+
   if (vic.hp <= 0) {
     vic.locked = false;
     vic.action = "ko";
     vic.t = 0;
     m.slow = KO_SLOWMO;
     endRound(m, att.slot, "ko");
+  } else checkPhase2(m, vic);
+}
+
+// What a boss's passive does when it lands a blow (att) or takes one (vic). Players have no passives, so this is
+// a no-op in every ordinary fight.
+function bossHits(m: Match, att: Fighter, vic: Fighter, blocked: boolean, opts: { special: boolean; proj?: boolean }, dir: number) {
+  const ap = m.defs[att.slot].passive, vp = m.defs[vic.slot].passive;
+  if (!ap && !vp) return;
+  const normal = !opts.special && !opts.proj;
+  if (ap === "heat-stacks" && normal) {
+    // Three clean hits in a row set the next one alight; a blocked hit puts the fire out.
+    if (blocked) att.pv.heat = 0;
+    else if ((att.pv.heat ?? 0) >= 3) {
+      att.pv.heat = 0;
+      if (vic.hp > 0) infect(att, vic, "FIRE", dir);
+    } else {
+      att.pv.heat = (att.pv.heat ?? 0) + 1;
+      att.pv.heatT = 90;
+    }
+  }
+  if (vp === "whiteout-guard" && blocked) {
+    vic.pv.cracks = (vic.pv.cracks ?? 0) + 1;
+    vic.pv.crackT = 120;
+    if (vic.pv.cracks >= 3) {
+      // The guard bursts: the attacker is shoved back and frozen for half the usual time.
+      vic.pv.cracks = 0;
+      att.action = "hit";
+      att.t = 0;
+      att.stun = 10;
+      att.vx = -dir * 14;
+      att.status = { kind: "FROST", t: 60, n: 0 };
+    }
+  }
+  if (ap === "endless-dance") {
+    att.pv.last = blocked ? 0 : 1;
+    if (blocked) att.pv.stop = 1;
+  }
+  if ((ap === "curse-marks" || ap === "red-margin-lines") && !blocked && vic.hp > 0) { // (the second form keeps the marks)
+    vic.marks++;
+    vic.markT = 0;
+    if (vic.marks >= 5) {
+      // Five marks detonate: flat damage that ignores armor's block, and poison.
+      vic.marks = 0;
+      const d = Math.min(16, vic.hp);
+      vic.hp -= d;
+      m.damage[att.slot] += d;
+      vic.status = { kind: "POISON", t: 180, n: 0 };
+      emit(m, { type: "hit", x: vic.x, y: vic.y - BODY.h * 0.55, dmg: d, blocked: false, special: true, by: att.slot });
+      if (vic.hp <= 0) {
+        vic.locked = false;
+        vic.action = "ko";
+        vic.t = 0;
+        m.slow = KO_SLOWMO;
+        endRound(m, att.slot, "ko");
+      }
+    }
   }
 }
 
+// Floor 10: the first time in a round the Regent is at half health it unseals a second form.
+function checkPhase2(m: Match, f: Fighter) {
+  const b = m.boss;
+  if (!b?.spec.phase2 || b.phase !== 1 || f.slot !== b.slot || f.hp > m.defs[f.slot].maxHp / 2 || f.action === "ko") return;
+  const p2 = b.spec.phase2;
+  b.phase = 2;
+  m.defs[f.slot] = { ...deriveDef(p2.stats), passive: p2.passive };
+  const foe = m.fighters[1 - f.slot];
+  f.status = null;
+  f.energy = 50;
+  f.pv = {};
+  f.locked = false;
+  f.action = "idle";
+  f.t = 0;
+  f.cooldown = 0;
+  foe.marks = 0;
+  foe.markT = 0;
+  // Push them apart, clear the floor, and hold still for the transformation.
+  const mid = (f.x + foe.x) / 2, side = f.x >= foe.x ? 1 : -1, lo = ARENA.wall + BODY.w / 2, hi = ARENA.w - ARENA.wall - BODY.w / 2;
+  f.x = Math.min(hi, Math.max(lo, mid + side * 150));
+  foe.x = Math.min(hi, Math.max(lo, mid - side * 150));
+  f.vx = foe.vx = 0;
+  m.projectiles = [];
+  m.hazards = [];
+  m.freeze = Math.max(m.freeze, 40);
+  emit(m, { type: "phase", slot: f.slot, n: 2, cls: p2.cls, item: p2.item });
+}
 function endRound(m: Match, winner: Slot | null, reason: "ko" | "time") {
   m.phase = "roundEnd";
   m.phaseT = 0;
@@ -511,6 +668,7 @@ function startSpecial(m: Match, f: Fighter, ult: boolean) {
 export const SPECIAL_DURATION: Record<SpecialKind, number> = {
   bolt: 28, arrow: 24, orb: 32, slash: 26, charge: 30, uppercut: 26,
   beam: 72, spiral: 44, wave: 34, teleport: 32, barrage: 50, meteor: 70,
+  shatter: 46, counter: 54, dash_slash: 40, pull: 30, remote_detonation: 26,
 };
 // Beam timing, shared with the renderer and poses.
 export const BEAM = { fireFrom: 30, fireTo: 62, every: 8 };
@@ -519,22 +677,37 @@ const PROJECTILE: Partial<Record<SpecialKind, { speed: number; r: number; mult: 
   arrow: { speed: 15, r: 10, mult: 2.6, at: 10 },
   orb: { speed: 6, r: 26, mult: 2.9, at: 10 },
   wave: { speed: 9, r: 24, mult: 2.4, at: 14, low: true },
+  pull: { speed: 7, r: 14, mult: 3.0, at: 12 }, // Iron Reel: the drag and the steal are rarely worth a hit: at 0.8 it needed more than the tuner's maximum factor
 };
 
-function updateSpecial(m: Match, f: Fighter, opp: Fighter) {
+// How hard a fighter's special hits: technique, so IQ drives it (SPECIAL_IQ blends in STR for the physical ones).
+// Slot 1 hits at SLOT1_SCALE of the building block (it costs half the meter); the ultimate at ULT_SCALE.
+const specialPunch = (m: Match, f: Fighter, kind: SpecialKind) => {
   const def = m.defs[f.slot];
+  return (SPECIAL_INFO[kind].ranged ? def.magic : def.punch * (1 - TRAIT.SPECIAL_IQ) + def.magic * TRAIT.SPECIAL_IQ) * SPECIAL_TUNE[kind] * (f.ult ? TRAIT.ULT_SCALE : TRAIT.SLOT1_SCALE);
+};
+
+// The counter stance caught a melee hit: it deals nothing, and the stance answers at once for 1.5x.
+function counterStrike(m: Match, f: Fighter, foe: Fighter, at: { x: number; y: number }) {
+  emit(m, { type: "hit", x: at.x, y: at.y, dmg: 0, blocked: true, special: false, by: foe.slot });
+  f.landed = true;
+  f.facing = foe.x >= f.x ? 1 : -1;
+  f.t = Math.max(f.t, 40); // a clean parry skips most of the recovery
+  m.freeze = Math.max(m.freeze, 6);
+  applyHit(m, f, foe, specialPunch(m, f, "counter") * 1.5, { knock: 12, launch: 4, special: true, ult: f.ult, noCounter: true, at: { x: foe.x - f.facing * 20, y: foe.y - BODY.h * 0.55 } });
+}
+
+function updateSpecial(m: Match, f: Fighter, opp: Fighter) {
   const kind = kindOf(m, f);
-  // Specials are technique: IQ drives them (SPECIAL_IQ blends in STR for the physical ones). Normals use STR.
-  // Slot 1 hits at SLOT1_SCALE of the building block (it costs half the meter); the ultimate at ULT_SCALE.
-  const punch = (SPECIAL_INFO[kind].ranged ? def.magic : def.punch * (1 - TRAIT.SPECIAL_IQ) + def.magic * TRAIT.SPECIAL_IQ) * SPECIAL_TUNE[kind] * (f.ult ? TRAIT.ULT_SCALE : TRAIT.SLOT1_SCALE);
+  const punch = specialPunch(m, f, kind);
   const proj = PROJECTILE[kind];
   const t = f.t;
   const front = (reach: number, top = 1, bot = 0.15) => {
     const x1 = f.x + f.facing * (BODY.w / 2);
     return overlaps(x1 - f.facing * 20, x1 + f.facing * reach, f.y - BODY.h * top, f.y - BODY.h * bot, opp);
   };
-  const hit = (mult: number, knock: number, launch = 0, y = 0.55) =>
-    applyHit(m, f, opp, punch * mult, { knock, launch, special: true, ult: f.ult, at: { x: opp.x - f.facing * 20, y: opp.y - BODY.h * y } });
+  const hit = (mult: number, knock: number, launch = 0, y = 0.55, extra: { unblock?: boolean } = {}) =>
+    applyHit(m, f, opp, punch * mult, { knock, launch, special: true, ult: f.ult, ...extra, at: { x: opp.x - f.facing * 20, y: opp.y - BODY.h * y } });
   // The special is over: it has run its length, and a hit-lock (ultimate) has run out too. A lock ends with a launching blow.
   const finish = () => {
     if (t < f.ultEnd) return false;
@@ -562,7 +735,7 @@ function updateSpecial(m: Match, f: Fighter, opp: Fighter) {
         vx: f.facing * proj.speed,
         r: proj.r,
         dmg: punch * proj.mult,
-        life: 600, // leaves the arena long before
+        life: kind === "pull" ? Math.ceil(PULL.range / proj.speed) : 600, // leaves the arena long before
         ult: f.ult,
       });
     }
@@ -619,6 +792,31 @@ function updateSpecial(m: Match, f: Fighter, opp: Fighter) {
       f.landed = true;
       hit(1.0, 15, 6);
     }
+  } else if (kind === "shatter") {
+    // A grab: 12 ticks of startup, 4 active, 30 of recovery. Nothing blocks it, but it only finds someone on the ground.
+    f.vx = 0;
+    if (!f.landed && t >= 12 && t <= 15 && opp.grounded && front(PULL.gap - 20, 1, 0.1)) {
+      f.landed = true;
+      hit(2.6, 6, 4, 0.5, { unblock: true });
+    }
+  } else if (kind === "counter") {
+    f.vx = 0; // the stance itself is in applyHit (counterStrike); this is the 30 ticks of recovery after a whiff
+  } else if (kind === "dash_slash") {
+    // Straight through the opponent (220 px in 8 ticks), one hit on the way, and turn round on the far side.
+    if (t >= 10 && t <= 17) {
+      f.vx = f.facing * 27.5;
+      if (!f.landed && overlaps(f.x - 30, f.x + 30, f.y - BODY.h * 0.9, f.y - BODY.h * 0.1, opp)) {
+        f.landed = true;
+        hit(2.4, 8, 5, 0.55);
+      }
+    } else if (t === 18) {
+      f.vx = 0;
+      f.facing = opp.x >= f.x ? 1 : -1;
+    }
+  } else if (kind === "remote_detonation") {
+    // Marks where the opponent stands now; the cut falls there 40 ticks later (see step: hazards).
+    f.vx = 0;
+    if (t === 8) m.hazards.push({ id: m.nextId++, x: opp.x, w: 40, left: 40, max: 40, dmg: punch * 2.6, owner: f.slot, kind: "cut", ult: f.ult });
   } else if (kind === "meteor") {
     if (t === 1) {
       f.vy = -16;
@@ -652,7 +850,7 @@ const chainOf = (def: FighterDef, type: "attack" | "kick") => (type === "attack"
 // Damage per unit of move mult, so every chain deals about the same damage per second.
 const chainPower = (def: FighterDef, type: "attack" | "kick") =>
   type === "attack" && CLASS_CHAIN[def.cls] ? CLASS_CHAIN_POWER[def.cls] : STYLE_POWER[def.style][type === "attack" ? "punch" : "kick"] * STYLE_TUNE[def.style];
-const reachBonus = (def: FighterDef, type: "attack" | "kick") => (type === "attack" && def.cls === "Sword" ? TRAIT.SWORD_REACH : 0); // a sword extends the punch chain
+const reachBonus = (def: FighterDef, type: "attack" | "kick", cls: string = def.cls) => (type === "attack" && cls === "Sword" ? TRAIT.SWORD_REACH : 0); // a sword extends the punch chain
 // Longest reach past the body edge of a fighter's punch or kick chain (the CPU spaces itself by it).
 export const moveReach = (def: FighterDef, type: "attack" | "kick") => Math.max(...chainOf(def, type).map((n) => MOVES[n].reach)) + reachBonus(def, type);
 // Farthest centre-to-centre distance at which an Attacker's punch blast can still land.
@@ -675,6 +873,7 @@ function startMove(f: Fighter, def: FighterDef, type: "attack" | "kick", forced?
   f.action = type;
   f.t = 0;
   f.landed = false;
+  f.draw = false;
   f.hitN = 0;
   f.buffer = null;
   const mv = MOVES[f.move];
@@ -682,6 +881,67 @@ function startMove(f: Fighter, def: FighterDef, type: "attack" | "kick", forced?
     f.vy = -mv.hop;
     f.vx = f.facing * mv.lunge * 1.4;
     f.grounded = false;
+  }
+}
+
+// The per-tick part of a boss's passive: recharging, counting stillness, the weapon swap, the blink, the ruled lines.
+function bossTick(m: Match, f: Fighter, opp: Fighter, passive: PassiveId) {
+  const pv = f.pv;
+  const lo = ARENA.wall + BODY.w / 2, hi = ARENA.w - ARENA.wall - BODY.w / 2;
+  switch (passive) {
+    case "afterimage":
+      pv.cd = Math.max(0, (pv.cd ?? 0) - 1);
+      break;
+    case "heat-stacks":
+      if ((pv.heat ?? 0) > 0 && --pv.heatT <= 0) pv.heat = 0; // heat fades after 90 ticks without a landed hit
+      break;
+    case "sheathed-draw":
+      // Still: idle and not walking. (f.moving still holds last tick's value here.) Any step or swing starts the count over.
+      pv.still = f.action === "idle" && !f.moving && f.grounded ? (pv.still ?? 0) + 1 : f.action === "idle" ? 0 : (pv.still ?? 0);
+      if (f.action === "attack" || f.action === "kick") pv.still = 0;
+      break;
+    case "whiteout-guard":
+      if ((pv.cracks ?? 0) > 0 && --pv.crackT <= 0) pv.cracks = 0;
+      break;
+    case "pencil-case":
+      if ((pv.swap ?? 0) > 0) {
+        if (--pv.swap === 0) pv.weapon = ((pv.weapon ?? 0) + 1) % WEAPON_CLASS.length;
+      } else if (++pv.timer >= 480) {
+        pv.timer = 0;
+        pv.swap = 50;
+      }
+      break;
+    case "infinite-margin": {
+      if ((pv.shimmer ?? 0) > 0) {
+        if (--pv.shimmer === 0) {
+          // The blink: across the page, away from the nearer wall.
+          f.x = Math.min(hi, Math.max(lo, opp.x + (opp.x < ARENA.w / 2 ? 600 : -600)));
+          f.vx = 0;
+          pv.cd = 300;
+          pv.near = 0;
+        }
+      } else if ((pv.cd ?? 0) > 0) pv.cd--;
+      else if (Math.abs(opp.x - f.x) < 110) {
+        // Total time spent crowding it, not a streak: it blinks after 90 ticks.
+        if (++pv.near >= 90) pv.shimmer = 18;
+      }
+      break;
+    }
+    case "curse-marks":
+      // One mark fades every 120 ticks without a new one.
+      if (opp.marks > 0 && ++opp.markT >= 120) {
+        opp.marks--;
+        opp.markT = 0;
+      }
+      break;
+    case "red-margin-lines":
+      // Phase 2: every 240 ticks a ruled line is drawn where the player stands and cuts 45 ticks later.
+      if (opp.marks > 0 && ++opp.markT >= 120) {
+        opp.marks--;
+        opp.markT = 0;
+      }
+      if (m.phaseT > 0 && m.phaseT % 240 === 0) m.hazards.push({ id: m.nextId++, x: opp.x, w: 40, left: 45, max: 45, dmg: 12, owner: f.slot, kind: "line" });
+      break;
   }
 }
 
@@ -716,6 +976,7 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
     emit(m, { type: "skill", by: f.slot, kind: def.skill });
   }
   if (canAct && f.status) tickStatus(m, f);
+  if (canAct && def.passive) bossTick(m, f, opp, def.passive);
   f.t++;
   // Tempo: a fast fighter's punch/kick sometimes skips a tick, a slow one's sometimes holds.
   if (f.action === "attack" || f.action === "kick") {
@@ -741,12 +1002,12 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
     const mv = MOVES[f.move];
     const x1 = f.x + f.facing * (BODY.w / 2);
     // A shoved-back attacker (tank block) doesn't lunge forward again.
-    if (f.t >= mv.from && f.t <= mv.to && f.grounded && !(f.landed && f.vx * f.facing < 0)) f.vx = f.facing * mv.lunge;
+    if (f.t >= mv.from && f.t <= mv.to && f.grounded && !(f.landed && f.vx * f.facing < 0)) f.vx = f.facing * mv.lunge * (f.draw ? 3 : 1); // Sheathed Draw: a dash
     const chain = chainOf(def, type);
     const inChain = chain[f.combo] === f.move; // not an air, directional or mix move
     const finisher = f.mix || (inChain && chain.length > 1 && f.combo === chain.length - 1);
-    const reach = mv.reach + reachBonus(def, type);
-    const power = mv.mult * chainPower(def, type) * (finisher ? 1.15 : 1);
+    const reach = mv.reach + reachBonus(def, type, traitCls(m, f));
+    const power = mv.mult * chainPower(def, type) * (finisher ? 1.15 : 1) * (f.draw ? 1.5 : 1);
     if (mv.dive && f.t === mv.from && !f.grounded) {
       f.vx = f.facing * mv.dive[0];
       f.vy = Math.max(f.vy, mv.dive[1]);
@@ -778,6 +1039,10 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
           dmg: def.magic * power * TRAIT.BLAST_MULT, // a poke: safe at range, so it hurts less than the fist
           life: Math.ceil(BLAST.range / BLAST.speed),
         });
+        // Royal Pride (boss): below 40% health every blast is followed by a second one 8 ticks later.
+        if (prideful(m, f)) {
+          m.projectiles.push({ id: m.nextId++, owner: f.slot, kind: "blast", x: x1 + f.facing * 10, y: f.y - BODY.h * 0.6, vx: f.facing * BLAST.speed, r: BLAST.r, dmg: def.magic * power * TRAIT.BLAST_MULT, life: Math.ceil(BLAST.range / BLAST.speed), delay: 8 });
+        }
       }
     }
     // A press after the hit frames is buffered, so the chain flows without frame-perfect timing.
@@ -789,6 +1054,21 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
       f.comboT = last ? 0 : COMBO_WINDOW;
       f.crossT = COMBO_WINDOW;
       f.cooldown = last ? def.cooldown : Math.round(def.cooldown * 0.3);
+      if (f.draw) f.cooldown += 12; // a Sheathed Draw leaves the swordsman open
+      f.draw = false;
+      if (def.passive === "endless-dance" && inChain && last) {
+        // Endless Dance: a finished chain whose last blow landed clean starts over with no rest, twice at most; a blocked blow stalls it.
+        if (f.landed && f.pv.last === 1 && !f.pv.stop && (f.pv.restarts ?? 0) < 2 && canAct) {
+          f.pv.restarts = (f.pv.restarts ?? 0) + 1;
+          f.cooldown = 0;
+          f.comboT = COMBO_WINDOW;
+          f.facing = opp.x >= f.x ? 1 : -1;
+          startMove(f, def, type);
+        } else {
+          if (f.pv.stop) f.cooldown += 12;
+          f.pv.restarts = f.pv.stop = f.pv.last = 0;
+        }
+      }
       if (f.buffer && canAct && !last) {
         const next = f.buffer;
         f.cooldown = 0;
@@ -800,7 +1080,7 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
   }
   if (f.action === "special") updateSpecial(m, f, opp);
 
-  if (f.action === "idle" && canAct) {
+  if (f.action === "idle" && canAct && !swapping(m, f)) {
     f.facing = opp.x >= f.x ? 1 : -1;
     f.blocking = input.block && f.grounded;
     const toward = (input.right ? 1 : 0) - (input.left ? 1 : 0) === f.facing;
@@ -808,6 +1088,11 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
       startMove(f, def, "kick", "sweep"); // down+K: a low sweep that goes under a guard
     } else if (attackP && f.cooldown === 0 && !f.blocking) {
       startMove(f, def, "attack");
+      // Sheathed Draw (boss): after standing still for 20 ticks the next chain opener is a dashing draw-cut.
+      if (def.passive === "sheathed-draw" && (f.pv.still ?? 0) >= 20 && f.combo === 0) {
+        f.draw = true;
+        f.pv.still = 0;
+      }
     } else if (kickP && f.cooldown === 0 && f.grounded && toward && f.comboT === 0) {
       startMove(f, def, "kick", "roundhouse"); // toward+K opens with a roundhouse
     } else if (kickP && f.cooldown === 0 && !f.blocking) {
@@ -838,7 +1123,7 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
   }
 
   // Physics
-  if (!canAct || f.action === "hit" || f.action === "ko" || ((f.action === "attack" || f.action === "kick") && f.grounded)) f.vx *= 0.85;
+  if (!canAct || f.action === "hit" || f.action === "ko" || ((f.action === "attack" || f.action === "kick") && f.grounded) || swapping(m, f)) f.vx *= 0.85;
   f.vy += GRAVITY;
   f.x += f.vx;
   f.y += f.vy;
@@ -861,7 +1146,9 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
   }
 }
 
-function separate(a: Fighter, b: Fighter) {
+function separate(m: Match, a: Fighter, b: Fighter) {
+  // A dash_slash passes through its target.
+  for (const f of [a, b]) if (f.action === "special" && kindOf(m, f) === "dash_slash" && f.t >= 9 && f.t <= 19) return;
   const dx = b.x - a.x;
   const overlapX = BODY.w * 0.8 - Math.abs(dx);
   const vertical = Math.abs(a.y - b.y) < BODY.h * 0.6;
@@ -879,7 +1166,7 @@ function strikeBox(m: Match, f: Fighter): [number, number, number, number] | nul
   const mv = MOVES[f.move];
   if (f.t + 1 < mv.from || f.t + 1 > mv.to) return null;
   const x1 = f.x + f.facing * (BODY.w / 2);
-  return [x1, x1 + f.facing * (mv.reach + reachBonus(m.defs[f.slot], f.action)), f.y - BODY.h * mv.top, f.y - BODY.h * mv.bot];
+  return [x1, x1 + f.facing * (mv.reach + reachBonus(m.defs[f.slot], f.action, traitCls(m, f))), f.y - BODY.h * mv.top, f.y - BODY.h * mv.bot];
 }
 
 // Limb clash: two strikes that reach each other in the same tick cancel out (before, slot 0 always won the trade).
@@ -897,8 +1184,14 @@ function clash(m: Match, a: Fighter, b: Fighter) {
 
 function resetRound(m: Match) {
   const [a, b] = m.fighters;
+  // A boss starts every round in its first form.
+  if (m.boss) {
+    m.defs[m.boss.slot] = m.boss.base;
+    m.boss.phase = 1;
+  }
   m.fighters = [spawn(0, m.defs[0], a.seen), spawn(1, m.defs[1], b.seen)];
   m.projectiles = [];
+  m.hazards = [];
   m.round++;
   m.timer = ROUND_TICKS;
   m.phase = "intro";
@@ -937,18 +1230,32 @@ export function step(m: Match, inputs: [Input, Input]) {
     const v = m.fighters[1 - f.slot];
     if (v.locked && !(f.action === "special" && f.ult)) releaseLock(m, f, v, null);
   }
-  separate(a, b);
+  separate(m, a, b);
 
   for (const p of m.projectiles) {
+    if (p.delay) {
+      p.delay--; // a Royal Pride follow-up blast hasn't left yet
+      continue;
+    }
     p.x += p.vx;
     const target = m.fighters[1 - p.owner];
     const blast = p.kind === "blast"; // a light hit: no super-flash, no element
     if (overlaps(p.x - p.r, p.x + p.r, p.y - p.r, p.y + p.r, target)) {
-      applyHit(m, m.fighters[p.owner], target, p.dmg, { knock: blast ? 5 : 9, launch: p.kind === "orb" ? 5 : p.kind === "wave" ? 9 : 0, special: !blast, ult: p.ult, proj: true, at: { x: p.x, y: p.y } });
+      applyHit(m, m.fighters[p.owner], target, p.dmg, { knock: blast ? 5 : 9, launch: p.kind === "orb" ? 5 : p.kind === "wave" ? 9 : 0, special: !blast, ult: p.ult, proj: true, pull: p.kind === "pull", at: { x: p.x, y: p.y } });
       p.x = -9999; // consumed
     } else if (--p.life <= 0) p.x = -9999; // blast ran out of range
   }
   m.projectiles = m.projectiles.filter((p) => p.x > -100 && p.x < ARENA.w + 100);
+
+  // Timed cuts land where they were drawn: a ruled line only hurts someone standing on it, a remote detonation anyone in the column.
+  for (const h of m.hazards) {
+    if (--h.left > 0) continue;
+    const target = m.fighters[1 - h.owner];
+    if (m.phase === "fight" && overlaps(h.x - h.w / 2, h.x + h.w / 2, target.y - BODY.h, target.y, target) && (h.kind === "cut" || target.grounded)) {
+      applyHit(m, m.fighters[h.owner], target, h.dmg, { knock: 4, special: true, ult: h.ult, proj: true, at: { x: h.x, y: target.y - BODY.h * 0.55 } });
+    }
+  }
+  m.hazards = m.hazards.filter((h) => h.left > 0);
 
   if (m.phase === "fight") {
     m.timer--;
@@ -969,7 +1276,9 @@ export function step(m: Match, inputs: [Input, Input]) {
 }
 
 // What goes over the wire (defs/seen are server-only details).
-export type Snapshot = Omit<Match, "defs" | "nextId" | "fighters"> & {
+export type Snapshot = Omit<Match, "defs" | "nextId" | "fighters" | "boss"> & {
+  passives: [PassiveId | null, PassiveId | null]; // dungeon bosses only
+  bossPhase?: 1 | 2;
   fighters: [Omit<Fighter, "seen">, Omit<Fighter, "seen">];
   maxHp: [number, number];
   specials: [SpecialKind, SpecialKind];
@@ -995,6 +1304,9 @@ export function snapshot(m: Match): Snapshot {
     matchWinner: m.matchWinner,
     roundReason: m.roundReason,
     projectiles: m.projectiles,
+    hazards: m.hazards,
+    passives: [m.defs[0].passive ?? null, m.defs[1].passive ?? null],
+    ...(m.boss && { bossPhase: m.boss.phase }),
     events: m.events,
     damage: m.damage,
     freeze: m.freeze,
@@ -1025,6 +1337,7 @@ export function resumeMatch(s: Snapshot, a: FighterStats, b: FighterStats, input
     roundReason: s.roundReason,
     damage: [...s.damage],
     projectiles: s.projectiles.map((p) => ({ ...p })),
+    hazards: (s.hazards ?? []).map((h) => ({ ...h })),
     events: [],
   });
   m.fighters = [0, 1].map((i) => ({ ...s.fighters[i], seen: { jump: inputs[i].jump, attack: inputs[i].attack, kick: inputs[i].kick, special: inputs[i].special, skill: inputs[i].skill } })) as [Fighter, Fighter];

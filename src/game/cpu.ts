@@ -8,14 +8,16 @@ export type Level = "easy" | "normal" | "hard";
 
 // skill: how often it uses its side skill when the moment comes. ult: how often it saves its meter for the
 // ultimate (100) instead of spending half on slot 1 (50).
-const LEVELS: Record<Level, { react: number; block: number; aggro: number; dodge: number; think: number; skill: number; ult: number }> = {
+export type Knobs = { react: number; block: number; aggro: number; dodge: number; think: number; skill: number; ult: number };
+const LEVELS: Record<Level, Knobs> = {
   easy: { react: 24, block: 0.15, aggro: 0.35, dodge: 0.2, think: 14, skill: 0, ult: 0.2 },
   normal: { react: 14, block: 0.42, aggro: 0.6, dodge: 0.5, think: 8, skill: 0.5, ult: 0.4 },
   hard: { react: 7, block: 0.72, aggro: 0.85, dodge: 0.8, think: 4, skill: 1, ult: 0.5 },
 };
 
 // How close it must be before a special is worth throwing: ranged ones from afar, the rest up close.
-const specialRange = (kind: SpecialKind) => (SPECIAL_INFO[kind].ranged ? 650 : kind === "teleport" ? 400 : kind === "meteor" || kind === "spiral" ? 300 : 170);
+const RANGE: Partial<Record<SpecialKind, number>> = { teleport: 400, meteor: 300, spiral: 300, shatter: 110, counter: 170, dash_slash: 260, pull: 330, remote_detonation: 480 };
+const specialRange = (kind: SpecialKind) => RANGE[kind] ?? (SPECIAL_INFO[kind].ranged ? 650 : 170);
 
 // How often a sword steps back after a chain. Every time makes a slow class unable to ever reach it
 // (Sword vs Mace 64%); never throws its reach away (32%). Tuned with scripts/balance.ts.
@@ -32,14 +34,18 @@ export type CpuBrain = {
   retreatUntil: number;
   stepBack: boolean | null; // after this chain, step back out of range? (rolled once per chain, null between chains)
   skillUse: number; // chance to use the side skill when the moment comes (scripts/balance.ts sets 0 to price a skill)
+  knobs?: Partial<Knobs>; // a dungeon boss's own knobs over its level's (src/game/dungeon.ts)
   ultUse: number; // chance that it saves up for the ultimate (scripts/balance.ts sets 1 / 0 to price the ultimate)
   saving: boolean; // rolled after every special: this meter goes to the ultimate, slot 1 stays unused
 };
 
-export const newBrain = (level: Level): CpuBrain => ({ level, tick: 0, history: [], blockUntil: 0, nextThink: 0, reactedTo: "", guardFor: "", retreatUntil: 0, stepBack: null, skillUse: LEVELS[level].skill, ultUse: LEVELS[level].ult, saving: Math.random() < LEVELS[level].ult });
+export const newBrain = (level: Level, knobs?: Partial<Knobs>): CpuBrain => {
+  const ult = knobs?.ult ?? LEVELS[level].ult;
+  return { level, tick: 0, history: [], blockUntil: 0, nextThink: 0, reactedTo: "", guardFor: "", retreatUntil: 0, stepBack: null, skillUse: knobs?.skill ?? LEVELS[level].skill, ultUse: ult, saving: Math.random() < ult, knobs };
+};
 
 export function cpuThink(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
-  const L = LEVELS[brain.level];
+  const L = brain.knobs ? { ...LEVELS[brain.level], ...brain.knobs } : LEVELS[brain.level];
   const me = m.fighters[slot];
   const op = m.fighters[1 - slot];
   // Hit-stop and slow-motion ticks don't advance the sim, so they don't advance the CPU either:
@@ -113,13 +119,15 @@ export function cpuThink(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
 
   // Specials as soon as they're useful: the ultimate (S + L) with a full meter, slot 1 from half a meter unless
   // it is saving up. Teleport and meteor reach from mid-range; the rest need to be close.
-  if (me.energy >= ULT_COST && me.grounded && dist < specialRange(myDef.ult) && Math.random() < L.aggro) {
+  // A counter stance is only worth taking when a swing is coming; a grab needs them on the ground.
+  const worth = (kind: SpecialKind) => (kind === "counter" ? (op.action === "attack" || op.action === "kick") && dist < opReach : kind === "shatter" ? op.grounded : true);
+  if (me.energy >= ULT_COST && me.grounded && dist < specialRange(myDef.ult) && worth(myDef.ult) && Math.random() < L.aggro) {
     input.block = true;
     input.special++;
     brain.saving = Math.random() < brain.ultUse;
     return;
   }
-  if (me.energy >= SLOT1_COST && !brain.saving && dist < specialRange(myDef.special) && Math.random() < L.aggro) {
+  if (me.energy >= SLOT1_COST && !brain.saving && dist < specialRange(myDef.special) && worth(myDef.special) && Math.random() < L.aggro) {
     input.special++;
     brain.saving = Math.random() < brain.ultUse;
     return;

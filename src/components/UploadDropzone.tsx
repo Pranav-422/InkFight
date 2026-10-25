@@ -3,7 +3,8 @@
 import { Camera, ImageUp, Loader2, RotateCcw, RotateCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { SIDE_SKILLS, SKILL_INFO, SPECIAL_INFO, SPECIAL_KINDS, STYLE_INFO, STYLES, type SideSkill, type SpecialKind, type Style } from "@/game/moves";
+import { specialChoices, ultChoices } from "@/game/dungeon";
+import { SIDE_SKILLS, SKILL_INFO, SPECIAL_INFO, STYLE_INFO, STYLES, type SideSkill, type SpecialKind, type Style } from "@/game/moves";
 import { cleanDrawing, ITEMS, measureDrawing, type Item, type Measured } from "@/game/sprite";
 import { classFromItems, ELEMENTS, suggestElement, type Element } from "@/lib/stats";
 import { MovePreview, type Demo } from "./MovePreview";
@@ -28,7 +29,8 @@ const LOADING_LINES = [
   "Writing some light trash talk…",
 ];
 
-export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; returnTo?: string }) {
+// cleared: Dungeon floors this player has beaten (which special kinds and variants they may pick).
+export function UploadDropzone({ returnRoom, returnTo, cleared = 0 }: { returnRoom?: string; returnTo?: string; cleared?: number }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -45,7 +47,10 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
   // Correction panel: explicit choices beat the AI. "" = let the AI decide.
   const [itemPicked, setItemPicked] = useState(false);
   const [style, setStyle] = useState<Style | "">("");
-  const [special, setSpecial] = useState<SpecialKind | "">("");
+  const [specialId, setSpecialId] = useState(""); // "" = the AI picks; a kind, or a variant id ("v3")
+  const choices = specialChoices(cleared);
+  const chosen = choices.find((c) => c.id === specialId);
+  const special = chosen?.kind ?? "";
   const [ult, setUlt] = useState<SpecialKind | "">("");
   const [skill, setSkill] = useState<SideSkill | "">("");
   const [element, setElement] = useState<Element | "">("");
@@ -102,6 +107,7 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
       if (itemPicked && facts) body.append("pick_item", facts.item);
       if (style) body.append("pick_style", style);
       if (special) body.append("pick_special", special);
+      if (chosen?.variant) body.append("pick_variant", chosen.variant.id);
       if (ult) body.append("pick_ult", ult);
       if (skill) body.append("pick_skill", skill);
       if (element) body.append("pick_element", element);
@@ -280,17 +286,17 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
             <label className="grid gap-1">
               <span className="text-xs font-semibold uppercase tracking-wider text-muted">Special move (L)</span>
               <select
-                value={special}
+                value={specialId}
                 onChange={(e) => {
-                  setSpecial(e.target.value as SpecialKind | "");
+                  setSpecialId(e.target.value);
                   if (e.target.value) setDemo((d) => ({ kind: "special", n: d.n + 1 }));
                 }}
                 className="rounded-lg bg-paper px-2 py-1.5 ring-1 ring-line"
               >
                 <option value="">Auto: AI picks and names it</option>
-                {SPECIAL_KINDS.map((k) => (
-                  <option key={k} value={k}>
-                    {k}: {SPECIAL_INFO[k].looks}
+                {choices.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}: {c.how}
                   </option>
                 ))}
               </select>
@@ -306,9 +312,9 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
                 className="rounded-lg bg-paper px-2 py-1.5 ring-1 ring-line"
               >
                 <option value="">Auto: AI picks and names it</option>
-                {SPECIAL_KINDS.map((k) => (
+                {ultChoices(cleared).map((k) => (
                   <option key={k} value={k}>
-                    {k}: {SPECIAL_INFO[k].looks}
+                    {k.replace("_", " ")}: {SPECIAL_INFO[k].looks}
                   </option>
                 ))}
               </select>
@@ -350,7 +356,7 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
           {demo.n > 0 && preview && (
             <MovePreview
               className="mt-3"
-              fighter={{ imageUrl: preview, rotation: turn, class: classFromItems(facts && facts.item !== "nothing" ? [facts.item] : []), style: style || null, specialKind: special || null, ultKind: ult || null, sideSkill: skill || null }}
+              fighter={{ imageUrl: preview, rotation: turn, class: classFromItems(facts && facts.item !== "nothing" ? [facts.item] : []), style: style || null, specialKind: special || null, ultKind: ult || null, element: chosen?.variant?.element ?? (element || null), sideSkill: skill || null }}
               demo={demo}
             />
           )}

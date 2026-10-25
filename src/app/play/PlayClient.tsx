@@ -67,6 +67,9 @@ export function PlayClient() {
           <Link href="/play/cpu" className="rounded-xl bg-hit px-5 py-3 font-semibold text-white hover:brightness-110">
             Vs computer
           </Link>
+          <Link href="/play/dungeon" className="rounded-xl bg-white px-5 py-3 font-semibold text-ink hover:brightness-95">
+            The Dungeon
+          </Link>
         </div>
       </section>
     </div>
