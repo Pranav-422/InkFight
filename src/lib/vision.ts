@@ -177,7 +177,9 @@ async function callClaude(image: Buffer, mediaType: MediaType) {
 // A busy (503/429), slow or unavailable-to-this-key (404) model falls through to the next.
 const GEMINI_MODELS = [...new Set([GEMINI_MODEL, "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3-flash-preview"])];
 
-async function callGemini(image: Buffer, mediaType: MediaType) {
+// deadline: the whole analysis gets ~20 s, then the offline generator takes over (4 models x 25 s x 2 attempts
+// once kept a player staring at "Analyzing..." for minutes).
+async function callGemini(image: Buffer, mediaType: MediaType, deadline: number) {
   const schema = JSON.stringify(z.toJSONSchema(VisionSchema));
   const body = JSON.stringify({
     system_instruction: { parts: [{ text: `${SYSTEM}\n\nReply with only a JSON object matching this JSON Schema:\n${schema}` }] },
@@ -192,12 +194,17 @@ async function callGemini(image: Buffer, mediaType: MediaType) {
   let res: Response | null = null;
   let busy = "";
   for (const model of GEMINI_MODELS) {
+    const left = deadline - Date.now();
+    if (left < 1500) {
+      busy += "out of time; ";
+      break;
+    }
     try {
       res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY! },
         body,
-        signal: AbortSignal.timeout(25_000),
+        signal: AbortSignal.timeout(Math.min(12_000, left)),
       });
     } catch (err) {
       if (err instanceof Error && err.name === "TimeoutError") {
@@ -330,9 +337,10 @@ export async function analyzeDrawing(image: Buffer, mediaType: MediaType, facts:
   if (!ai) return offlineAnalysis(image, "Offline mode: name and special are generated, stats come from your drawing's measurements.", facts, picks);
 
   let lastError: unknown;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  const deadline = Date.now() + 20_000;
+  for (let attempt = 0; attempt < 2 && Date.now() < deadline - 1500; attempt++) {
     try {
-      const v = ai === "gemini" ? await callGemini(image, mediaType) : await callClaude(image, mediaType);
+      const v = ai === "gemini" ? await callGemini(image, mediaType, deadline) : await callClaude(image, mediaType);
       const seen = v.detected_items.map((i) => i.toLowerCase());
       const element = picks.element ?? v.element ?? suggestElement(facts?.colors ?? v.detected_features.dominant_colors, facts?.penWidth);
       const items = picks.item ? itemList({ item: picks.item } as DrawingFacts) : seen.length || !facts ? seen : itemList(facts);

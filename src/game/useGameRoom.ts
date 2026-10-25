@@ -18,8 +18,8 @@ const TICK_MS = 1000 / TICK_HZ;
 const POLL_MS = 1200;
 const CONNECT_TIMEOUT_MS = 20000;
 
-// ICE servers: NEXT_PUBLIC_ICE_SERVERS (JSON array) wins; falls back to Google + Cloudflare STUN.
-// In dev, append ?relay=1 to the URL to force iceTransportPolicy:"relay" and test TURN paths.
+// ICE servers: NEXT_PUBLIC_ICE_SERVERS (JSON array) wins; falls back to Google + Cloudflare STUN. TURN relays
+// (for networks that block a direct link) come from /api/turn. ?relay=1 forces the relay, to test it.
 const ICE_SERVERS: RTCIceServer[] = (() => {
   try {
     const custom = process.env.NEXT_PUBLIC_ICE_SERVERS;
@@ -28,9 +28,11 @@ const ICE_SERVERS: RTCIceServer[] = (() => {
   return [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302", "stun:stun.cloudflare.com:3478"] }];
 })();
 
-function iceConfig(): RTCConfiguration {
+let turn: Promise<RTCIceServer[]> | null = null; // fetched once per page: the credentials last a day
+async function iceConfig(): Promise<RTCConfiguration> {
+  turn ??= api<{ iceServers?: RTCIceServer[] }>("/api/turn").then((r) => r.iceServers ?? [], () => []);
   const relay = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("relay") === "1";
-  return { iceServers: ICE_SERVERS, ...(relay ? { iceTransportPolicy: "relay" as RTCIceTransportPolicy } : {}) };
+  return { iceServers: [...ICE_SERVERS, ...(await turn)], ...(relay ? { iceTransportPolicy: "relay" as RTCIceTransportPolicy } : {}) };
 }
 
 type RoomInfo = {
@@ -301,7 +303,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
           broadcast(notice);
         }
 
-        pc = new RTCPeerConnection(iceConfig());
+        pc = new RTCPeerConnection(await iceConfig());
         const thisPc = pc;
         ctl = pc.createDataChannel("ctl", { ordered: true });
         game = pc.createDataChannel("game", { ordered: false, maxRetransmits: 0 });
@@ -368,7 +370,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
             await thisPc.setRemoteDescription({ type: "answer", sdp: info.answer });
             setTimeout(() => {
               if (gen === generation && ctl?.readyState !== "open") {
-                void open("Couldn't connect to your friend directly (their network may block peer-to-peer). Ask them to try again, ideally on Wi-Fi.");
+                void open("Couldn't reach your friend's device: one of your networks blocks direct connections. Ask them to try again.");
               }
             }, CONNECT_TIMEOUT_MS);
           }
@@ -386,7 +388,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
     // --------------------------------------------------------------- guest
     async function guest(info: RoomInfo) {
       if (!info.offer) return setError("That room isn't open yet. Ask your friend to create it again.");
-      const pc = new RTCPeerConnection(iceConfig());
+      const pc = new RTCPeerConnection(await iceConfig());
       let ctl: RTCDataChannel | null = null;
       let game: RTCDataChannel | null = null;
       cleanups.push(() => pc.close());
@@ -474,7 +476,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
       // Guest reconnects to the returned host and hands the current match snapshot over.
       async function rejoinHost(r: RoomInfo) {
         if (!r.offer || cancelled) return;
-        const newPc = new RTCPeerConnection(iceConfig());
+        const newPc = new RTCPeerConnection(await iceConfig());
         cleanups.push(() => newPc.close());
         let newCtl: RTCDataChannel | null = null;
         let newGame: RTCDataChannel | null = null;
@@ -545,10 +547,14 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
         }
         // reqsync is answered only by a guest that took over the fight (see rejoinHost); a normal guest ignores it.
       };
+      let opened = false; // the link came up at least once
       pc.ondatachannel = (e) => {
         if (e.channel.label === "ctl") {
           ctl = e.channel;
-          ctl.onopen = () => setStatus("Connected");
+          ctl.onopen = () => {
+            opened = true;
+            setStatus("Connected");
+          };
         } else game = e.channel;
         e.channel.onmessage = (ev) => onHostMessage(ev.data);
       };
@@ -561,7 +567,8 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
         if (cancelled || taken) return;
         const st = pc.connectionState;
         if (st === "failed" || st === "closed") {
-          if (!takeOver()) setError("Lost the connection to the host.");
+          // Never connected at all: that's a blocked network, not a dropped host.
+          if (!takeOver()) setError(opened ? "Lost the connection to the host." : "Couldn't reach your friend's device: one of your networks blocks direct connections. Try again in a moment.");
         } else if (st === "disconnected") {
           // Often recovers on its own; if not, keep the fight going without the host.
           setTimeout(() => !cancelled && pc.connectionState === "disconnected" && takeOver(), 4000);
@@ -587,7 +594,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
       setStatus("Connecting directly to your friend…");
       setTimeout(() => {
         if (!cancelled && ctl?.readyState !== "open") {
-          setError("Couldn't connect to your friend directly. One of your networks may block peer-to-peer — try both on the same Wi-Fi.");
+          setError("Couldn't reach your friend's device: one of your networks blocks direct connections. Try again in a moment.");
         }
       }, CONNECT_TIMEOUT_MS);
     }

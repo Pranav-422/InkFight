@@ -518,7 +518,8 @@ function propSide(ink: (x: number, y: number) => boolean, w: number, h: number, 
     const d = Math.hypot(hand.x - j.shoulder.x, hand.y - j.shoulder.y) || 1, k = Math.min(1, (bh * 0.36) / d);
     return { x: j.shoulder.x + (hand.x - j.shoulder.x) * k, y: j.shoulder.y + (hand.y - j.shoulder.y) * k };
   });
-  const sides: Vec[][] = [[], []];
+  const sides: Vec[][] = [[], []]; // extra ink per side: not head, spine, upper arm or the arm stroke
+  const reach: Vec[][] = [[], []]; // the same but keeping the arm stroke: what a held item connects through
   for (let y = 0; y < Math.min(h, j.hip.y); y++) {
     for (let x = 0; x < w; x++) {
       if (!ink(x, y)) continue;
@@ -526,13 +527,32 @@ function propSide(ink: (x: number, y: number) => boolean, w: number, h: number, 
       if (Math.abs(x - j.shoulder.x) < band && y > j.head.y) continue; // spine
       if (Math.hypot(x - j.shoulder.x, y - j.shoulder.y) < bh * 0.22) continue; // upper arms
       const i = x < j.shoulder.x ? 0 : 1;
+      reach[i].push({ x, y });
       if (distToSeg({ x, y }, j.shoulder, reachOf[i]) < stroke * 2.2) continue; // the arm itself
       sides[i].push({ x, y });
     }
   }
-  const i = sides[0].length > sides[1].length ? 0 : 1;
-  if (sides[i].length < bh * 0.16 * stroke) return null; // shorter than a sixth of the body: just a hand
-  return { pts: sides[i], ...arms[i], shoulder: j.shoulder, stroke };
+  // A held item touches the hand: keep only the extra ink connected (through the forearm) to the hand.
+  // Ink that merely sits off to one side, like a cap's brim, hair or a stray mark, used to become a "prop"
+  // floating by the hand. (The hand found on the ink can be a blade's tip, so both ends seed the search.)
+  const held = sides.map((pts, k) => {
+    const key = (x: number, y: number) => y * w + x;
+    const left = new Set(reach[k].map((p) => key(p.x, p.y)));
+    const near = Math.max(stroke * 3, bh * 0.06);
+    const queue = reach[k].filter((p) => Math.min(Math.hypot(p.x - reachOf[k].x, p.y - reachOf[k].y), Math.hypot(p.x - arms[k].hand.x, p.y - arms[k].hand.y)) < near);
+    for (const p of queue) left.delete(key(p.x, p.y));
+    for (let q = 0; q < queue.length; q++) {
+      const { x, y } = queue[q];
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+        if (left.delete(key(x + dx, y + dy))) queue.push({ x: x + dx, y: y + dy });
+      }
+    }
+    const linked = new Set(queue.map((p) => key(p.x, p.y)));
+    return pts.filter((p) => linked.has(key(p.x, p.y)));
+  });
+  const i = held[0].length > held[1].length ? 0 : 1;
+  if (held[i].length < bh * 0.16 * stroke) return null; // shorter than a sixth of the body: just a hand
+  return { pts: held[i], ...arms[i], shoulder: j.shoulder, stroke };
 }
 
 function distToSeg(p: Vec, a: Vec, b: Vec) {

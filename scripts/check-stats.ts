@@ -68,6 +68,9 @@ type Line = (x0: number, y0: number, x1: number, y1: number) => void;
 
 assert.equal(figure().item, "nothing");
 assert.equal(figure((l) => l(195, 175, 265, 85)).item, "sword");
+// Ink that doesn't touch the hand is not a held item: a cap's brim off the head, or a stray mark.
+assert.equal(figure((l) => l(172, 52, 205, 50)).item, "nothing", "a cap brim became an item");
+assert.equal(figure((l) => l(240, 60, 262, 72)).item, "nothing", "a stray mark became an item");
 const shield = figure((l) => {
   for (let a = 0; a < Math.PI * 2; a += 0.05) l(225 + Math.cos(a) * 35, 165 + Math.sin(a) * 50, 225 + Math.cos(a + 0.05) * 35, 165 + Math.sin(a + 0.05) * 50);
 });
