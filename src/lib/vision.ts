@@ -57,6 +57,9 @@ export function hasApiKey(): boolean {
 }
 
 const Point = z.object({ x: z.number(), y: z.number() });
+// Optional on purpose: a reply without them still gives the joints, and old drawings have none.
+const HeadBox = z.object({ x: z.number(), y: z.number(), r: z.number() }).describe("The drawn head only (no hat, hair, horns or shading): centre as fractions of the image, radius r as a fraction of the image's longer side");
+const ItemBox = z.object({ x0: z.number(), y0: z.number(), x1: z.number(), y1: z.number() }).nullable().describe("Bounding box of the held item as fractions of the image (left, top, right, bottom), or null when the hands are empty");
 
 const VisionSchema = z.object({
   name: z.string().describe("A short, punchy fighter name inspired by the drawing"),
@@ -97,6 +100,8 @@ const VisionSchema = z.object({
     left_foot: Point,
     right_knee: Point,
     right_foot: Point,
+    head_box: HeadBox.optional(),
+    item_box: ItemBox.optional(),
   }),
 });
 
@@ -143,6 +148,8 @@ ${STYLES.map((s) => `  - ${s}: ${STYLE_INFO[s].blurb}`).join("\n")}
 - a one-line flavor text, playful trash-talk tone, under 90 characters
 - which edge of the image the head points toward (the drawing may be sideways in the photo)
 - the pose: where the figure's head center, shoulder (where the arms meet the body), hip (where the legs meet the body), both elbows, hands, knees and feet are, as fractions of the whole image (x from the left edge, y from the top edge). "left"/"right" mean the image's left/right side. If a joint isn't drawn (stick arms have no elbow), give the midpoint of that limb. The head center is the middle of the drawn head or face circle itself: ignore hats, caps, hair, horns, crowns and scribbled shading around it. A hand is where the arm stroke ends (where it grips an item), never the far tip of a sword, staff or bow it holds. Marks that aren't part of the figure (stray lines, letters, shading) are not joints
+- inside the pose, head_box: the drawn head alone as a circle, x and y its centre and r its radius, with r as a fraction of the image's LONGER side (a head 60 px wide in a 1000 px wide image is r 0.03). Draw it around the head circle or face outline only: leave out hats, hair, horns, crowns, scribbled shading and anything held next to it
+- inside the pose, item_box: the tight bounding box of the item the figure holds (sword, staff, mace, shield, book, bow), x0/y0 the top-left and x1/y1 the bottom-right corner as fractions of the image, covering the item's whole length including its tip. null if the hands are empty. Don't include the arm or hand itself beyond where it grips
 If the image is not a drawing of a character, still do your best with whatever is drawn.`;
 
 type MediaType = "image/jpeg" | "image/png" | "image/webp" | "image/gif";
@@ -271,10 +278,37 @@ function build(
 }
 
 // Keep only plausible keypoints (all inside the image, feet below the head).
-function validPose(p: PoseKeypoints): PoseKeypoints | null {
-  const pts = Object.values(p);
+export function validPose(p: PoseKeypoints): PoseKeypoints | null {
+  const { head_box, item_box, ...joints } = p;
+  const pts = Object.values(joints);
   const inside = pts.every((q) => q.x >= -0.05 && q.x <= 1.05 && q.y >= -0.05 && q.y <= 1.05);
-  return inside ? p : null; // orientation is handled by head_points → rotation
+  if (!inside) return null; // orientation is handled by head_points → rotation
+  // The boxes are extras: one that doesn't fit its joints is dropped and the sprite falls back to the joints alone.
+  const head = validHeadBox(head_box, joints.head);
+  const item = validItemBox(item_box, [joints.left_hand, joints.right_hand]);
+  return { ...joints, ...(head && { head_box: head }), ...(item && { item_box: item }) };
+}
+
+type HeadBoxT = NonNullable<PoseKeypoints["head_box"]>;
+type ItemBoxT = NonNullable<PoseKeypoints["item_box"]>;
+
+// A head circle: a plausible size (1%-20% of the longer side) sitting on the head joint.
+function validHeadBox(b: PoseKeypoints["head_box"], head: { x: number; y: number }): HeadBoxT | null {
+  if (!b || ![b.x, b.y, b.r].every(Number.isFinite)) return null;
+  if (b.r < 0.01 || b.r > 0.2) return null;
+  if (b.x < 0 || b.x > 1 || b.y < 0 || b.y > 1) return null;
+  return Math.hypot(b.x - head.x, b.y - head.y) <= Math.max(0.05, b.r * 2) ? b : null;
+}
+
+// An item box: a real rectangle inside the image, smaller than the figure's page, with a hand at or next to it.
+function validItemBox(b: PoseKeypoints["item_box"], hands: { x: number; y: number }[]): ItemBoxT | null {
+  if (!b || ![b.x0, b.y0, b.x1, b.y1].every(Number.isFinite)) return null;
+  const x0 = Math.max(0, Math.min(b.x0, b.x1)), x1 = Math.min(1, Math.max(b.x0, b.x1));
+  const y0 = Math.max(0, Math.min(b.y0, b.y1)), y1 = Math.min(1, Math.max(b.y0, b.y1));
+  const area = (x1 - x0) * (y1 - y0);
+  if (area < 0.0005 || area > 0.5) return null;
+  const near = hands.some((h) => h.x > x0 - 0.08 && h.x < x1 + 0.08 && h.y > y0 - 0.08 && h.y < y1 + 0.08);
+  return near ? { x0, y0, x1, y1 } : null;
 }
 
 const itemList = (f: DrawingFacts) => (f.item === "nothing" ? [] : [f.item]);

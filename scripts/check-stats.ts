@@ -1,7 +1,7 @@
 // Self-check for "stats come from the drawing": npx tsx scripts/check-stats.ts
 
 import assert from "node:assert/strict";
-import { measureInk } from "../src/game/sprite";
+import { boxesFromPose, headSpecks, measureInk } from "../src/game/sprite";
 import { BUDGET, classFromItems, clampStats, featuresFromMeasurements, HP, ruleStats, STAT_CAPS, suggestElement, type StatKey } from "../src/lib/stats";
 
 const thin = featuresFromMeasurements({ fill: 0.05, aspect: 0.35, stance: 0.2, armSpread: 0.3 }, ["black"]);
@@ -92,6 +92,64 @@ assert.equal(suggestElement(["black"], thinFig.penWidth), "ELECTRIC", "thin blac
 
 console.log("check-stats: all good", { bare: figure(), shield: shield.item, thickW: thickFig.penWidth, thinW: thinFig.penWidth });
 
+// Scribbled head: a 2 px face outline with two eyes and a mouth, plus loose specks and a hatch of thin parallel
+// strokes. The cleanup must drop the specks and the hatching and keep the outline, eyes and mouth.
+{
+  const N = 64, a = new Uint8Array(N * N);
+  const dot = (x: number, y: number, r = 0) => { for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) a[(y + dy) * N + x + dx] = 255; };
+  for (let t = 0; t < 360; t += 1) dot(Math.round(32 + 28 * Math.cos((t * Math.PI) / 180)), Math.round(32 + 28 * Math.sin((t * Math.PI) / 180)));
+  const face = [[22, 26], [42, 26]];
+  for (const [x, y] of face) dot(x, y, 2); // eyes (5x5 blobs)
+  for (let x = 24; x <= 40; x++) dot(x, 42); // mouth: one thin stroke
+  const specks = [[10, 30], [54, 20], [30, 8], [46, 52], [18, 50]];
+  for (const [x, y] of specks) dot(x, y); // single pixels
+  const hatch: number[][] = [];
+  for (let k = 0; k < 5; k++) for (let i = 0; i <= 6; i++) hatch.push([18 + k * 6 + i, 12 + i]); // 5 parallel diagonals above the eyes
+  for (const [x, y] of hatch) a[y * N + x] = 255;
+  const before = a.filter((v) => v).length;
+  const drop = headSpecks(a, N, N);
+  const kept = (x: number, y: number) => !drop[y * N + x];
+  assert.ok(specks.every(([x, y]) => !kept(x, y)), "specks are dropped");
+  assert.ok(hatch.every(([x, y]) => !kept(x, y)), "parallel hatching is dropped");
+  assert.ok(kept(60, 32) && kept(32, 4) && kept(32, 60), "the outline stays");
+  assert.ok(face.every(([x, y]) => kept(x, y)) && kept(32, 42), "eyes and mouth stay");
+  assert.ok(drop.reduce((n, v) => n + v, 0) < before * 0.4);
+  // A clean face is left alone, and so is a face with only two brows and a mouth (fewer than four strokes).
+  const clean = new Uint8Array(N * N);
+  for (let t = 0; t < 360; t++) clean[Math.round(32 + 28 * Math.sin((t * Math.PI) / 180)) * N + Math.round(32 + 28 * Math.cos((t * Math.PI) / 180))] = 255;
+  for (const [x0, y0, x1] of [[18, 20, 28], [36, 20, 46], [24, 44, 40]]) for (let x = x0; x <= x1; x++) clean[y0 * N + x] = 255;
+  assert.equal(headSpecks(clean, N, N).reduce((n, v) => n + v, 0), 0, "brows and a mouth are not shading");
+}
+// Hatching that starts at the outline is part of the outline's blob; it still goes (inside the ring), the outline stays.
+{
+  const N = 64, a = new Uint8Array(N * N), ring: number[] = [], strokes: number[] = [];
+  for (let t = 0; t < 720; t++) {
+    const x = Math.round(32 + 28 * Math.cos((t * Math.PI) / 360)), y = Math.round(32 + 28 * Math.sin((t * Math.PI) / 360));
+    a[y * N + x] = 255;
+    ring.push(y * N + x);
+  }
+  for (const deg of [200, 215, 230, 245, 260]) {
+    const x0 = Math.round(32 + 28 * Math.cos((deg * Math.PI) / 180)), y0 = Math.round(32 + 28 * Math.sin((deg * Math.PI) / 180));
+    for (let i = 3; i <= 14; i++) {
+      a[(y0 + i) * N + x0 + i] = 255;
+      if (Math.hypot(x0 + i - 32, y0 + i - 32) < 21) strokes.push((y0 + i) * N + x0 + i);
+    }
+  }
+  const drop = headSpecks(a, N, N);
+  assert.ok(strokes.length > 20 && strokes.every((q) => drop[q]), "hatching inside the face is dropped");
+  assert.ok(ring.every((q) => !drop[q]), "the outline stays");
+}
+// Boxes from the pose JSON land in cut-out pixels; malformed ones are ignored, so joints-only poses work as before.
+{
+  const toSprite = (v: { x: number; y: number }) => ({ x: v.x * 200 - 10, y: v.y * 400 - 20 });
+  const both = boxesFromPose({ head_box: { x: 0.5, y: 0.1, r: 0.05 }, item_box: { x0: 0.8, y0: 0.5, x1: 0.6, y1: 0.2 } }, toSprite, 400);
+  assert.deepEqual(both.headBox, { x: 90, y: 20, r: 20 });
+  assert.deepEqual(both.itemBox, { x0: 110, y0: 60, x1: 150, y1: 180 }); // corners given in the wrong order are fixed
+  assert.deepEqual(boxesFromPose({ head_box: { x: "a", y: 0, r: 1 }, item_box: null }, toSprite, 400), { headBox: null, itemBox: null });
+  assert.deepEqual(boxesFromPose({}, toSprite, 400), { headBox: null, itemBox: null });
+  assert.deepEqual(boxesFromPose(null, toSprite, 400), { headBox: null, itemBox: null });
+}
+
 // Gemini path, with a canned API reply (no network, no key needed).
 async function checkGemini() {
   process.env.GEMINI_API_KEY = "test-key";
@@ -103,7 +161,7 @@ async function checkGemini() {
     special_move: { kind: "beam", name: "Ink-ame-hameha", description: "A beam the width of the page" },
     ultimate: { kind: "spiral", name: "Great Spiral Notebook", description: "Spins until the page runs out" },
     fighting_style: "Systema", flavor_text: "Reads the rules, then ignores them.", head_points: "up",
-    pose: Object.fromEntries(["head", "shoulder", "hip", "left_elbow", "left_hand", "right_elbow", "right_hand", "left_knee", "left_foot", "right_knee", "right_foot"].map((k) => [k, { x: 0.5, y: 0.5 }])),
+    pose: { ...Object.fromEntries(["head", "shoulder", "hip", "left_elbow", "left_hand", "right_elbow", "right_hand", "left_knee", "left_foot", "right_knee", "right_foot"].map((k) => [k, { x: 0.5, y: 0.5 }])), head_box: { x: 0.5, y: 0.52, r: 0.05 }, item_box: { x0: 0.45, y0: 0.3, x1: 0.55, y1: 0.7 } } as Record<string, unknown>,
   };
   let sent: { url: string; body: { generationConfig: { responseMimeType: string } } } | null = null;
   globalThis.fetch = (async (url: string, init: RequestInit) => {
@@ -113,6 +171,18 @@ async function checkGemini() {
   const { analyzeDrawing } = await import("../src/lib/vision");
   const a = await analyzeDrawing(Buffer.from("img"), "image/png", null);
   assert.equal(a.breakdown.source, "gemini");
+  // The two boxes ride along in the stored pose; a box that doesn't fit its joints is dropped, the joints stay.
+  assert.deepEqual(a.pose?.head_box, { x: 0.5, y: 0.52, r: 0.05 });
+  assert.deepEqual(a.pose?.item_box, { x0: 0.45, y0: 0.3, x1: 0.55, y1: 0.7 });
+  reply.pose.head_box = { x: 0.1, y: 0.9, r: 0.05 }; // nowhere near the head joint
+  reply.pose.item_box = { x0: 0.0, y0: 0.0, x1: 0.1, y1: 0.1 }; // nowhere near a hand
+  const stray = await analyzeDrawing(Buffer.from("img"), "image/png", null);
+  assert.ok(stray.pose && !stray.pose.head_box && !stray.pose.item_box && stray.pose.head.x === 0.5);
+  reply.pose.head_box = { x: 0.5, y: 0.52, r: 0.05 };
+  reply.pose.item_box = { x0: 0.45, y0: 0.3, x1: 0.55, y1: 0.7 };
+  delete (reply.pose as Record<string, unknown>).item_box; // a reply without the extras still works
+  assert.ok((await analyzeDrawing(Buffer.from("img"), "image/png", null)).pose?.head_box);
+  reply.pose.item_box = { x0: 0.45, y0: 0.3, x1: 0.55, y1: 0.7 };
   assert.equal(a.specialKind, "beam");
   assert.equal(a.style, "Systema");
   assert.equal(a.class, "Attacker"); // class still comes from the item rule
