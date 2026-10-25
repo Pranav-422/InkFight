@@ -1,7 +1,7 @@
 import { rateLimit, tooMany } from "@/lib/rateLimit";
 import { getSession, isAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { isStale } from "@/lib/rooms";
+import { isStale, relayKey } from "@/lib/rooms";
 
 export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/answer">) {
   const s = await getSession();
@@ -26,5 +26,5 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/an
     data: { guestUserId: s.userId, guestFighterId: fighterId, answer },
   });
   if (claimed.count === 0) return Response.json({ error: "Room's full. Two's a fight, three's a crowd." }, { status: 409 });
-  return Response.json({ ok: true });
+  return Response.json({ ok: true, relay: relayKey(code, room.offer) });
 }

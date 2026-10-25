@@ -4,22 +4,32 @@
 // WebRTC offer/answer (via /api/rooms); after that the two browsers talk directly.
 // The room creator's browser is the host: it runs the authoritative simulation
 // and streams snapshots to the guest, exactly like a game server would.
+// When the direct link can't come up (blocked networks), both sides fall back to a
+// Supabase Realtime channel (relay.ts) and carry on over it. Receive from every link,
+// send on the best open one.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientMsg, HostMsg, Lobby, LobbyPlayer, PublicFighter } from "./protocol";
 import { cpuThink, newBrain } from "./cpu";
+import { openRelay, relayConfigured, type Relay } from "./relay";
 import { createMatch, EMPTY_INPUT, resumeMatch, snapshot, step, TICK_HZ, type Input, type Match, type Snapshot } from "./sim";
 
 export type { Lobby };
-export type SnapBuffer = { prev: Snapshot | null; cur: Snapshot | null; at: number };
+// span: ms between prev and cur (one tick unless the snapshots came over the relay).
+export type SnapBuffer = { prev: Snapshot | null; cur: Snapshot | null; at: number; span?: number };
 
-const SNAPSHOT_EVERY = 1; // 60/s: every tick, so motion is smooth on the guest too
 const TICK_MS = 1000 / TICK_HZ;
 const POLL_MS = 1200;
 const CONNECT_TIMEOUT_MS = 20000;
+const RELAY_AFTER_MS = 5000; // no direct link this long after the answer: try the relay
+// 15 snapshots/s over the relay, interpolated on the guest. Supabase Free allows 100 messages/s per project
+// (sent + delivered), so one relayed fight costs ~45/s with the input heartbeat.
+const RELAY_SNAP_EVERY = 4;
+const relayTopic = (code: string, key: string) => `inkfight:${code}:${key}`;
 
 // ICE servers: NEXT_PUBLIC_ICE_SERVERS (JSON array) wins; falls back to Google + Cloudflare STUN. TURN relays
-// (for networks that block a direct link) come from /api/turn. ?relay=1 forces the relay, to test it.
+// (for networks that block a direct link) come from /api/turn. ?relay=1 forces TURN; with no TURN set up the
+// direct link can't form at all, which tests the Supabase fallback.
 const ICE_SERVERS: RTCIceServer[] = (() => {
   try {
     const custom = process.env.NEXT_PUBLIC_ICE_SERVERS;
@@ -73,6 +83,9 @@ function gatherIce(pc: RTCPeerConnection, ms = 3000): Promise<void> {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const SWITCHED = "You logged into a different account in another tab, and this tab now uses it too. Reload the page. To play against yourself, open the second account in an incognito window or another browser.";
+const NO_LINK = relayConfigured
+  ? "Couldn't reach your friend's device, even through the relay. Check both connections and try again."
+  : "Couldn't reach your friend's device: one of your networks blocks direct connections. Try again in a moment.";
 const OTHER_TAB = "This room is already open in another tab of this browser. To play against yourself, open the second account in an incognito window or another browser.";
 
 // Same-browser tabs share one login, so two tabs can't be two different players.
@@ -117,9 +130,9 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
     if (!fighterId) return;
     let cancelled = false;
     const cleanups: (() => void)[] = [];
-    const pushSnap = (s: Snapshot) => {
+    const pushSnap = (s: Snapshot, span?: number) => {
       const b = snaps.current;
-      snaps.current = { prev: b.cur, cur: s, at: performance.now() };
+      snaps.current = { prev: b.cur, cur: s, at: performance.now(), span };
       if (s.phase === "matchEnd") setMatchOver(s);
     };
 
@@ -169,13 +182,19 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
       let ctl: RTCDataChannel | null = null;
       let game: RTCDataChannel | null = null;
       let pc: RTCPeerConnection | null = null;
+      let relay: Relay | null = null;
       let generation = 0;
 
+      const sendCtl = (m: HostMsg) => {
+        const s = JSON.stringify(m);
+        if (ctl?.readyState === "open") ctl.send(s);
+        else relay?.send(s);
+      };
       const lp = (s: Seat | null): LobbyPlayer | null => (s ? { ...s.fighter, ready: s.ready, rematch: s.rematch } : null);
       const broadcast = (notice?: string) => {
         const players: Lobby["players"] = [lp(seats[0]), lp(seats[1])];
         setLobby({ code, you: 0, players, status, notice });
-        if (ctl?.readyState === "open") ctl.send(JSON.stringify({ t: "lobby", lobby: { code, you: 1, players, status, notice } } satisfies HostMsg));
+        sendCtl({ t: "lobby", lobby: { code, you: 1, players, status, notice } });
       };
       const stopLoop = () => {
         if (loop) clearInterval(loop);
@@ -218,13 +237,16 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
             if (g.away) cpuThink(m, 1, brain, stand);
             step(m, [seats[0].input, g.away ? stand : g.input]);
             tick++;
-            if (tick % SNAPSHOT_EVERY === 0 || m.phase === "matchEnd") {
-              const s = snapshot(m);
-              pushSnap(s);
-              seq++;
-              if (game?.readyState === "open") game.send(JSON.stringify({ t: "snap", s, n: seq } satisfies HostMsg));
+            const s = snapshot(m);
+            pushSnap(s);
+            // Every tick (60/s) on the direct link; fewer over the relay. Events survive skipped ticks (sim keeps the last 16).
+            const direct = game?.readyState === "open";
+            if (direct || tick % RELAY_SNAP_EVERY === 0 || m.phase === "matchEnd") {
+              const msg = JSON.stringify({ t: "snap", s, n: ++seq } satisfies HostMsg);
+              if (direct) game!.send(msg);
+              else relay?.send(msg);
               // The final frame also goes over the reliable channel so the guest surely sees the result.
-              if (m.phase === "matchEnd" && ctl?.readyState === "open") ctl.send(JSON.stringify({ t: "snap", s, n: seq } satisfies HostMsg));
+              if (m.phase === "matchEnd" && ctl?.readyState === "open") ctl.send(msg);
             }
             if (m.phase === "matchEnd") {
               stopLoop();
@@ -287,6 +309,8 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
       async function open(notice?: string) {
         const gen = ++generation;
         pc?.close();
+        relay?.close();
+        relay = null;
         const rejoin = status === "playing" && !!match && !!seats[1];
         if (rejoin) {
           seats[1]!.away = true;
@@ -305,13 +329,18 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
 
         pc = new RTCPeerConnection(await iceConfig());
         const thisPc = pc;
+        let linked = false; // the guest is reachable, directly or over the relay
+        let relaying = false;
+        let key = ""; // relay topic secret for this offer, from the server
+        const lost = () => `Lost ${seats[1]?.fighter.name ?? "the opponent"}. Waiting…`;
         ctl = pc.createDataChannel("ctl", { ordered: true });
         game = pc.createDataChannel("game", { ordered: false, maxRetransmits: 0 });
         ctl.onmessage = (e) => onGuestMessage(e.data);
         game.onmessage = (e) => onGuestMessage(e.data);
-        ctl.onopen = () => {
-          if (gen !== generation) return;
-          setStatus("Connected");
+        const onLinked = (via: string) => {
+          if (gen !== generation || linked) return;
+          linked = true;
+          setStatus(via);
           if (seats[1]?.away) {
             seats[1].away = false;
             seats[1].input = { ...EMPTY_INPUT };
@@ -320,24 +349,37 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
             broadcast(`${seats[1]?.fighter.name ?? "A challenger"} has entered the arena!`);
             // Ask the guest for its current match state. If the guest has been running
             // the fight after the host dropped, it replies with a `sync` and we resume.
-            ctl!.send(JSON.stringify({ t: "reqsync" } satisfies HostMsg));
+            sendCtl({ t: "reqsync" });
           }
         };
+        ctl.onopen = () => onLinked("Connected");
+        // The direct link failed or never came up: meet the guest on the relay. Its silence = the guest dropped.
+        const startRelay = async () => {
+          if (relaying || !relayConfigured || !key || gen !== generation) return;
+          relaying = true;
+          const r = await openRelay(relayTopic(code, key), () => onLinked("Connected (via relay)"), onGuestMessage, () => {
+            if (gen === generation && ctl?.readyState !== "open") void open(lost());
+          });
+          if (gen !== generation) return r.close();
+          relay = r;
+        };
         thisPc.onconnectionstatechange = () => {
-          if (gen !== generation || cancelled) return;
+          if (gen !== generation || cancelled || relay?.up) return; // on the relay, the direct link doesn't matter
           const st = thisPc.connectionState;
-          if (st === "failed" || st === "closed") {
+          if (st === "failed" && !linked && relayConfigured) {
+            void startRelay();
+          } else if (st === "failed" || st === "closed") {
             void open(seats[1] ? `${seats[1].fighter.name} disconnected. Waiting for a new challenger…` : undefined);
           } else if (st === "disconnected") {
             // Often recovers on its own; give it a few seconds.
-            setTimeout(() => gen === generation && thisPc.connectionState === "disconnected" && void open(`Lost ${seats[1]?.fighter.name ?? "the opponent"}. Waiting…`), 5000);
+            setTimeout(() => gen === generation && thisPc.connectionState === "disconnected" && !relay?.up && void open(lost()), 5000);
           }
         };
 
         await thisPc.setLocalDescription(await thisPc.createOffer());
         await gatherIce(thisPc);
         if (cancelled || gen !== generation) return;
-        const res = await api(`/api/rooms/${code}`, {
+        const res = await api<{ relay?: string }>(`/api/rooms/${code}`, {
           method: "POST",
           body: JSON.stringify({ fighterId, offer: thisPc.localDescription!.sdp, keepGuest: rejoin }),
         });
@@ -350,6 +392,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
           return;
         }
         if (res.status !== 200) return setError(res.error ?? "Couldn't open the room.");
+        key = res.relay ?? "";
         setStatus("Waiting for a challenger…");
 
         // Poll for the guest's answer.
@@ -368,10 +411,9 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
             broadcast(`${(rejoin ? seats[1]! : { fighter: info.guestFighter }).fighter.name} is connecting…`);
             setStatus(`Connecting to ${info.guestFighter.name}…`);
             await thisPc.setRemoteDescription({ type: "answer", sdp: info.answer });
+            setTimeout(() => !linked && void startRelay(), RELAY_AFTER_MS);
             setTimeout(() => {
-              if (gen === generation && ctl?.readyState !== "open") {
-                void open("Couldn't reach your friend's device: one of your networks blocks direct connections. Ask them to try again.");
-              }
+              if (gen === generation && !linked) void open(NO_LINK);
             }, CONNECT_TIMEOUT_MS);
           }
         }
@@ -381,6 +423,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
         generation++;
         stopLoop();
         pc?.close();
+        relay?.close();
       });
       await open();
     }
@@ -391,19 +434,28 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
       const pc = new RTCPeerConnection(await iceConfig());
       let ctl: RTCDataChannel | null = null;
       let game: RTCDataChannel | null = null;
-      cleanups.push(() => pc.close());
+      let relay: Relay | null = null;
+      cleanups.push(() => {
+        pc.close();
+        relay?.close();
+      });
       let lastSeq = 0;
       // Jitter buffer: network packets arrive in clumps, so hold ~3 snapshots (50 ms) and
       // play them out one per tick. The view moves at a steady 60/s instead of stuttering.
+      // Over the relay a snapshot covers RELAY_SNAP_EVERY ticks: hold 2 and interpolate across each.
       const queue: Snapshot[] = [];
       let primed = false;
+      let ticks = 0;
       const playout = setInterval(() => {
-        if (!primed && queue.length < 3) return;
+        const every = game?.readyState !== "open" && relay?.up ? RELAY_SNAP_EVERY : 1;
+        const depth = every > 1 ? 2 : 3;
+        if (++ticks % every) return;
+        if (!primed && queue.length < depth) return;
         primed = queue.length > 0;
         // Fallen behind (tab was busy)? Skip ahead rather than lag further.
-        while (queue.length > 6) queue.shift();
+        while (queue.length > depth * 2) queue.shift();
         const s = queue.shift();
-        if (s) pushSnap(s);
+        if (s) pushSnap(s, every * TICK_MS);
       }, TICK_MS);
       cleanups.push(() => clearInterval(playout));
       let lobbyNow: Lobby | null = null;
@@ -548,13 +600,26 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
         // reqsync is answered only by a guest that took over the fight (see rejoinHost); a normal guest ignores it.
       };
       let opened = false; // the link came up at least once
+      let relaying = false;
+      let key = ""; // relay topic secret, from the server once our answer claims the seat
+      const linked = (via: string) => {
+        opened = true;
+        setStatus(via);
+      };
+      // The direct link failed or never came up: meet the host on the relay. Its silence = the host left.
+      const startRelay = async () => {
+        if (relaying || !relayConfigured || !key || cancelled) return;
+        relaying = true;
+        relay = await openRelay(relayTopic(code, key), () => linked("Connected (via relay)"), onHostMessage, () => {
+          if (cancelled || taken || ctl?.readyState === "open") return;
+          if (!takeOver()) setError("Lost the connection to the host.");
+        });
+        if (cancelled) relay.close();
+      };
       pc.ondatachannel = (e) => {
         if (e.channel.label === "ctl") {
           ctl = e.channel;
-          ctl.onopen = () => {
-            opened = true;
-            setStatus("Connected");
-          };
+          ctl.onopen = () => linked("Connected");
         } else game = e.channel;
         e.channel.onmessage = (ev) => onHostMessage(ev.data);
       };
@@ -562,16 +627,19 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
         if (msg.t === "input") lastInput = msg.input;
         const ch = msg.t === "input" ? game : ctl;
         if (ch?.readyState === "open") ch.send(JSON.stringify(msg));
+        else relay?.send(JSON.stringify(msg));
       };
       pc.onconnectionstatechange = () => {
-        if (cancelled || taken) return;
+        if (cancelled || taken || relay?.up) return; // on the relay, the direct link doesn't matter
         const st = pc.connectionState;
-        if (st === "failed" || st === "closed") {
+        if (st === "failed" && !opened && relayConfigured) {
+          void startRelay();
+        } else if (st === "failed" || st === "closed") {
           // Never connected at all: that's a blocked network, not a dropped host.
-          if (!takeOver()) setError(opened ? "Lost the connection to the host." : "Couldn't reach your friend's device: one of your networks blocks direct connections. Try again in a moment.");
+          if (!takeOver()) setError(opened ? "Lost the connection to the host." : NO_LINK);
         } else if (st === "disconnected") {
           // Often recovers on its own; if not, keep the fight going without the host.
-          setTimeout(() => !cancelled && pc.connectionState === "disconnected" && takeOver(), 4000);
+          setTimeout(() => !cancelled && pc.connectionState === "disconnected" && !relay?.up && takeOver(), 4000);
         }
       };
 
@@ -580,7 +648,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
       await pc.setLocalDescription(await pc.createAnswer());
       await gatherIce(pc);
       if (cancelled) return;
-      const res = await api<{ retry?: boolean }>(`/api/rooms/${code}/answer`, {
+      const res = await api<{ retry?: boolean; relay?: string }>(`/api/rooms/${code}/answer`, {
         method: "POST",
         body: JSON.stringify({ fighterId, answer: pc.localDescription!.sdp, version: info.version }),
       });
@@ -591,11 +659,11 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
         return;
       }
       if (res.status !== 200) return setError(res.error ?? "Couldn't join the room.");
+      key = res.relay ?? "";
       setStatus("Connecting directly to your friend…");
+      setTimeout(() => !opened && void startRelay(), RELAY_AFTER_MS);
       setTimeout(() => {
-        if (!cancelled && ctl?.readyState !== "open") {
-          setError("Couldn't reach your friend's device: one of your networks blocks direct connections. Try again in a moment.");
-        }
+        if (!cancelled && !opened) setError(NO_LINK);
       }, CONNECT_TIMEOUT_MS);
     }
 

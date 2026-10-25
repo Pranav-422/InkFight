@@ -229,7 +229,7 @@ export function GameCanvas({ snaps, players, you, onInput, onExit, children }: P
     let lastBuzz = 0;
     const frame = (now: number) => {
       pollGamepad();
-      const { prev, cur, at } = snaps.current;
+      const { prev, cur, at, span } = snaps.current;
       if (cur) {
         // A short buzz when your hit lands (phones that vibrate).
         for (const e of cur.events) {
@@ -238,7 +238,7 @@ export function GameCanvas({ snaps, players, you, onInput, onExit, children }: P
           if (e.type === "hit" && e.by === you && !e.blocked) buzz(e.special ? 40 : 20);
         }
         renderer.ingest(cur, hud);
-        renderer.draw(prev, cur, Math.min(1, (now - at) / SNAP_MS), hud, now);
+        renderer.draw(prev, cur, Math.min(1, (now - at) / (span ?? SNAP_MS)), hud, now);
       }
       raf = requestAnimationFrame(frame);
     };

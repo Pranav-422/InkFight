@@ -2,7 +2,7 @@ import { ROOM_CODE } from "@/game/protocol";
 import { rateLimit, tooMany } from "@/lib/rateLimit";
 import { buffOn, getSession, isAdmin, sessionBuff } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { isStale, publicFighter } from "@/lib/rooms";
+import { isStale, publicFighter, relayKey } from "@/lib/rooms";
 
 // Room state for signaling. Polled by both peers while connecting.
 export async function GET(_req: Request, ctx: RouteContext<"/api/rooms/[code]">) {
@@ -66,5 +66,5 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]">)
     // Two people created the same code at once: the loser becomes the guest.
     return Response.json({ error: "Someone else is hosting this room." }, { status: 409 });
   }
-  return Response.json({ ok: true });
+  return Response.json({ ok: true, relay: relayKey(code, offer) });
 }

@@ -4,9 +4,9 @@ For a coding agent (Claude Code cloud session on Sonnet, high effort, or agy). T
 the hand-off checklist in `docs/tasks/next-sprints.md` apply unchanged: a branch per part, docs in
 `docs/changes/sprint-6-<part>.md` with the gate output pasted, never push to `main`, never deploy.
 
-Sprint 5 part 2 (dungeon passives, phase 2, new specials) is running on `sprint-5-part2` and edits
-`src/game/sim.ts`, `src/game/moves.ts`, `src/game/cpu.ts` heavily. The parts below stay out of those files
-unless the part says otherwise, so they can run in parallel. Branch from `main`.
+Sprints 2-5 are merged into `main`. The main session is working on online play (Supabase Realtime fallback in
+`src/game/useGameRoom.ts`, `src/game/relay.ts`, `src/app/api/rooms/**`): stay out of those files. Branch each part
+from the latest `main`. Parts 6a-6d can start now, in that order; 6e and 6f wait for the owner's designs.
 
 ## 6a. Sound (branch `sprint-6-sound`)
 
@@ -33,8 +33,8 @@ unless the part says otherwise, so they can run in parallel. Branch from `main`.
 - Admin "Re-cut" also re-cuts cut-outs stored white before Sprint 4, once (mark done rows, e.g. by the new
   file name, so it doesn't loop).
 - The S + L ultimate press is lost during hit-stun while the side skill press is queued; queue it the same
-  way (`skillQ` in sim.ts). (This one touches sim.ts: keep the change to that one spot and say so in the
-  docs; or leave it to sprint-5-part2 if that branch already did it.)
+  way (`skillQ` in sim.ts). (This one touches sim.ts: keep the change to that one spot, add an assert to
+  `scripts/check-sim.ts`, run the balance gate, and say so in the docs.)
 - The phone SKILL touch button and the new ULT gesture were never tried on a real phone: test with Chrome
   DevTools device mode + touch emulation (the repo has no harness; describe what you did).
 

@@ -1,10 +1,16 @@
 import "server-only";
+import { createHmac } from "node:crypto";
 import type { Character, Room } from "@prisma/client";
 import type { PublicFighter } from "@/game/protocol";
 
 export const ROOM_TTL_MS = 3 * 60 * 60 * 1000;
 
 export const isStale = (r: Room) => Date.now() - r.updatedAt.getTime() > ROOM_TTL_MS;
+
+// Secret part of the Supabase relay topic (src/game/relay.ts). Given to the host for its offer and to the
+// guest whose answer claimed the seat; the offer itself is readable by anyone logged in, the HMAC isn't.
+export const relayKey = (code: string, offer: string) =>
+  createHmac("sha256", process.env.AUTH_SECRET!).update(`relay:${code}:${offer}`).digest("base64url").slice(0, 24);
 
 // buff: the seat's player is an admin with the buff on (decided on the server, never sent by a client).
 export function publicFighter(c: Character, buff = false): PublicFighter {
