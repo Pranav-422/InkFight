@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { createHash } from "crypto";
 import { z } from "zod";
-import { CLASS_SPECIAL_POOL, CLASS_STYLE, CLASS_ULT, SPECIAL_INFO, SPECIAL_KINDS, SPECIAL_NAMES, STYLE_INFO, STYLES, ULT_NAMES, type SpecialKind, type Style } from "@/game/moves";
+import { BASE_KINDS, CLASS_SPECIAL_POOL, CLASS_STYLE, CLASS_ULT, SPECIAL_INFO, SPECIAL_NAMES, STYLE_INFO, STYLES, ULT_NAMES, type SpecialKind, type Style } from "@/game/moves";
 import {
   blendStats,
   CLASSES,
@@ -39,7 +39,7 @@ function pickSpecial(p: Picks, ai: { kind: SpecialKind; name: string; descriptio
 type Named = { kind: SpecialKind; name: string; description: string };
 function pickUlt(p: Picks, ai: Named | undefined, slot1: SpecialKind, cls: CharacterClass, roll: number): Named {
   const want = p.ult ?? ai?.kind;
-  const kind = want && (p.ult || want !== slot1) ? want : slot1 !== CLASS_ULT[cls] ? CLASS_ULT[cls] : (CLASS_SPECIAL_POOL[cls] ?? SPECIAL_KINDS).find((k) => k !== slot1) ?? "meteor";
+  const kind = want && (p.ult || want !== slot1) ? want : slot1 !== CLASS_ULT[cls] ? CLASS_ULT[cls] : (CLASS_SPECIAL_POOL[cls] ?? BASE_KINDS).find((k) => k !== slot1) ?? "meteor";
   if (ai && kind === ai.kind) return ai;
   const [name, description] = ULT_NAMES[kind][roll % ULT_NAMES[kind].length];
   return { kind, name, description };
@@ -70,13 +70,13 @@ const VisionSchema = z.object({
   }),
   stats: z.object({ hp: z.number(), atk: z.number(), def: z.number(), spd: z.number(), agi: z.number(), iq: z.number() }),
   special_move: z.object({
-    kind: z.enum(SPECIAL_KINDS).describe("Which special-move building block fits this fighter"),
+    kind: z.enum(BASE_KINDS).describe("Which special-move building block fits this fighter"),
     name: z.string(),
     description: z.string(),
   }),
   ultimate: z
     .object({
-      kind: z.enum(SPECIAL_KINDS).describe("A different building block from special_move: the finisher this fighter saves up for"),
+      kind: z.enum(BASE_KINDS).describe("A different building block from special_move: the finisher this fighter saves up for"),
       name: z.string(),
       description: z.string(),
     })
@@ -135,7 +135,7 @@ Look only at what is actually drawn. Report:
 - size of the figure relative to the page (small/medium/large), pose (aggressive/defensive/neutral), and dominant ink colors
 - proposed stats. Every fighter has HP 200 (put 200). Split the rest between STR (physical damage), DUR (damage taken), SPD (walking and combo speed), AGI (jump / air control / recovery) and IQ (energy gain and magic damage), each 40-100, about 350 in total: bulky/armored → more DUR, big weapon or spiky → more STR, thin/small/dynamic → more SPD/AGI, smart/magical → more IQ. They are rebalanced to exactly 350
 - a special move. First pick its kind, the one that best matches the drawing's vibe:
-${SPECIAL_KINDS.map((k) => `  - ${k}: ${SPECIAL_INFO[k].looks}`).join("\n")}
+${BASE_KINDS.map((k) => `  - ${k}: ${SPECIAL_INFO[k].looks}`).join("\n")}
   Then name it like an over-the-top anime finisher that only THIS drawing could have: riff on something specific you see (the hair, a scribble, a hat, the item, the ink colour, the paper). Puns, fake-Japanese-sounding names and homages to famous anime moves are welcome (e.g. "Ink-ame-hameha", "Scribble-gan"), but make it fresh, never a straight copy. Description: one vivid sentence of what it looks like
 - an ultimate: a second, bigger finisher the fighter saves a full meter for. It grabs the opponent and pounds them before launching them. Pick its kind from the same list but NOT the same kind as the special move, name it even more over-the-top ("... Final", "... Apocalypse", "... Overdrive"), and give a one-sentence description
 - a fighting style, from how the figure stands and what it looks like. Read the cues: fists up or arms forward → Boxing; long legs, a leg raised, tall and thin → Taekwondo; wide low stance, knees bent, bulky → Muay Thai; neat straight lines, upright and calm → Karate; messy, scribbly, wild or rough → Street; loose, relaxed, odd or tricky pose → Systema. Don't default to Karate; pick what the drawing really suggests:

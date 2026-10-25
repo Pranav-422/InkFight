@@ -4,8 +4,16 @@
 
 import { normClass } from "../lib/stats";
 
-export const SPECIAL_KINDS = ["bolt", "arrow", "orb", "slash", "charge", "uppercut", "beam", "spiral", "wave", "teleport", "barrage", "meteor"] as const;
+// The twelve building blocks everyone starts with (the AI and the offline generator pick only from these), and the five
+// the dungeon unlocks: UNLOCK_FLOOR is the floor whose boss you copy each one from (src/game/dungeon.ts).
+export const BASE_KINDS = ["bolt", "arrow", "orb", "slash", "charge", "uppercut", "beam", "spiral", "wave", "teleport", "barrage", "meteor"] as const;
+export const UNLOCK_KINDS = ["shatter", "counter", "dash_slash", "pull", "remote_detonation"] as const;
+export const SPECIAL_KINDS = [...BASE_KINDS, ...UNLOCK_KINDS] as const;
 export type SpecialKind = (typeof SPECIAL_KINDS)[number];
+export type UnlockKind = (typeof UNLOCK_KINDS)[number];
+export const UNLOCK_FLOOR: Record<UnlockKind, number> = { shatter: 2, counter: 4, dash_slash: 6, pull: 8, remote_detonation: 10 };
+// The floor that must be cleared before a kind can be picked (0: free).
+export const kindFloor = (kind: string): number => UNLOCK_FLOOR[kind as UnlockKind] ?? 0;
 
 // how: shown on the character page. looks: tells Claude what the move is, so it can name it.
 export const SPECIAL_INFO: Record<SpecialKind, { how: string; looks: string; ranged: boolean }> = {
@@ -21,6 +29,11 @@ export const SPECIAL_INFO: Record<SpecialKind, { how: string; looks: string; ran
   teleport: { how: "vanishes and strikes from behind", looks: "a vanish-and-reappear-behind strike", ranged: false },
   barrage: { how: "unloads a rapid flurry of punches, then a finisher", looks: "a rapid-fire punch flurry (ora-ora style)", ranged: false },
   meteor: { how: "leaps up and crashes down feet-first, with a shockwave", looks: "a leaping dive kick that craters the ground", ranged: false },
+  shatter: { how: "grabs at close range: can't be blocked, but misses anyone in the air", looks: "an open-hand grab that crumples the target", ranged: false },
+  counter: { how: "takes a stance: a melee hit in the first 0.4 s does nothing and is answered for 1.5x damage", looks: "a calm parry stance and a sharp answer", ranged: false },
+  dash_slash: { how: "dashes straight through the opponent with one slash and ends up behind them", looks: "a blinding dash that ends back to back", ranged: false },
+  pull: { how: "throws a slow hook that drags the target in front of you and steals some of their meter", looks: "a hooked chain or line that reels the target in", ranged: true },
+  remote_detonation: { how: "marks the spot where the opponent stands: 0.7 s later a cut falls there (move to dodge)", looks: "a delayed strike that lands where you were", ranged: true },
 };
 
 // ---------------------------------------------------------------- normal moves
@@ -110,7 +123,7 @@ export const CLASS_CHAIN_POWER = Object.fromEntries(Object.entries(CLASS_CHAIN).
 // and special set so it wins about half its fights against a mixed pool of every
 // style x special with the same stats. Re-run the tuner after changing moves or specials.
 export const STYLE_TUNE: Record<Style, number> = { Boxing: 0.775, Taekwondo: 0.859, "Muay Thai": 0.901, Karate: 0.796, Street: 0.901, Systema: 0.754 };
-export const SPECIAL_TUNE: Record<SpecialKind, number> = { bolt: 1.323, arrow: 1.26, orb: 1.112, slash: 0.648, charge: 0.311, uppercut: 0.796, beam: 2.188, spiral: 1.682, wave: 1.935, teleport: 0.627, barrage: 0.817, meteor: 1.218 };
+export const SPECIAL_TUNE: Record<SpecialKind, number> = { bolt: 1.323, arrow: 1.26, orb: 1.112, slash: 0.648, charge: 0.311, uppercut: 0.796, beam: 2.188, spiral: 1.682, wave: 1.935, teleport: 0.627, barrage: 0.817, meteor: 1.218, shatter: 1, counter: 1, dash_slash: 1, pull: 1, remote_detonation: 1 };
 
 // Damage factor per class, found by simulation like the two above (scripts/balance.ts --tune):
 // each class's usual stat line and kit wins about half its fights against every class.
@@ -201,7 +214,11 @@ export const SPECIAL_NAMES: Record<SpecialKind, [string, string][]> = {
   spiral: [["Scribble-gan", "A spinning ball of scribbles, rammed home"], ["Spiral Doodle Sphere", "Spins faster than a bored student's pen"]],
   teleport: [["Eraser Step", "Erases itself, redraws behind you"], ["Page Flip Ambush", "Turns the page and appears at your back"]],
   barrage: [["Ink Ink Ink Rush", "Fifty punches, zero hesitation"], ["Scribble Storm Fists", "A flurry so fast it smudges"]],
-  meteor: [["Staple Meteor", "Drops from the sky like a heavy-duty staple"], ["Margin Drop Kick", "Leaves a crater in the page"]],
+  meteor: [["Staple Meteor", "Drops from the sky like a heavy-duty staple"], ["Margin Drop Kick", "Leaves a crater in the page"]],  shatter: [["Knuckle Crumple", "Closes a fist around the page and the page crumples"], ["Paper Wad Grab", "Cannot be blocked, folded or recycled"]],
+  counter: [["Parry in the Margin", "Waits for the swing, then writes the reply over it"], ["Correction Stance", "Whatever you wrote, it gets crossed out"]],
+  dash_slash: [["Sunline Pass", "Through you in a blink, back to back before the page turns"], ["Ruler Dash", "One straight line, drawn straight through you"]],
+  pull: [["Iron Reel", "Hooks a line into you and reels you in, meter and all"], ["Bookmark Snare", "Marks your place, then pulls you to it"]],
+  remote_detonation: [["Red Margin", "Underlines where you stand, then cuts along the line"], ["Delayed Strikethrough", "Crosses you out, a moment late"]],
 };
 
 export const ULT_NAMES: Record<SpecialKind, [string, string][]> = {
@@ -216,7 +233,11 @@ export const ULT_NAMES: Record<SpecialKind, [string, string][]> = {
   spiral: [["Scribble-gan: Maximum Tangle", "A sphere of scribbles that does not let go"], ["Great Spiral Notebook", "Spins until the page runs out"]],
   teleport: [["Eraser Step: Infinite Redraw", "Erased, redrawn, erased again, always behind you"], ["Page Flip Massacre", "Turns every page at once, appears on all of them"]],
   barrage: [["Ink Ink Ink Ink Rush", "Five hundred punches and not one apology"], ["Scribble Storm Overdrive", "So fast the paper smokes"]],
-  meteor: [["Staple Meteor: Armageddon", "Drops from orbit, takes you with it"], ["Margin Crater Finale", "Leaves a crater in the page and the page in the crater"]],
+  meteor: [["Staple Meteor: Armageddon", "Drops from orbit, takes you with it"], ["Margin Crater Finale", "Leaves a crater in the page and the page in the crater"]],  shatter: [["Knuckle Crumple: Total Wad", "A grab that does not let go until you are a paper ball"], ["Final Fold", "Folds you in half, then in half again"]],
+  counter: [["Last Word Parry", "Lets you finish the sentence, then finishes it for you"], ["Whiteout Reply", "Your best move, erased and answered"]],
+  dash_slash: [["Sunline Pass: Eclipse", "Through you, around you, through you again"], ["Straightedge Execution", "A line so straight the page splits"]],
+  pull: [["Iron Reel: Spool Out", "Reels you in and keeps reeling"], ["Margin Chain Finale", "A chain with no loose end"]],
+  remote_detonation: [["Red Margin: Final Edit", "Marks you, waits, and cuts the whole line"], ["Strikethrough Sentence", "The cut was always going to land there"]],
 };
 
 // The name to show for a fighter's ultimate: its own, or a stock one for old fighters that were made without.
