@@ -8,6 +8,7 @@ import { ClassBadge } from "@/components/ClassBadge";
 import { FighterAvatar } from "@/components/FighterAvatar";
 import { OwnerActions } from "@/components/OwnerActions";
 import { cleanDrawing } from "@/game/sprite";
+import { needsRecut } from "@/lib/cutout";
 
 export type AdminDesign = {
   id: string;
@@ -17,6 +18,9 @@ export type AdminDesign = {
   style: string | null;
   specialKind: string | null;
   specialMove: string;
+  special: string; // the special the fight uses (the class default is marked)
+  ult: string; // the ultimate: kind and name
+  skill: string; // the side skill
   pose: string | null;
   rotation: number;
   flipItem: boolean;
@@ -38,7 +42,7 @@ export function AdminDesigns({ designs }: { designs: AdminDesign[] }) {
   const [busy, setBusy] = useState<string | null>(null);
   const shown = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return s ? designs.filter((d) => `${d.name} ${d.owner} ${d.ownerEmail} ${d.class} ${d.style}`.toLowerCase().includes(s)) : designs;
+    return s ? designs.filter((d) => `${d.name} ${d.owner} ${d.ownerEmail} ${d.class} ${d.style} ${d.special} ${d.ult} ${d.skill}`.toLowerCase().includes(s)) : designs;
   }, [designs, q]);
 
   async function flag(id: string, patch: { cpu?: boolean; hidden?: boolean }) {
@@ -49,12 +53,13 @@ export function AdminDesigns({ designs }: { designs: AdminDesign[] }) {
     router.refresh();
   }
 
-  // Fighters made before cut-outs still store the whole photo. Re-cut them here, in the
-  // browser (the cutting runs on a canvas), and the server deletes the photos.
-  const photos = designs.filter((d) => !d.imageUrl.startsWith("/samples/") && !d.imageUrl.includes("/cut-"));
+  // Fighters made before cut-outs still store the whole photo, and cut-outs made before Sprint 4 sit on white. Re-cut them
+  // here, in the browser (the cutting runs on a canvas); the server stores a transparent cut-out under a new file name
+  // (which marks the row as done, so it never comes back) and deletes the old file.
+  const photos = designs.filter((d) => needsRecut(d.imageUrl));
   const [recut, setRecut] = useState<string | null>(null);
   async function recutAll() {
-    if (!window.confirm(`Replace ${photos.length} stored photos with their cut-out figures and delete the photos? This can't be undone.`)) return;
+    if (!window.confirm(`Replace ${photos.length} stored images (photos and white cut-outs) with transparent cut-out figures and delete the old files? This can't be undone.`)) return;
     let done = 0, failed = 0;
     for (const d of photos) {
       setRecut(`Cutting ${done + failed + 1}/${photos.length}…`);
@@ -82,8 +87,8 @@ export function AdminDesigns({ designs }: { designs: AdminDesign[] }) {
         {(photos.length > 0 || recut) && (
           <div className="flex items-center gap-2 text-sm">
             {photos.length > 0 && (
-              <button onClick={recutAll} disabled={!!recut?.startsWith("Cutting")} className={pill(false)} title="Keep only the figure, delete the rest of the photo">
-                <Scissors className="size-3.5" /> Re-cut {photos.length} old photos
+              <button onClick={recutAll} disabled={!!recut?.startsWith("Cutting")} className={pill(false)} title="Keep only the figure on a transparent background, delete the old file">
+                <Scissors className="size-3.5" /> Re-cut {photos.length} old images
               </button>
             )}
             {recut && <span className="text-muted">{recut}</span>}
@@ -119,7 +124,16 @@ export function AdminDesigns({ designs }: { designs: AdminDesign[] }) {
                 {d.ownerId ? <Link href={`/player/${d.ownerId}`} className="hover:underline">@{d.owner}</Link> : `@${d.owner}`} · {d.ownerEmail}
               </p>
               <p className="text-xs text-muted">
-                {new Date(d.createdAt).toLocaleString("en-GB")} · AI: {d.source} · {d.style ?? "default style"} · {d.specialKind ?? "default"}: {d.specialMove}
+                {new Date(d.createdAt).toLocaleString("en-GB")} · AI: {d.source} · {d.style ?? "default style"}
+              </p>
+              <p className="text-xs text-muted">
+                <span className="font-semibold text-hit">Special:</span> {d.special}: {d.specialMove}
+              </p>
+              <p className="text-xs text-muted">
+                <span className="font-semibold text-hit">Ult:</span> {d.ult}
+              </p>
+              <p className="text-xs text-muted">
+                <span className="font-semibold text-guard">Skill:</span> {d.skill}
               </p>
               <p className="text-xs tabular-nums">{d.stats}</p>
               <div className="mt-2 flex flex-wrap gap-1">

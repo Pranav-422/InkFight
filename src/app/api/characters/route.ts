@@ -6,6 +6,7 @@ import { cleanName } from "@/lib/names";
 import { rateLimit, tooMany } from "@/lib/rateLimit";
 import { db } from "@/lib/db";
 import { MAX_BYTES, sniff, TYPES } from "@/lib/imageType";
+import { CUT_PREFIX } from "@/lib/cutout";
 import { saveDrawing } from "@/lib/storage";
 import { SIDE_SKILLS, SPECIAL_KINDS, STYLES } from "@/game/moves";
 import { analyzeDrawing, type Picks } from "@/lib/vision";
@@ -89,7 +90,7 @@ export async function POST(request: Request) {
     picks.special = variant.kind; // the variant is its kind plus its element and its own name
     picks.element = variant.element;
   }
-  const [imageUrl, a] = await Promise.all([saveDrawing(bytes, TYPES[type], type, "cut-"), analyzeDrawing(bytes, type, facts, picks)]);
+  const [imageUrl, a] = await Promise.all([saveDrawing(bytes, TYPES[type], type, CUT_PREFIX), analyzeDrawing(bytes, type, facts, picks)]);
   const element = picks.element ?? a.element ?? suggestElement(facts?.colors ?? [], facts?.penWidth);
   const item = picks.item ?? facts?.item ?? null;
   const skill = form.get("pick_skill");

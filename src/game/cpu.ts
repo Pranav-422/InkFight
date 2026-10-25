@@ -120,14 +120,16 @@ export function cpuThink(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
   // Specials as soon as they're useful: the ultimate (S + L) with a full meter, slot 1 from half a meter unless
   // it is saving up. Teleport and meteor reach from mid-range; the rest need to be close.
   // A counter stance is only worth taking when a swing is coming; a grab needs them on the ground.
+  // It doesn't press while reeling: a player's S + L then is queued (sim.ts), the CPU just waits for its moment.
+  const reelFree = me.action !== "hit";
   const worth = (kind: SpecialKind) => (kind === "counter" ? (op.action === "attack" || op.action === "kick") && dist < opReach : kind === "shatter" ? op.grounded : true);
-  if (me.energy >= ULT_COST && me.grounded && dist < specialRange(myDef.ult) && worth(myDef.ult) && Math.random() < L.aggro) {
+  if (me.energy >= ULT_COST && me.grounded && reelFree && dist < specialRange(myDef.ult) && worth(myDef.ult) && Math.random() < L.aggro) {
     input.block = true;
     input.special++;
     brain.saving = Math.random() < brain.ultUse;
     return;
   }
-  if (me.energy >= SLOT1_COST && !brain.saving && dist < specialRange(myDef.special) && worth(myDef.special) && Math.random() < L.aggro) {
+  if (me.energy >= SLOT1_COST && !brain.saving && reelFree && dist < specialRange(myDef.special) && worth(myDef.special) && Math.random() < L.aggro) {
     input.special++;
     brain.saving = Math.random() < brain.ultUse;
     return;
