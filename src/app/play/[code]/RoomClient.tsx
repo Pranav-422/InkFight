@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ClassBadge } from "@/components/ClassBadge";
 import { FighterAvatar } from "@/components/FighterAvatar";
 import { GameCanvas } from "@/components/GameCanvas";
+import { resultUrl, ShareResult } from "@/components/ShareResult";
 import { ultTitle } from "@/game/moves";
 import type { LobbyPlayer } from "@/game/protocol";
 import { useGameRoom } from "@/game/useGameRoom";
@@ -125,6 +126,13 @@ function Room({ code, fighterId, userId, onChangeFighter }: { code: string; figh
               <Link href="/leaderboard" className="rounded-xl bg-white/10 px-4 py-2.5 text-sm font-semibold hover:bg-white/20">
                 Leaderboard
               </Link>
+            </div>
+            <div className="mt-2 flex justify-center">
+              <ShareResult
+                title={`${lobby.players[winner]!.name} wins on InkFight`}
+                text={`${lobby.players[0]!.name} ${matchOver!.wins[0]} – ${matchOver!.wins[1]} ${lobby.players[1]!.name}`}
+                getUrl={() => resultUrl(lobby.players[0]!.id, lobby.players[1]!.id, [matchOver!.wins[0], matchOver!.wins[1]])}
+              />
             </div>
           </div>
         )}

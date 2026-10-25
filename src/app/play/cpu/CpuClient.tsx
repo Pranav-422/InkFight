@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ClassBadge } from "@/components/ClassBadge";
 import { FighterAvatar } from "@/components/FighterAvatar";
 import { GameCanvas } from "@/components/GameCanvas";
+import { cardUrl, ShareResult } from "@/components/ShareResult";
 import type { Level } from "@/game/cpu";
 import type { BossRun } from "@/game/dungeon";
 import type { PublicFighter } from "@/game/protocol";
@@ -224,6 +225,15 @@ export function CpuFight({
               New matchup
             </button>
           </div>
+          {!me.id.startsWith("sample-") && !cpu.id.startsWith("sample-") && (
+            <div className="mt-2 flex justify-center">
+              <ShareResult
+                title={`${(matchOver.matchWinner === 0 ? me : cpu).name} wins on InkFight`}
+                text={`${me.name} ${matchOver.wins[0]} – ${matchOver.wins[1]} ${cpu.name}`}
+                getUrl={() => cardUrl(me.id, cpu.id, [matchOver.wins[0], matchOver.wins[1]])}
+              />
+            </div>
+          )}
         </div>
       )}
       </GameCanvas>
