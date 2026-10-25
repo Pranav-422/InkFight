@@ -18,6 +18,8 @@ model User {
   resetHash    String?     // password reset: HMAC of the emailed code (src/app/(auth)/actions.ts)
   resetExpires DateTime?
   resetTries   Int         @default(0) // wrong codes since it was sent
+  securityQuestion String?  // temporary reset path for testing (src/app/(auth)/security): question text
+  securityAnswer   String?  // bcrypt of the normalised answer
   createdAt    DateTime    @default(now())
   characters   Character[]
 }

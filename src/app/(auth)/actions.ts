@@ -2,10 +2,11 @@
 
 import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import { redirect } from "next/navigation";
-import { endSession, hashPassword, startSession, verifyPassword } from "@/lib/auth";
+import { endSession, getSession, hashPassword, startSession, verifyPassword } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { sendMail } from "@/lib/mail";
 import { clientIp, rateLimit } from "@/lib/rateLimit";
+import { SECURITY_QUESTIONS } from "./questions";
 
 // Compared against when the email is unknown, so a wrong email takes as long as a wrong password.
 const DUMMY_HASH = "$2b$10$6zP65Lbd5mUkZWq4/M3aveZ1AVyy6YDSAn7/lr4fkUewiR6yjwMVS";
@@ -17,6 +18,9 @@ function safeNext(v: FormDataEntryValue | null) {
   const s = typeof v === "string" ? v : "";
   return s.startsWith("/") && !s.startsWith("//") ? s : "/home";
 }
+
+// No security question yet: ask for one on the way in (it can be skipped).
+const askSecurity = (form: FormData) => `/security?next=${encodeURIComponent(safeNext(form.get("next")))}`;
 
 export async function login(_prev: AuthState, form: FormData): Promise<AuthState> {
   const email = String(form.get("email") ?? "").trim().toLowerCase();
@@ -35,7 +39,7 @@ export async function login(_prev: AuthState, form: FormData): Promise<AuthState
     return { error: "That email and password don't match. Typo?", email };
   }
   await startSession({ userId: user.id, name: user.name, email: user.email });
-  redirect(safeNext(form.get("next")));
+  redirect(user.securityQuestion ? safeNext(form.get("next")) : askSecurity(form));
 }
 
 export async function signup(_prev: AuthState, form: FormData): Promise<AuthState> {
@@ -52,7 +56,7 @@ export async function signup(_prev: AuthState, form: FormData): Promise<AuthStat
   }
   const user = await db.user.create({ data: { name, email, passwordHash: await hashPassword(password) } });
   await startSession({ userId: user.id, name: user.name, email: user.email });
-  redirect(safeNext(form.get("next")));
+  redirect(askSecurity(form));
 }
 
 export async function logout(form?: FormData) {
@@ -109,6 +113,51 @@ export async function resetPassword(_prev: ResetState, form: FormData): Promise<
     return { ...back, error: "Wrong code. Check the email again." };
   }
   await db.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(password), resetHash: null, resetExpires: null, resetTries: 0 } });
+  await startSession({ userId: user.id, name: user.name, email: user.email });
+  redirect("/home");
+}
+
+// Temporary second reset path while testing: a security question set after login. The answer is stored
+// as a bcrypt hash, so a right answer lets the player set a new password (the old one can't be shown).
+// shortcut: weaker than the emailed code (answers can be guessed or looked up); remove once Resend has a domain.
+const normAnswer = (a: string) => a.trim().toLowerCase().replace(/\s+/g, " ");
+
+export type SecurityState = { error?: string };
+
+export async function setSecurity(_prev: SecurityState, form: FormData): Promise<SecurityState> {
+  const s = await getSession();
+  if (!s) redirect("/login");
+  const question = String(form.get("question") ?? "");
+  const answer = normAnswer(String(form.get("answer") ?? ""));
+  if (!SECURITY_QUESTIONS.includes(question)) return { error: "Pick one of the questions." };
+  if (answer.length < 2 || answer.length > 100) return { error: "The answer needs at least 2 characters." };
+  await db.user.update({ where: { id: s.userId }, data: { securityQuestion: question, securityAnswer: await hashPassword(answer) } });
+  redirect(safeNext(form.get("next")));
+}
+
+export type QuestionState = { error?: string; email?: string; question?: string };
+
+export async function findQuestion(_prev: QuestionState, form: FormData): Promise<QuestionState> {
+  const email = String(form.get("email") ?? "").trim().toLowerCase();
+  if (!(await rateLimit(`secq-ip:${await clientIp()}`, 10, 15 * 60_000))) return { error: "Too many tries. Wait 15 minutes.", email };
+  const user = await db.user.findUnique({ where: { email }, select: { securityQuestion: true } });
+  if (!user?.securityQuestion) return { error: "No security question is set for that email. Use the emailed code instead.", email };
+  return { email, question: user.securityQuestion };
+}
+
+export async function answerReset(_prev: QuestionState, form: FormData): Promise<QuestionState> {
+  const email = String(form.get("email") ?? "").trim().toLowerCase();
+  const answer = normAnswer(String(form.get("answer") ?? ""));
+  const password = String(form.get("password") ?? "");
+  const back = { email, question: String(form.get("question") ?? "") };
+  if (password.length < 8 || password.length > 200) return { ...back, error: "Password needs at least 8 characters." };
+  if (!(await rateLimit(`secq-ip:${await clientIp()}`, 10, 15 * 60_000)) || !(await rateLimit(`secq:${email}`, 5, 15 * 60_000))) {
+    return { ...back, error: "Too many tries. Wait 15 minutes." };
+  }
+  const user = await db.user.findUnique({ where: { email } });
+  const ok = await verifyPassword(answer, user?.securityAnswer ?? DUMMY_HASH);
+  if (!user || !ok) return { ...back, error: "That answer doesn't match." };
+  await db.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(password) } });
   await startSession({ userId: user.id, name: user.name, email: user.email });
   redirect("/home");
 }
