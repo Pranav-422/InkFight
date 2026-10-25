@@ -59,7 +59,7 @@ export function CpuClient({
 
   if (mine.length === 0) {
     return (
-      <div className="mx-auto max-w-md rounded-2xl bg-card p-6 text-center ring-1 ring-line">
+      <div className="mx-auto max-w-md rounded-2xl bg-card p-6 text-center card-edge">
         <p className="font-display text-xl font-extrabold">You need a fighter first</p>
         <p className="mt-1 text-sm text-muted">Scan a drawing, then come back to take on the computer.</p>
         <Link href="/create?next=/play/cpu" className="mt-4 inline-block rounded-xl bg-hit px-5 py-3 font-semibold text-white">
@@ -152,7 +152,7 @@ function FighterGrid({
         <li key={f.id}>
           <button
             onClick={() => onPick(f.id)}
-            className={`w-full rounded-2xl bg-card p-2 text-left transition ${selected === f.id ? "ring-2 ring-hit" : "ring-1 ring-line hover:ring-ink"}`}
+            className={`w-full rounded-2xl bg-card p-2 text-left transition ${selected === f.id ? "ring-2 ring-hit" : "card-edge hover:ring-ink"}`}
           >
             <div className="aspect-square w-full rounded-xl bg-white">
               <FighterAvatar fighter={f} />

@@ -56,7 +56,7 @@ export default async function HomePage() {
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2">
-        <Link href="/play/cpu" className="press flex items-center gap-4 rounded-2xl bg-card p-4 ring-1 ring-line hover:ring-ink">
+        <Link href="/play/cpu" className="press flex items-center gap-4 rounded-2xl bg-card p-4 card-edge hover:ring-ink">
           <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-paper ring-1 ring-line">
             <Bot className="size-6" />
           </span>

@@ -69,7 +69,7 @@ export default async function CharacterPage({ params, searchParams }: PageProps<
         {breakdown && (
           <section>
             <h2 className="font-display text-xl font-extrabold">Why these stats?</h2>
-            <div className="mt-3 grid gap-3 rounded-2xl bg-card p-4 text-sm ring-1 ring-line">
+            <div className="mt-3 grid gap-3 rounded-2xl bg-card p-4 text-sm card-edge">
               <p className="font-semibold">{breakdown.classReason.replace(/→ .*$/, `→ ${me.class}`)}</p>{/* saved reasons may name pre-v2 classes */}
               <p className="text-muted">
                 Drawn {breakdown.features.size}, {breakdown.features.pose} pose

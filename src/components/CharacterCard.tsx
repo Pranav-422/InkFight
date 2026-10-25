@@ -9,7 +9,7 @@ type Props = { character: Character; variant?: "full" | "compact" };
 export function CharacterCard({ character: c, variant = "full" }: Props) {
   const full = variant === "full";
   return (
-    <article className="rounded-2xl bg-card p-3 shadow-[0_1px_2px_rgba(0,0,0,.06),0_8px_24px_-12px_rgba(0,0,0,.18)] ring-1 ring-line">
+    <article className="rounded-2xl bg-card p-3 shadow-[0_1px_2px_rgba(0,0,0,.06),0_8px_24px_-12px_rgba(0,0,0,.18)] card-edge">
       <div className="relative aspect-[4/5] overflow-hidden rounded-xl bg-white ring-1 ring-line">
         <FighterAvatar fighter={c} />
         <div className="absolute left-2 top-2">

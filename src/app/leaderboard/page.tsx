@@ -31,7 +31,7 @@ export default async function LeaderboardPage() {
               <li key={e.id} className={i === 0 ? "order-2" : i === 1 ? "order-1" : "order-3"}>
                 <Link
                   href={`/character/${e.id}`}
-                  className={`relative block rounded-2xl bg-card p-2 transition sm:p-3 ${i === 0 ? "sticker pb-4 sm:pb-6" : "ring-1 ring-line hover:ring-ink"}`}
+                  className={`relative block rounded-2xl bg-card p-2 transition sm:p-3 ${i === 0 ? "sticker pb-4 sm:pb-6" : "card-edge hover:ring-ink"}`}
                 >
                   <span
                     className={`absolute -left-2 -top-2 z-10 flex size-9 items-center justify-center rounded-full font-display text-lg font-extrabold text-ink ${PODIUM[i]}`}
@@ -54,7 +54,7 @@ export default async function LeaderboardPage() {
           </ol>
 
           {rest.length > 0 && (
-            <ol className="mt-6 divide-y divide-line overflow-hidden rounded-2xl bg-card ring-1 ring-line">
+            <ol className="mt-6 divide-y divide-line overflow-hidden rounded-2xl bg-card card-edge">
               {rest.map((e, i) => (
                 <li key={e.id}>
                   <Link href={`/character/${e.id}`} className="flex items-center gap-3 px-4 py-2.5 hover:bg-paper">

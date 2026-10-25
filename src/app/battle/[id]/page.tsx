@@ -50,7 +50,7 @@ export default async function BattlePage({ params }: PageProps<"/battle/[id]">) 
       </header>
       <div className="grid grid-cols-2 gap-4">
         {sides.map(({ c, won }, i) => (
-          <Link key={c.id} href={`/character/${c.id}`} className={`rounded-2xl bg-card p-3 text-center ${won ? "ring-4 ring-gold" : "ring-1 ring-line"}`}>
+          <Link key={c.id} href={`/character/${c.id}`} className={`rounded-2xl bg-card p-3 text-center ${won ? "ring-4 ring-gold" : "card-edge"}`}>
             <div className="mx-auto aspect-[4/5] w-full max-w-60 overflow-hidden rounded-xl bg-white ring-1 ring-line">
               <FighterAvatar fighter={c} />
             </div>

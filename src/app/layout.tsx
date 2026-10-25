@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   icons: { icon: "/pwa-icon/192", apple: "/pwa-icon/180" },
 };
 
-export const viewport: Viewport = { themeColor: "#f7f5f0", viewportFit: "cover" };
+export const viewport: Viewport = { themeColor: "#f4ecdc", viewportFit: "cover" };
 
 type NavItem = { href: string; label: string; short?: string; desktopOnly?: boolean };
 const NAV_IN: NavItem[] = [
@@ -44,10 +44,13 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${display.variable} ${body.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col font-sans">
-        <header className="border-b border-line bg-paper/90 backdrop-blur sticky top-0 z-20">
+        <header className="sticky top-0 z-20 border-b-2 border-ink bg-paper/95 backdrop-blur">
           <nav className="mx-auto flex max-w-5xl items-center gap-2 px-4 py-3 sm:gap-4">
             <BackButton home={session ? "/home" : "/"} />
-            <Link href={session ? "/home" : "/"} className="font-display text-2xl font-extrabold tracking-tight">
+            <Link
+              href={session ? "/home" : "/"}
+              className="-rotate-2 rounded-lg border-2 border-ink bg-gold px-2 font-display text-xl font-extrabold tracking-tight shadow-[2px_2px_0_var(--ink)]"
+            >
               ink<span className="text-hit">fight</span>
             </Link>
             <div className="ml-auto flex items-center text-sm sm:gap-1">

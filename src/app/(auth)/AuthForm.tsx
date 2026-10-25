@@ -53,7 +53,7 @@ export function AuthForm({ mode, next, demo }: { mode: "login" | "signup"; next?
       </p>
 
       {demo && demo.length > 0 && (
-        <div className="mt-6 rounded-2xl bg-card p-4 text-sm ring-1 ring-line">
+        <div className="mt-6 rounded-2xl bg-card p-4 text-sm card-edge">
           <p className="font-semibold">Demo accounts</p>
           <p className="text-xs text-muted">
             To fight yourself, use one here and the other in an <b>incognito window</b> or another browser (tabs share one login).

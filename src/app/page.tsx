@@ -61,7 +61,7 @@ export default async function Landing() {
         </div>
 
         {/* Mini arena */}
-        <div className="relative rounded-3xl bg-card p-5 shadow-[0_20px_50px_-25px_rgba(0,0,0,.35)] ring-1 ring-line">
+        <div className="relative rounded-3xl bg-card p-5 shadow-[0_20px_50px_-25px_rgba(0,0,0,.35)] card-edge">
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-sm">
             <div>
               <p className="font-display font-extrabold">Sir Scribbles</p>
@@ -93,7 +93,7 @@ export default async function Landing() {
         <h2 className="font-display text-3xl font-extrabold">How it works</h2>
         <ol className="mt-6 grid gap-4 sm:grid-cols-3">
           {STEPS.map(([Icon, title, body], i) => (
-            <li key={title} className="rounded-2xl bg-card p-5 ring-1 ring-line">
+            <li key={title} className="rounded-2xl bg-card p-5 card-edge">
               <div className="flex items-center gap-3">
                 <span className="flex size-10 items-center justify-center rounded-xl bg-ink text-white">
                   <Icon className="size-5" />
@@ -125,7 +125,7 @@ export default async function Landing() {
         </div>
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {CLASSES.map(([Icon, item, cls, special]) => (
-            <li key={cls} className="rounded-2xl bg-card p-4 ring-1 ring-line">
+            <li key={cls} className="rounded-2xl bg-card p-4 card-edge">
               <Icon className="size-6" />
               <p className="mt-3 text-xs text-muted">Holding: {item}</p>
               <p className="font-display text-lg font-extrabold">{cls}</p>
@@ -147,7 +147,7 @@ export default async function Landing() {
           <ul className="mt-6 grid grid-cols-3 gap-3 sm:grid-cols-6">
             {recent.map((c) => (
               <li key={c.id}>
-                <Link href={`/character/${c.id}`} className="block rounded-2xl bg-card p-2 ring-1 ring-line transition hover:ring-ink">
+                <Link href={`/character/${c.id}`} className="block rounded-2xl bg-card p-2 card-edge transition hover:ring-ink">
                   <div className="aspect-square w-full rounded-xl bg-white">
                     <FighterAvatar fighter={c} />
                   </div>

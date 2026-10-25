@@ -113,7 +113,7 @@ function drawHead(g: CanvasRenderingContext2D, head: Head, at: { x: number; y: n
 
 function Choice<T extends string>({ label, value, options, onChange, show }: { label: string; value: T; options: readonly T[]; onChange: (v: T) => void; show: (v: T) => string }) {
   return (
-    <fieldset className="rounded-2xl bg-card p-4 ring-1 ring-line">
+    <fieldset className="rounded-2xl bg-card p-4 card-edge">
       <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted">{label}</legend>
       <div className="flex flex-wrap gap-1.5">
         {options.map((o) => (
@@ -199,7 +199,7 @@ export function BuildClient({ cleared }: { cleared: number }) {
           <p className="mt-1 text-sm text-muted">No drawing needed: pick the parts. Stats are split fairly from the budget everyone shares.</p>
         </div>
         <Choice label="Head" value={b.head} options={HEADS} onChange={set("head")} show={(h) => h[0].toUpperCase() + h.slice(1)} />
-        <fieldset className="rounded-2xl bg-card p-4 ring-1 ring-line">
+        <fieldset className="rounded-2xl bg-card p-4 card-edge">
           <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted">Ink colour</legend>
           <div className="flex flex-wrap gap-2">
             {INKS.map(([label, hex]) => (

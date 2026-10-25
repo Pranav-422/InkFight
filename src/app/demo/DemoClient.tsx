@@ -18,7 +18,7 @@ export function DemoClient() {
 
   return (
     <div className="grid gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-card p-3 ring-1 ring-line">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-card p-3 card-edge">
         <p className="text-sm">
           <span className="font-semibold">Sample fight:</span> you&apos;re <span className="font-semibold">{me.name}</span> vs the computer as{" "}
           <span className="font-semibold">{cpu.name}</span>.

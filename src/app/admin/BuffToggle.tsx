@@ -17,7 +17,7 @@ export function BuffToggle({ on }: { on: boolean }) {
     router.refresh();
   }
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-card px-4 py-3 text-sm ring-1 ring-line">
+    <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-card px-4 py-3 text-sm card-edge">
       <button
         onClick={toggle}
         disabled={busy}

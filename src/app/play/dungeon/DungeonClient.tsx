@@ -86,7 +86,7 @@ export function DungeonClient({ userId, cleared: initialCleared, mine }: { userI
       )}
 
       {mine.length === 0 ? (
-        <p className="rounded-2xl bg-card p-6 text-center ring-1 ring-line">
+        <p className="rounded-2xl bg-card p-6 text-center card-edge">
           You need a fighter first. <Link href="/create?next=/play/dungeon" className="font-semibold text-hit underline">Scan or build one</Link>.
         </p>
       ) : (

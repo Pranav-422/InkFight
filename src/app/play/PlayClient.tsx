@@ -20,7 +20,7 @@ export function PlayClient() {
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2">
-        <Link href="/play/cpu" className="press rounded-2xl bg-card p-5 ring-1 ring-line hover:ring-ink">
+        <Link href="/play/cpu" className="press rounded-2xl bg-card p-5 card-edge hover:ring-ink">
           <Bot className="size-6" />
           <p className="mt-3 flex items-center justify-between font-display text-xl font-extrabold">
             Vs computer <ChevronRight className="size-5 text-muted" />

@@ -40,7 +40,7 @@ export default async function PlayerPage({ params }: PageProps<"/player/[id]">) 
             ["Win rate", wins + losses ? `${Math.round((wins / (wins + losses)) * 100)}%` : "–"],
             ["Best rank", best ? `#${best}` : "–"],
           ].map(([k, v]) => (
-            <div key={k} className="min-w-18 rounded-2xl bg-card px-3 py-2.5 ring-1 ring-line">
+            <div key={k} className="min-w-18 rounded-2xl bg-card px-3 py-2.5 card-edge">
               <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted">{k}</dt>
               <dd className="font-display text-2xl font-extrabold tabular-nums">{v}</dd>
             </div>
@@ -71,7 +71,7 @@ export default async function PlayerPage({ params }: PageProps<"/player/[id]">) 
       {fights.length > 0 && (
         <section>
           <h2 className="font-display text-2xl font-extrabold">Recent fights</h2>
-          <ul className="mt-3 divide-y divide-line overflow-hidden rounded-2xl bg-card ring-1 ring-line">
+          <ul className="mt-3 divide-y divide-line overflow-hidden rounded-2xl bg-card card-edge">
             {fights.map((f) => {
               const mineA = ids.includes(f.characterAId);
               const me = mineA ? f.characterA : f.characterB, them = mineA ? f.characterB : f.characterA;

@@ -13,7 +13,7 @@ import { ARENA, BEAM, BODY, SPECIAL_DURATION, TICK_HZ, WINS_NEEDED, type GameEve
 import { AVERAGE_BUILD, drawStick, solveStick, STICK_REST, type Build, type StickPose } from "./stickman";
 
 const C = {
-  paper: "#f7f5f0",
+  paper: "#f4ecdc",
   ink: "#17171a",
   muted: "#6b6a66",
   line: "#e4e1d9",

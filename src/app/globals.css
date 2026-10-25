@@ -1,11 +1,11 @@
 @import "tailwindcss";
 
 :root {
-  --paper: #f7f5f0;
-  --card: #ffffff;
+  --paper: #f4ecdc; /* warm notebook cream */
+  --card: #fffbf2;
   --ink: #17171a;
   --muted: #6b6a66;
-  --line: #e4e1d9;
+  --line: #e2d7c1;
   --hit: #e5482d;   /* attack / primary accent */
   --guard: #2f5be0; /* defense / secondary accent */
   --gold: #f2b705;  /* winners, top 3 */
@@ -24,9 +24,19 @@
   --font-display: var(--font-display);
 }
 
+/* Ruled notebook paper behind every page: the game is drawn on it. */
 body {
-  background: var(--paper);
+  background-color: var(--paper);
+  background-image: linear-gradient(transparent 31px, rgba(47, 91, 224, 0.07) 32px);
+  background-size: 100% 32px;
   color: var(--ink);
+}
+
+/* Page and section titles shout a little. */
+h1.font-display,
+h2.font-display {
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
 }
 
 @keyframes pop-in {
@@ -45,6 +55,11 @@ body {
   .sticker {
     border: 2px solid var(--ink);
     box-shadow: 4px 4px 0 var(--ink);
+  }
+  /* Every content card: inked edge with a small hard shadow. */
+  .card-edge {
+    border: 2px solid var(--ink);
+    box-shadow: 3px 3px 0 var(--ink);
   }
   .press { transition: transform 90ms ease-out, box-shadow 90ms ease-out; }
   .press:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }

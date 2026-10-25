@@ -67,7 +67,7 @@ export default async function AdminPage() {
             ["Computer roster", chars.filter((c) => c.cpu && !c.hidden).length],
             ["Hidden", chars.filter((c) => c.hidden).length],
           ].map(([k, v]) => (
-            <div key={k} className="rounded-2xl bg-card px-4 py-2.5 ring-1 ring-line">
+            <div key={k} className="rounded-2xl bg-card px-4 py-2.5 card-edge">
               <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted">{k}</dt>
               <dd className="font-display text-2xl font-extrabold tabular-nums">{v}</dd>
             </div>
@@ -82,7 +82,7 @@ export default async function AdminPage() {
 
       <section>
         <h2 className="font-display text-2xl font-extrabold">Players</h2>
-        <div className="mt-3 overflow-x-auto rounded-2xl bg-card ring-1 ring-line">
+        <div className="mt-3 overflow-x-auto rounded-2xl bg-card card-edge">
           <table className="w-full text-sm">
             <thead className="text-left text-xs uppercase tracking-wider text-muted">
               <tr>

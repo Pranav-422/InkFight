@@ -59,7 +59,7 @@ async function loadImage(url: string): Promise<string | null> {
   return null;
 }
 
-const INK = "#17171a", PAPER = "#f7f5f0", HIT = "#e5482d", GOLD = "#f2b705", MUTED = "#6b6a66";
+const INK = "#17171a", PAPER = "#f4ecdc", HIT = "#e5482d", GOLD = "#f2b705", MUTED = "#6b6a66";
 
 // score: [A's rounds, B's rounds]; link: shown at the bottom (no scheme).
 export async function renderCard(a: CardFighter, b: CardFighter, score: [number, number], link: string) {

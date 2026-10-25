@@ -68,7 +68,7 @@ function Room({ code, fighterId, userId, onChangeFighter }: { code: string; figh
 
   if (error) {
     return (
-      <div className="mx-auto max-w-md rounded-2xl bg-card p-6 text-center ring-1 ring-line">
+      <div className="mx-auto max-w-md rounded-2xl bg-card p-6 text-center card-edge">
         <p className="font-display text-xl font-extrabold">{error}</p>
         <div className="mt-4 flex justify-center gap-2">
           <button onClick={retry} className="rounded-xl bg-hit px-4 py-2.5 text-sm font-semibold text-white">
@@ -191,7 +191,7 @@ function SeatCard({ p, you }: { p: LobbyPlayer | null; you: boolean }) {
     );
   }
   return (
-    <div className={`min-w-0 rounded-2xl bg-card p-3 sm:p-4 ${p.ready ? "ring-2 ring-hit" : "ring-1 ring-line"}`}>
+    <div className={`min-w-0 rounded-2xl bg-card p-3 sm:p-4 ${p.ready ? "ring-2 ring-hit" : "card-edge"}`}>
       <div className="flex items-center justify-between gap-1">
         <span className="text-[11px] font-semibold uppercase tracking-widest text-muted">{you ? "You" : "Opponent"}</span>
         {p.ready && <span className="rounded-full bg-hit px-2 py-0.5 text-[11px] font-semibold text-white">Ready</span>}
@@ -245,7 +245,7 @@ function InvitePanel({ code }: { code: string }) {
       setTimeout(() => setCopied(false), 1500);
     });
   return (
-    <div className="rounded-2xl bg-card p-4 ring-1 ring-line">
+    <div className="rounded-2xl bg-card p-4 card-edge">
       <p className="font-display text-lg font-extrabold">Invite your friend</p>
       <p className="text-sm text-muted">Send the link, or tell them the code <b className="font-display tracking-wider text-ink">{code}</b>.</p>
       <div className="mt-3 flex items-center gap-2 rounded-xl bg-paper p-2 ring-1 ring-line">
@@ -306,7 +306,7 @@ function FighterPicker({ code, preferred, onPick }: { code: string; preferred: s
             <li key={c.id}>
               <button
                 onClick={() => onPick(c.id)}
-                className={`w-full rounded-2xl bg-card p-3 text-left transition ${c.id === preferred ? "ring-2 ring-ink" : "ring-1 ring-line hover:ring-ink"}`}
+                className={`w-full rounded-2xl bg-card p-3 text-left transition ${c.id === preferred ? "ring-2 ring-ink" : "card-edge hover:ring-ink"}`}
               >
                 <div className="aspect-square w-full rounded-xl bg-white">
                   <FighterAvatar fighter={c} />

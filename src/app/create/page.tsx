@@ -46,7 +46,7 @@ export default async function CreatePage({ searchParams }: PageProps<"/create">)
         )}
       </section>
 
-      <aside className="rounded-2xl bg-card p-5 ring-1 ring-line">
+      <aside className="rounded-2xl bg-card p-5 card-edge">
         <h2 className="font-display text-xl font-extrabold">What makes a good scan</h2>
         <ul className="mt-4 grid gap-4">
           {TIPS.map(([title, body], i) => (

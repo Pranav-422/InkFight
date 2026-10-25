@@ -22,7 +22,7 @@ export function RotateControl({ id, rotation, flipItem }: { id: string; rotation
 
   const btn = "inline-flex items-center gap-1.5 rounded-lg bg-card px-3 py-2 text-sm font-semibold ring-1 ring-line hover:ring-ink disabled:opacity-50";
   return (
-    <div className="mt-3 rounded-2xl bg-card p-3 text-sm ring-1 ring-line">
+    <div className="mt-3 rounded-2xl bg-card p-3 text-sm card-edge">
       <p className="font-semibold">Something look wrong?</p>
       <p className="text-xs text-muted">Lying on its side: turn it so the head is at the top. Item upside down: flip it.</p>
       <div className="mt-2 flex items-center gap-2">
