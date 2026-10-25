@@ -5,7 +5,6 @@ import { ImageResponse } from "next/og";
 import path from "path";
 import { BOSSES } from "@/game/dungeon";
 import { db } from "./db";
-import { parseScore } from "./shareScore";
 
 export { battleScore, parseScore } from "./shareScore";
 
