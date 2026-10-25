@@ -1,3 +1,4 @@
+import type { ArenaId } from "./arena";
 import type { Input, Slot, Snapshot } from "./sim";
 
 export type PublicFighter = {
@@ -35,6 +36,7 @@ export type Lobby = {
   players: [LobbyPlayer | null, LobbyPlayer | null];
   status: RoomStatus;
   notice?: string;
+  mode?: ArenaId; // the host's pick: an arena fight (src/game/arena.ts) instead of the normal best-of-3
 };
 
 // Guest → host (over the WebRTC data channels). The host applies its own actions locally.

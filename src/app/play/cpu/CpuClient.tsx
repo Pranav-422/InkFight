@@ -9,6 +9,7 @@ import { GameCanvas } from "@/components/GameCanvas";
 import { ResultPanel } from "@/components/ResultPanel";
 import { Versus } from "@/components/Versus";
 import { cardUrl } from "@/components/ShareResult";
+import { ARENA_INFO, isArenaId, type ArenaId } from "@/game/arena";
 import type { Level } from "@/game/cpu";
 import type { BossRun } from "@/game/dungeon";
 import type { PublicFighter } from "@/game/protocol";
@@ -29,17 +30,20 @@ export function CpuClient({
   gallery,
   initialOpponent,
   initialFighter,
+  initialArena,
 }: {
   userId: string;
   mine: PublicFighter[];
   gallery: GalleryFighter[];
   initialOpponent: string | null;
   initialFighter: string | null;
+  initialArena?: string | null;
 }) {
   const key = `inkfight-fighter:${userId}`;
   const [meId, setMeId] = useState<string | null>(initialFighter ?? mine[0]?.id ?? null);
   const [cpuId, setCpuId] = useState<string | null>(initialOpponent);
   const [level, setLevel] = useState<Level>("normal");
+  const [arena, setArena] = useState<ArenaId | null>(isArenaId(initialArena) ? initialArena : null); // null: the normal best-of-3
   const [fighting, setFighting] = useState(false);
   const [intro, setIntro] = useState(false); // the face-off before the fight
 
@@ -58,13 +62,14 @@ export function CpuClient({
   const me = useMemo(() => mine.find((m) => m.id === meId) ?? null, [mine, meId]);
   const cpu = useMemo(() => gallery.find((g) => g.id === cpuId) ?? null, [gallery, cpuId]);
 
-  if (fighting && me && cpu) return <CpuFight me={me} cpu={cpu} level={level} onExit={() => setFighting(false)} />;
+  if (fighting && me && cpu) return <CpuFight me={me} cpu={cpu} level={level} arena={arena ?? undefined} onExit={() => setFighting(false)} />;
   if (intro && me && cpu)
     return (
       <FaceOff
         me={me}
         cpu={cpu}
         level={level}
+        arena={arena ?? undefined}
         onGo={() => {
           setIntro(false);
           setFighting(true);
@@ -126,7 +131,28 @@ export function CpuClient({
       </section>
 
       <section>
-        <h2 className="font-display text-xl font-extrabold">2. Difficulty</h2>
+        <h2 className="font-display text-xl font-extrabold">2. Mode</h2>
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Fight mode">
+          {[
+            { id: null, label: "Normal fight", hint: "Best of 3 rounds of 60 seconds" },
+            { id: "inferno" as ArenaId, label: `Arena: ${ARENA_INFO.inferno.name} (5 min)`, hint: "One fight on a volcano that gets worse: heat, cracks, meteors, then a climb above rising lava" },
+          ].map((m) => (
+            <button
+              key={m.label}
+              role="radio"
+              aria-checked={arena === m.id}
+              onClick={() => setArena(m.id)}
+              className={`rounded-xl p-4 text-left ring-1 transition ${arena === m.id ? "bg-ink text-white ring-ink" : "bg-card ring-line hover:ring-ink"}`}
+            >
+              <p className="font-display text-lg font-extrabold">{m.label}</p>
+              <p className={`text-xs ${arena === m.id ? "text-white/70" : "text-muted"}`}>{m.hint}</p>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="font-display text-xl font-extrabold">3. Difficulty</h2>
         <div className="mt-3 grid grid-cols-3 gap-2">
           {LEVELS.map((l) => (
             <button
@@ -141,7 +167,7 @@ export function CpuClient({
         </div>
       </section>
       <section>
-        <h2 className="font-display text-xl font-extrabold">3. Computer plays as…</h2>
+        <h2 className="font-display text-xl font-extrabold">4. Computer plays as…</h2>
         <FighterGrid fighters={gallery} selected={cpuId} onPick={setCpuId} showOwner />
       </section>
       {/* Phones: the matchup and the button stay in reach above the tab bar. */}
@@ -151,7 +177,7 @@ export function CpuClient({
 }
 
 // A short face-off on the split stage, then the fight. Tap to skip.
-function FaceOff({ me, cpu, level, onGo }: { me: PublicFighter; cpu: GalleryFighter; level: Level; onGo: () => void }) {
+function FaceOff({ me, cpu, level, arena, onGo }: { me: PublicFighter; cpu: GalleryFighter; level: Level; arena?: ArenaId; onGo: () => void }) {
   useEffect(() => {
     const t = setTimeout(onGo, 2600);
     return () => clearTimeout(t);
@@ -160,6 +186,7 @@ function FaceOff({ me, cpu, level, onGo }: { me: PublicFighter; cpu: GalleryFigh
     <button onClick={onGo} className="block w-full text-left" aria-label="Start the fight">
       <Versus
         title="Fight!"
+        arena={arena}
         left={{ fighter: me, tone: "hit", tag: "P1 (you) // Locked in" }}
         right={{ fighter: cpu, tone: "guard", tag: `CPU // ${level}`, owner: cpu.ownerHandle }}
       >
@@ -211,6 +238,7 @@ export function CpuFight({
   onExit,
   exitLabel = "Change fighters",
   boss,
+  arena,
   label,
   onResult,
 }: {
@@ -220,10 +248,11 @@ export function CpuFight({
   onExit: () => void;
   exitLabel?: string;
   boss?: BossRun;
+  arena?: ArenaId; // an arena fight (src/game/arena.ts) instead of the best-of-3
   label?: string;
   onResult?: (won: boolean) => void;
 }) {
-  const { lobby, snaps, matchOver, sendInput, rematch } = useCpuMatch(me, cpu, level, boss);
+  const { lobby, snaps, matchOver, sendInput, rematch } = useCpuMatch(me, cpu, level, boss, arena);
   const result = matchOver?.matchWinner ?? null;
   const report = useRef(onResult);
   useEffect(() => {
@@ -240,14 +269,14 @@ export function CpuFight({
     <div className="relative grid gap-4">
       <div className="flex items-center justify-between text-sm">
         <span className="flex items-center gap-1.5 font-semibold text-muted">
-          <Bot className="size-4" /> {label ?? `Vs computer · ${level}`}
+          <Bot className="size-4" /> {label ?? `Vs computer · ${level}${arena ? ` · ${ARENA_INFO[arena].name}` : ""}`}
         </span>
         <button data-leave onClick={onExit} className="text-muted underline-offset-2 hover:text-ink hover:underline">
           {exitLabel}
         </button>
       </div>
       <GameCanvas snaps={snaps} players={players} you={0} onInput={sendInput} onExit={onExit}>
-      {matchOver && matchOver.matchWinner !== null && (
+      {matchOver && (matchOver.matchWinner !== null || matchOver.arena) && (
         <ResultPanel
           you={0}
           players={[me, cpu]}
@@ -255,9 +284,9 @@ export function CpuFight({
           primary={{ label: "Rematch", onClick: rematch }}
           secondary={{ label: "New matchup", onClick: onExit }}
           share={
-            !me.id.startsWith("sample-") && !cpu.id.startsWith("sample-")
+            matchOver.matchWinner !== null && !matchOver.arena && !me.id.startsWith("sample-") && !cpu.id.startsWith("sample-")
               ? {
-                  title: `${(matchOver.matchWinner === 0 ? me : cpu).name} wins on InkFight`,
+                  title: `${(matchOver.matchWinner === 0 ? me : cpu).name} wins on InkFight`, // (the share card is a 2-1 / 2-0 score: arena fights have none)
                   text: `${me.name} ${matchOver.wins[0]} – ${matchOver.wins[1]} ${cpu.name}`,
                   getUrl: () => cardUrl(me.id, cpu.id, [matchOver.wins[0], matchOver.wins[1]]),
                 }

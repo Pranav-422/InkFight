@@ -4,7 +4,7 @@ import { publicFighter } from "@/lib/rooms";
 import { CpuClient } from "./CpuClient";
 
 export default async function CpuPage({ searchParams }: PageProps<"/play/cpu">) {
-  const { opponent, fighter } = await searchParams;
+  const { opponent, fighter, arena } = await searchParams;
   const user = await requireUser(`/play/cpu${typeof opponent === "string" ? `?opponent=${opponent}` : ""}`);
   const all = await db.character.findMany({ orderBy: { createdAt: "desc" } });
   // Admins can pick any design for either side; players get their own vs the CPU roster.
@@ -19,6 +19,7 @@ export default async function CpuPage({ searchParams }: PageProps<"/play/cpu">) 
       gallery={roster.map((c) => ({ ...publicFighter(c), ownerHandle: c.ownerHandle }))}
       initialOpponent={typeof opponent === "string" ? opponent : null}
       initialFighter={typeof fighter === "string" ? fighter : null}
+      initialArena={typeof arena === "string" ? arena : null}
     />
   );
 }

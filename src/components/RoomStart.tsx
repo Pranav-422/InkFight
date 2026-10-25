@@ -3,17 +3,43 @@
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { ARENA_INFO, type ArenaId } from "@/game/arena";
 import { newRoomCode, ROOM_CODE } from "@/game/protocol";
+import { saveRoomMode } from "./roomMode";
 
 // Create a room, or join one by code: on the home page and the Fight page.
 export function RoomStart({ dark = false }: { dark?: boolean }) {
   const router = useRouter();
   const [code, setCode] = useState("");
+  const [arena, setArena] = useState<ArenaId | null>(null); // the host's pick for a new room
+  const modes: { id: ArenaId | null; label: string; hint: string }[] = [
+    { id: null, label: "Normal", hint: "best of 3" },
+    { id: "inferno", label: ARENA_INFO.inferno.short, hint: "5 min, volcano" },
+  ];
   const valid = ROOM_CODE.test(code.trim().toUpperCase());
   return (
     <div className="grid gap-2">
+      <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Fight mode">
+        {modes.map((m) => (
+          <button
+            key={m.label}
+            type="button"
+            role="radio"
+            aria-checked={arena === m.id}
+            onClick={() => setArena(m.id)}
+            className={`press rounded-xl px-3 py-2 text-left ring-1 ${arena === m.id ? (dark ? "bg-white text-ink ring-white" : "bg-ink text-white ring-ink") : dark ? "bg-white/10 text-white ring-white/20" : "bg-paper ring-line"}`}
+          >
+            <span className="block font-display text-sm font-extrabold leading-tight">{m.label}</span>
+            <span className={`block text-xs ${arena === m.id ? "opacity-70" : "text-muted"}`}>{m.hint}</span>
+          </button>
+        ))}
+      </div>
       <button
-        onClick={() => router.push(`/play/${newRoomCode()}`)}
+        onClick={() => {
+          const room = newRoomCode();
+          saveRoomMode(room, arena);
+          router.push(`/play/${room}`);
+        }}
         className="press sticker flex items-center justify-center gap-2 rounded-xl bg-hit px-5 py-3.5 font-display text-lg font-extrabold text-white"
       >
         <Plus className="size-5" strokeWidth={2.6} /> Create room

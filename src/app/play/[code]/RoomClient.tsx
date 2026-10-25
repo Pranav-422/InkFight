@@ -14,6 +14,7 @@ import { resultUrl } from "@/components/ShareResult";
 import { ultTitle } from "@/game/moves";
 import type { LobbyPlayer } from "@/game/protocol";
 import { useGameRoom } from "@/game/useGameRoom";
+import { readRoomMode } from "@/components/roomMode";
 import { useLeaveGuard } from "@/components/useLeaveGuard";
 
 export function RoomClient({ code, initialFighter, userId }: { code: string; initialFighter: string | null; userId: string }) {
@@ -62,7 +63,8 @@ export function RoomClient({ code, initialFighter, userId }: { code: string; ini
 
 function Room({ code, fighterId, userId, onChangeFighter }: { code: string; fighterId: string; userId: string; onChangeFighter: () => void }) {
   const router = useRouter();
-  const { lobby, error, status, snaps, matchOver, send, sendInput, retry } = useGameRoom(code, fighterId, userId);
+  const [hostMode] = useState(() => readRoomMode(code)); // only the room's creator has one; a guest gets the mode from the lobby
+  const { lobby, error, status, snaps, matchOver, send, sendInput, retry } = useGameRoom(code, fighterId, userId, hostMode);
   useLeaveGuard(lobby?.status === "playing", "The fight is still on. Leave in the middle of it?");
   const [q0, q1] = lobby?.players ?? [null, null];
   // A fresh array every lobby update would rebuild the renderer: sprites reload, old hit FX replay.
@@ -108,7 +110,7 @@ function Room({ code, fighterId, userId, onChangeFighter }: { code: string; figh
             {lobby.notice}
           </p>
         )}
-        {lobby.status === "over" && winner !== null && matchOver && (
+        {lobby.status === "over" && matchOver && (winner !== null || matchOver.arena) && (
           <ResultPanel
             you={lobby.you}
             players={[lobby.players[0]!, lobby.players[1]!]}
@@ -116,11 +118,15 @@ function Room({ code, fighterId, userId, onChangeFighter }: { code: string; figh
             notice={lobby.notice}
             primary={{ label: me.rematch ? "Waiting for them…" : "Rematch", onClick: () => send({ t: "rematch" }), disabled: me.rematch }}
             secondary={{ label: "Leaderboard", href: "/leaderboard" }}
-            share={{
-              title: `${lobby.players[winner]!.name} wins on InkFight`,
-              text: `${lobby.players[0]!.name} ${matchOver.wins[0]} – ${matchOver.wins[1]} ${lobby.players[1]!.name}`,
-              getUrl: () => resultUrl(lobby.players[0]!.id, lobby.players[1]!.id, [matchOver.wins[0], matchOver.wins[1]]),
-            }}
+            share={
+              winner !== null && !matchOver.arena // the share card shows a best-of-3 score: an arena fight has none
+                ? {
+                    title: `${lobby.players[winner]!.name} wins on InkFight`,
+                    text: `${lobby.players[0]!.name} ${matchOver.wins[0]} – ${matchOver.wins[1]} ${lobby.players[1]!.name}`,
+                    getUrl: () => resultUrl(lobby.players[0]!.id, lobby.players[1]!.id, [matchOver.wins[0], matchOver.wins[1]]),
+                  }
+                : undefined
+            }
           />
         )}
         </GameCanvas>
@@ -146,6 +152,7 @@ function Room({ code, fighterId, userId, onChangeFighter }: { code: string; figh
       {p0 && p1 ? (
         <Versus
           title={p0.ready && p1.ready ? "Fight!" : "Face-off"}
+          arena={lobby.mode}
           left={{ fighter: p0, tone: "hit", tag: `P1${lobby.you === 0 ? " (you)" : ""} // ${p0.ready ? "Locked in" : "Choosing"}` }}
           right={{ fighter: p1, tone: "guard", tag: `P2${lobby.you === 1 ? " (you)" : ""} // ${p1.ready ? "Ready" : "Choosing"}` }}
         />

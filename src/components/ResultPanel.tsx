@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { PublicFighter } from "@/game/protocol";
+import { ARENA_INFO } from "@/game/arena";
 import type { Snapshot } from "@/game/sim";
 import { FighterAvatar } from "./FighterAvatar";
 import { ShareResult } from "./ShareResult";
@@ -26,9 +27,12 @@ export function ResultPanel({
   secondary: Action;
   share?: { title: string; text: string; getUrl: () => Promise<string> | string };
 }) {
+  const draw = over.matchWinner === null; // only an arena fight can end level: equal health at 5:00
   const w = over.matchWinner ?? 0;
-  const won = w === you;
+  const won = !draw && w === you;
   const them = (1 - you) as 0 | 1;
+  const arena = over.arena;
+  const hpPct = (s: number) => Math.max(0, Math.round((over.fighters[s].hp / over.maxHp[s]) * 100));
   const winner = players[w];
   const btn = "press sticker flex flex-1 items-center justify-center gap-2 px-3 py-2.5 font-display text-sm font-black uppercase tracking-tight disabled:opacity-60";
   const act = (a: Action, cls: string) =>
@@ -49,19 +53,27 @@ export function ResultPanel({
           <div className="slam relative size-20 shrink-0">
             <div className="burst absolute inset-0 bg-ink" />
             <div className="burst absolute inset-[6px] flex items-center justify-center bg-gold">
-              <span className="font-display text-xl font-black italic tracking-tighter text-hit">K.O.!</span>
+              <span className="font-display text-xl font-black italic tracking-tighter text-hit">{draw ? "DRAW" : arena && over.roundReason === "time" ? "TIME!" : "K.O.!"}</span>
             </div>
           </div>
           <div className="min-w-0 flex-1">
-            <p className="tag bg-ink text-gold">{won ? "Victorious duelist" : "Defeated"}</p>
+            <p className="tag bg-ink text-gold">{arena ? `${ARENA_INFO[arena.id].short} · ${ARENA_INFO[arena.id].name}` : won ? "Victorious duelist" : "Defeated"}</p>
             <p className={`mt-1 font-display text-3xl font-black uppercase leading-none tracking-tighter ${won ? "text-hit" : "text-muted"}`}>
-              {won ? "Victory" : "Defeat"}
+              {draw ? "Draw" : won ? "Victory" : "Defeat"}
             </p>
           </div>
           <div className="card-edge shrink-0 bg-card px-3 py-1 text-center">
-            <p className="font-display text-[10px] font-extrabold uppercase tracking-widest text-muted">Final</p>
+            <p className="font-display text-[10px] font-extrabold uppercase tracking-widest text-muted">{arena ? "Health left" : "Final"}</p>
             <p className="font-display text-3xl font-black tabular-nums leading-none">
-              <span className={won ? "text-hit" : ""}>{over.wins[you]}</span>–{over.wins[them]}
+              {arena ? (
+                <>
+                  <span className={won ? "text-hit" : ""}>{hpPct(you)}</span>–{hpPct(them)}
+                </>
+              ) : (
+                <>
+                  <span className={won ? "text-hit" : ""}>{over.wins[you]}</span>–{over.wins[them]}
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -71,12 +83,12 @@ export function ResultPanel({
             <div className="aspect-[4/5] bg-white">
               <FighterAvatar fighter={winner} />
             </div>
-            <p className="mt-1 truncate text-center font-display text-xs font-black uppercase">{winner.name}</p>
+            <p className="mt-1 truncate text-center font-display text-xs font-black uppercase">{draw ? "No winner" : winner.name}</p>
           </div>
           <div className="grid content-start gap-2 [@media(max-height:480px)]:grid-cols-3">
             <Stat label="Damage dealt" value={Math.round(over.damage[you])} unit="dmg" hot />
             <Stat label="Damage taken" value={Math.round(over.damage[them])} unit="dmg" />
-            <Stat label="Rounds" value={over.round} unit={`vs ${players[them].name}`} />
+            {arena ? <Stat label="Hazards hit you" value={Math.round(arena.envDmg[you])} unit="dmg" /> : <Stat label="Rounds" value={over.round} unit={`vs ${players[them].name}`} />}
           </div>
         </div>
 

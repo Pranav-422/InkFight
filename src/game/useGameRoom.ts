@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientMsg, HostMsg, Lobby, LobbyPlayer, PublicFighter } from "./protocol";
 import { cpuThink, newBrain } from "./cpu";
 import { openRelay, relayConfigured, type Relay } from "./relay";
+import type { ArenaId } from "./arena";
 import { createMatch, EMPTY_INPUT, resumeMatch, snapshot, step, TICK_HZ, type Input, type Match, type Snapshot } from "./sim";
 
 export type { Lobby };
@@ -116,7 +117,8 @@ function claimRoomTab(code: string): () => void {
   return () => ch.close();
 }
 
-export function useGameRoom(code: string, fighterId: string | null, userId?: string) {
+// mode: the host's pick (an arena fight); a guest takes it from the lobby the host sends.
+export function useGameRoom(code: string, fighterId: string | null, userId?: string, mode?: ArenaId) {
   const snaps = useRef<SnapBuffer>({ prev: null, cur: null, at: 0 });
   const [lobby, setLobby] = useState<Lobby | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -193,8 +195,8 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
       const lp = (s: Seat | null): LobbyPlayer | null => (s ? { ...s.fighter, ready: s.ready, rematch: s.rematch } : null);
       const broadcast = (notice?: string) => {
         const players: Lobby["players"] = [lp(seats[0]), lp(seats[1])];
-        setLobby({ code, you: 0, players, status, notice });
-        sendCtl({ t: "lobby", lobby: { code, you: 1, players, status, notice } });
+        setLobby({ code, you: 0, players, status, notice, mode });
+        sendCtl({ t: "lobby", lobby: { code, you: 1, players, status, notice, mode } });
       };
       const stopLoop = () => {
         if (loop) clearInterval(loop);
@@ -213,7 +215,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
           match = resumeMatch(resumeSnap, { ...seats[0].fighter }, { ...guestSeat.fighter }, [seats[0].input, guestSeat.input]);
           aiPlayed = true;
         } else {
-          match = createMatch({ ...seats[0].fighter }, { ...guestSeat.fighter }, [seats[0].input, guestSeat.input]);
+          match = createMatch({ ...seats[0].fighter }, { ...guestSeat.fighter }, [seats[0].input, guestSeat.input], mode ? { arena: mode } : {});
           aiPlayed = false;
         }
         seats[0].rematch = guestSeat.rematch = false;
@@ -255,7 +257,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
               broadcast();
               if (!aiPlayed) api(`/api/battles`, {
                 method: "POST",
-                body: JSON.stringify({ roomCode: code, matchId, winnerSlot: m.matchWinner, wins: m.wins, damage: m.damage, rounds: m.round }),
+                body: JSON.stringify({ roomCode: code, matchId, winnerSlot: m.matchWinner, wins: m.wins, damage: m.damage, rounds: m.round, mode }),
               }).catch(() => {});
               return;
             }
@@ -676,7 +678,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
       cleanups.forEach((f) => f());
       sendRef.current = () => {};
     };
-  }, [code, fighterId, attempt, userId]);
+  }, [code, fighterId, attempt, userId, mode]);
 
   const send = useCallback((msg: ClientMsg) => sendRef.current(msg), []);
   const sendInput = useCallback((input: Input) => sendRef.current({ t: "input", input }), []);

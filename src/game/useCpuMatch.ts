@@ -4,6 +4,7 @@
 // as useGameRoom so the same canvas + controls render it.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { ArenaId } from "./arena";
 import { cpuThink, newBrain, type Level } from "./cpu";
 import { bossKnobs, type BossRun } from "./dungeon";
 import type { Lobby, PublicFighter } from "./protocol";
@@ -13,7 +14,8 @@ import type { SnapBuffer } from "./useGameRoom";
 const TICK_MS = 1000 / TICK_HZ;
 
 // boss: a dungeon fight: the boss's passive and second form go to the sim, its AI knobs (per form) over the level's (see src/game/dungeon.ts).
-export function useCpuMatch(me: PublicFighter, cpu: PublicFighter, level: Level, boss?: BossRun) {
+// arena: an arena fight (src/game/arena.ts) instead of the best-of-3.
+export function useCpuMatch(me: PublicFighter, cpu: PublicFighter, level: Level, boss?: BossRun, arena?: ArenaId) {
   const snaps = useRef<SnapBuffer>({ prev: null, cur: null, at: 0 });
   const myInput = useRef<Input>({ ...EMPTY_INPUT });
   const [round, setRound] = useState(0); // bump to (re)start
@@ -22,7 +24,7 @@ export function useCpuMatch(me: PublicFighter, cpu: PublicFighter, level: Level,
   useEffect(() => {
     const cpuInput: Input = { ...EMPTY_INPUT };
     const brain = newBrain(level, boss?.cpu);
-    const m: Match = createMatch({ ...me }, { ...cpu }, [myInput.current, cpuInput], boss ? { boss: boss.spec } : {});
+    const m: Match = createMatch({ ...me }, { ...cpu }, [myInput.current, cpuInput], { ...(boss && { boss: boss.spec }), ...(arena && { arena }) });
     snaps.current = { prev: null, cur: null, at: 0 };
     let last = performance.now();
     let acc = 0;
@@ -45,11 +47,12 @@ export function useCpuMatch(me: PublicFighter, cpu: PublicFighter, level: Level,
       }
     }, 4);
     return () => clearInterval(loop);
-  }, [me, cpu, level, boss, round]); // boss: pass bossRun(floor) (a cached object), or the match restarts every render
+  }, [me, cpu, level, boss, arena, round]); // boss: pass bossRun(floor) (a cached object), or the match restarts every render
 
   const lobby: Lobby = {
     code: "CPU",
     you: 0,
+    ...(arena && { mode: arena }),
     status: over ? "over" : "playing",
     players: [
       { ...me, ready: true, rematch: false },
