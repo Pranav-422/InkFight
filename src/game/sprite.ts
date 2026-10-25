@@ -282,25 +282,53 @@ export async function loadSprite(url: string, poseJson?: string | null, rotation
 
   // Joints: AI keypoints when we have them (fractions of the photo), else read off the ink.
   const W = normal.width, H = normal.height;
+  const toSprite = (v: Vec) => {
+    const q = toRotated(v);
+    return { x: (q.x - ox) * s2, y: (q.y - oy) * s2 };
+  };
   let joints: Joints | null = null;
+  let headBox: Circle | null = null, itemBox: Rect | null = null;
   if (poseJson) {
     try {
-      joints = jointsFromVision(JSON.parse(poseJson), (v) => {
-        const q = toRotated(v);
-        return { x: (q.x - ox) * s2, y: (q.y - oy) * s2 };
-      });
+      const pose = JSON.parse(poseJson);
+      joints = jointsFromVision(pose, toSprite);
+      ({ headBox, itemBox } = boxesFromPose(pose, toSprite, Math.max(img.width, img.height) * s2));
     } catch {}
   }
   joints ??= estimateJoints(px2, W, H);
   // The arena body is 180 units from head to feet; the cropped drawing is H pixels.
   const unit = 180 / H;
-  const side = propSide((x, y) => px2[(y * W + x) * 4 + 3] >= 64, W, H, joints, H);
+  const inkAt = (x: number, y: number) => px2[(y * W + x) * 4 + 3] >= 64;
+  // The AI's item box narrows the search; if it finds nothing that touches the hand, look again without it.
+  const side = (itemBox && propSide(inkAt, W, H, joints, H, { box: itemBox, headR: headBox ? headBox.r * 1.1 : undefined })) || propSide(inkAt, W, H, joints, H);
   return {
-    head: cutHead(normal, joints),
+    head: cutHead(normal, joints, headBox),
     ink: inkColor(px2),
     prop: side ? cutProp(px2, W, H, side, unit, flipItem) : null,
-    width: Math.min(11, Math.max(4, (side?.stroke ?? strokeWidth((x, y) => px2[(y * W + x) * 4 + 3] >= 64, W, H, joints)) * unit * 1.1)),
+    width: Math.min(11, Math.max(4, (side?.stroke ?? strokeWidth(inkAt, W, H, joints)) * unit * 1.1)),
   };
+}
+
+type Circle = { x: number; y: number; r: number };
+type Rect = { x0: number; y0: number; x1: number; y1: number };
+
+// The vision model's head circle and item rectangle (fractions of the photo, head radius as a fraction of the
+// longer side), mapped into the cut-out like the joints. Missing or malformed boxes come back as null.
+export function boxesFromPose(pose: unknown, toSprite: (v: Vec) => Vec, longSide: number): { headBox: Circle | null; itemBox: Rect | null } {
+  const p = (pose ?? {}) as { head_box?: Record<string, unknown>; item_box?: Record<string, unknown> | null };
+  const num = (o: Record<string, unknown> | null | undefined, ...ks: string[]) => (o && ks.every((k) => typeof o[k] === "number" && Number.isFinite(o[k])) ? ks.map((k) => o[k] as number) : null);
+  let headBox: Circle | null = null, itemBox: Rect | null = null;
+  const h = num(p.head_box, "x", "y", "r");
+  if (h && h[2] > 0) {
+    const c = toSprite({ x: h[0], y: h[1] });
+    headBox = { ...c, r: h[2] * longSide };
+  }
+  const b = num(p.item_box, "x0", "y0", "x1", "y1");
+  if (b) {
+    const a = toSprite({ x: b[0], y: b[1] }), z = toSprite({ x: b[2], y: b[3] }); // a rotation can swap the corners
+    itemBox = { x0: Math.min(a.x, z.x), y0: Math.min(a.y, z.y), x1: Math.max(a.x, z.x), y1: Math.max(a.y, z.y) };
+  }
+  return { headBox, itemBox };
 }
 
 // Copy exactly the prop's pixels into their own canvas, anchored at the hand. A prop
@@ -378,24 +406,137 @@ function longEnds(pts: Vec[]): [Vec, Vec] | null {
   ];
 }
 
-// The head as a circle around the head joint (head-to-shoulder is about two head radii),
-// so a sword drawn next to it stays out.
-function cutHead(src: HTMLCanvasElement, j: Joints): HTMLCanvasElement | null {
-  const r = Math.min(src.width / 2, Math.max(8, Math.hypot(j.head.x - j.shoulder.x, j.head.y - j.shoulder.y) * 0.58));
-  if (!Number.isFinite(r) || !Number.isFinite(j.head.x)) return null;
+// The head as a circle: exactly the AI's head box when there is one, else a circle around the head joint
+// (head-to-shoulder is about two head radii). Either way a sword drawn next to it stays out.
+function cutHead(src: HTMLCanvasElement, j: Joints, box: Circle | null = null): HTMLCanvasElement | null {
+  const cx = box ? box.x : j.head.x, cy = box ? box.y : j.head.y;
+  const r = box
+    ? Math.min(src.width / 2, Math.max(8, box.r * 1.05)) // a little slack so the outline's own width isn't clipped
+    : Math.min(src.width / 2, Math.max(8, Math.hypot(j.head.x - j.shoulder.x, j.head.y - j.shoulder.y) * 0.58));
+  if (!Number.isFinite(r) || !Number.isFinite(cx) || !Number.isFinite(cy)) return null;
   const c = document.createElement("canvas");
   c.width = c.height = Math.max(8, Math.round(r * 2));
-  const g = c.getContext("2d")!;
+  const g = c.getContext("2d", { willReadFrequently: true })!;
   g.beginPath();
   g.arc(c.width / 2, c.height / 2, c.width / 2, 0, Math.PI * 2);
   g.clip();
-  g.drawImage(src, j.head.x - r, j.head.y - r, r * 2, r * 2, 0, 0, c.width, c.height);
+  g.drawImage(src, cx - r, cy - r, r * 2, r * 2, 0, 0, c.width, c.height);
   // Guessed joints can miss the head; an empty crop would show as a blank white face,
   // so fall back to the plain drawn circle instead.
-  const a = g.getImageData(0, 0, c.width, c.height).data;
+  const img = g.getImageData(0, 0, c.width, c.height);
+  const a = img.data;
   let ink = 0;
   for (let i = 3; i < a.length; i += 4) if (a[i] > 64) ink++;
-  return ink > c.width * c.height * 0.02 ? c : null;
+  if (ink <= c.width * c.height * 0.02) return null;
+  // Drop the specks and shading hatches a scribbled face collects; the player's own lines stay.
+  const alpha = new Uint8Array(c.width * c.height);
+  for (let i = 0; i < alpha.length; i++) alpha[i] = a[i * 4 + 3];
+  const drop = headSpecks(alpha, c.width, c.height);
+  let dropped = 0;
+  for (let i = 0; i < drop.length; i++) if (drop[i]) { a[i * 4 + 3] = 0; dropped++; }
+  if (dropped) g.putImageData(img, 0, 0);
+  return c;
+}
+
+type Comp = { px: number[]; n: number; sx: number; sy: number; sxx: number; syy: number; sxy: number };
+
+// 8-connected pieces of the ink in `mask` (1 = ink).
+function components(mask: Uint8Array, w: number, h: number): Comp[] {
+  const seen = new Uint8Array(w * h);
+  const comps: Comp[] = [];
+  const stack: number[] = [];
+  for (let i = 0; i < w * h; i++) {
+    if (!mask[i] || seen[i]) continue;
+    const c: Comp = { px: [], n: 0, sx: 0, sy: 0, sxx: 0, syy: 0, sxy: 0 };
+    seen[i] = 1;
+    stack.push(i);
+    while (stack.length) {
+      const q = stack.pop()!;
+      const x = q % w, y = (q / w) | 0;
+      c.px.push(q);
+      c.sx += x; c.sy += y; c.sxx += x * x; c.syy += y * y; c.sxy += x * y;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+        const nb = ny * w + nx;
+        if (mask[nb] && !seen[nb]) { seen[nb] = 1; stack.push(nb); }
+      }
+    }
+    c.n = c.px.length;
+    comps.push(c);
+  }
+  return comps;
+}
+
+// Shading hatches among `comps`: `need` or more strokes, each thin and short (at most 40% of the crop wide, at
+// least minLen), that lie within 25° of one direction. Fewer are brows, a mouth or a nose: kept.
+function hatching(comps: Comp[], w: number, minLen: number, need = 4): Comp[] {
+  const lines: { c: Comp; angle: number }[] = [];
+  for (const c of comps) {
+    // Principal axis from the second moments (+1/12: a pixel's own spread, so a 1 px line isn't "infinitely" thin).
+    const mx = c.sx / c.n, my = c.sy / c.n;
+    const vx = c.sxx / c.n - mx * mx + 1 / 12, vy = c.syy / c.n - my * my + 1 / 12, cv = c.sxy / c.n - mx * my;
+    const tr = vx + vy, det = Math.sqrt(Math.max(0, (vx - vy) ** 2 / 4 + cv * cv));
+    const l1 = tr / 2 + det, l2 = Math.max(1e-6, tr / 2 - det);
+    const length = Math.sqrt(12 * l1);
+    if (Math.sqrt(l1 / l2) >= 3 && length <= w * 0.4 && length >= minLen) lines.push({ c, angle: 0.5 * Math.atan2(2 * cv, vx - vy) });
+  }
+  let best: Comp[] = [];
+  for (const { angle: a0 } of lines) {
+    const same = lines.filter(({ angle }) => {
+      const d = Math.abs(angle - a0) % Math.PI; // angles wrap at 180°
+      return Math.min(d, Math.PI - d) < (25 * Math.PI) / 180;
+    });
+    if (same.length > best.length) best = same.map((l) => l.c);
+  }
+  return best.length >= need ? best : [];
+}
+
+// Pixels of a head crop to erase (1 = drop): ink specks of a few pixels, and shading hatches. Hatches are found
+// twice: as loose strokes apart from the face outline, and, with the outline's ring cut away, inside the face,
+// so hatching that starts at the outline is caught too (a stub of it stays on the ring). The outline, eyes and
+// mouth stay, and so does a face where this would take away most of the ink. alpha = ink per pixel, a w x h square.
+export function headSpecks(alpha: ArrayLike<number>, w: number, h: number): Uint8Array {
+  const drop = new Uint8Array(w * h);
+  const ink = new Uint8Array(w * h);
+  for (let i = 0; i < ink.length; i++) ink[i] = alpha[i] >= 64 ? 1 : 0;
+  const comps = components(ink, w, h);
+  if (comps.length === 0) return drop;
+  let main = comps[0];
+  for (const c of comps) if (c.n > main.n) main = c;
+  const total = comps.reduce((n, c) => n + c.n, 0);
+  const speck = Math.max(4, Math.round(w * h * 0.0006));
+  const apart = comps.filter((c) => c !== main);
+  const out = new Set<Comp>([...apart.filter((c) => c.n < speck), ...hatching(apart.filter((c) => c.n >= speck), w, 0)]);
+  // Inside the face: everything but the outer ring (an annulus 20% of the radius wide). Strokes that grow out of
+  // the outline are shading by nature (a brow or a mouth floats free), so three of those are enough.
+  const inner = new Uint8Array(w * h), ring = new Uint8Array(w * h);
+  const R = w / 2;
+  for (let i = 0; i < inner.length; i++) {
+    if (!ink[i]) continue;
+    if (Math.hypot((i % w) + 0.5 - R, ((i / w) | 0) + 0.5 - R) < R * 0.8) inner[i] = 1;
+    else ring[i] = 1;
+  }
+  const grown = (c: Comp) => c.px.some((q) => {
+    const x = q % w, y = (q / w) | 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (x + dx >= 0 && x + dx < w && y + dy >= 0 && y + dy < h && ring[(y + dy) * w + x + dx]) return true;
+    return false;
+  });
+  const parts = components(inner, w, h);
+  const inside = [...new Set([...hatching(parts, w, w * 0.1), ...hatching(parts.filter(grown), w, w * 0.1, 3)])];
+  const kill = new Set<number>(inside.flatMap((c) => c.px));
+  for (const c of out) for (const q of c.px) kill.add(q);
+  if (kill.size > total * 0.4) return drop; // that would be most of the face: leave it as drawn
+  for (const q of kill) drop[q] = 1;
+  // The faint antialiased fringe round an erased stroke goes with it (only faint pixels: solid ink stays).
+  for (const q of kill) {
+    const x = q % w, y = (q / w) | 0;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+      const nx = x + dx, ny = y + dy;
+      if (nx >= 0 && ny >= 0 && nx < w && ny < h && alpha[ny * w + nx] > 0 && alpha[ny * w + nx] < 160) drop[ny * w + nx] = 1;
+    }
+  }
+  return drop;
 }
 
 // Mean colour of solid ink, or null for faint/light ink (the renderer then uses black).
@@ -503,9 +644,11 @@ function strokeWidth(ink: (x: number, y: number) => boolean, w: number, h: numbe
   return Math.max(1.5, legInk / (2 * legLen * 1.1));
 }
 
-function propSide(ink: (x: number, y: number) => boolean, w: number, h: number, j: Joints, bh: number): PropSide | null {
+// hint.box: the AI's item rectangle (only ink inside it, plus a margin, can be the item); hint.headR: its head radius.
+function propSide(ink: (x: number, y: number) => boolean, w: number, h: number, j: Joints, bh: number, hint: { box?: Rect; headR?: number } = {}): PropSide | null {
   const stroke = strokeWidth(ink, w, h, j);
-  const headR = Math.max(6, Math.hypot(j.head.x - j.shoulder.x, j.head.y - j.shoulder.y) * 0.7);
+  const headR = hint.headR ?? Math.max(6, Math.hypot(j.head.x - j.shoulder.x, j.head.y - j.shoulder.y) * 0.7);
+  const pad = hint.box ? Math.max(stroke * 2, bh * 0.03) : 0;
   const band = bh * 0.07;
   // Hands: F is the one further right in the drawing (see estimateJoints).
   const arms = [
@@ -523,6 +666,7 @@ function propSide(ink: (x: number, y: number) => boolean, w: number, h: number, 
   for (let y = 0; y < Math.min(h, j.hip.y); y++) {
     for (let x = 0; x < w; x++) {
       if (!ink(x, y)) continue;
+      if (hint.box && (x < hint.box.x0 - pad || x > hint.box.x1 + pad || y < hint.box.y0 - pad || y > hint.box.y1 + pad)) continue;
       if (Math.hypot(x - j.head.x, y - j.head.y) < headR) continue;
       if (Math.abs(x - j.shoulder.x) < band && y > j.head.y) continue; // spine
       if (Math.hypot(x - j.shoulder.x, y - j.shoulder.y) < bh * 0.22) continue; // upper arms
