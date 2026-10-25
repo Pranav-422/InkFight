@@ -86,7 +86,9 @@ export default async function PlayerPage({ params }: PageProps<"/player/[id]">) 
                   <Link href={`/character/${them.id}`} className="hover:underline">
                     {them.name}
                   </Link>
-                  <span className="ml-auto text-xs text-muted">{f.createdAt.toLocaleDateString("en-GB")}</span>
+                  <Link href={`/battle/${f.id}`} className="ml-auto text-xs text-muted underline-offset-2 hover:text-ink hover:underline">
+                    {f.createdAt.toLocaleDateString("en-GB")}
+                  </Link>
                 </li>
               );
             })}
