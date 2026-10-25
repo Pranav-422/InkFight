@@ -338,7 +338,7 @@ export function UploadDropzone({ returnRoom, returnTo }: { returnRoom?: string; 
                 onChange={(e) => setElement(e.target.value as Element | "")}
                 className="rounded-lg bg-paper px-2 py-1.5 ring-1 ring-line"
               >
-                <option value="">Auto: from your ink colours ({suggestElement(facts?.colors ?? [])})</option>
+                <option value="">Auto: from your ink colours ({suggestElement(facts?.colors ?? [], facts?.penWidth)})</option>
                 {ELEMENTS.map((el) => (
                   <option key={el} value={el}>
                     {el}

@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { CLASS_ULT, SLOT1_COST, SPECIAL_KINDS, STYLE_INFO, ULT_COST } from "../src/game/moves";
 import { poseFor } from "../src/game/poses";
 import { AVERAGE_BUILD, buildFor, solveStick } from "../src/game/stickman";
-import { createMatch, deriveDef, snapshot, EMPTY_INPUT, step, TICK_HZ, type FighterStats, type Input, type Match } from "../src/game/sim";
+import { createMatch, deriveDef, snapshot, EMPTY_INPUT, resumeMatch, step, TICK_HZ, type FighterStats, type Input, type Match } from "../src/game/sim";
 import { CLASSES, clampStats, ruleStats } from "../src/lib/stats";
 
 const neutral = { size: "medium", pose: "neutral", dominant_colors: [] } as const;
@@ -347,6 +347,23 @@ for (const kind of ["bolt", "arrow", "orb", "wave"]) {
   z.ia.attack++;
   for (let i = 0; i < 20 && z.m.fighters[1].hp === 50; i++) run(z, 1);
   assert.ok(z.m.fighters[1].hp < 50 && z.m.fighters[1].tension >= before + 0.1, "a blow taken while hurt should add tension");
+}
+
+// resumeMatch restores an in-progress fight so the guest's local copy can be handed
+// back to a returning host. Verify: HP and phase carry over, and the fight can continue.
+{
+  const x = fight(fighter("Fighter"), fighter("Mace"), 120);
+  run(x, 30 * TICK_HZ); // run a full round's worth
+  const s = snapshot(x.m);
+  // Simulate the guest taking over (CPU plays host), then hand back to a new host match.
+  const resumed = resumeMatch(s, fighter("Fighter"), fighter("Mace"), [{ ...EMPTY_INPUT }, { ...EMPTY_INPUT }]);
+  assert.equal(resumed.fighters[0].hp, s.fighters[0].hp, "hp carried over");
+  assert.equal(resumed.fighters[1].hp, s.fighters[1].hp, "hp[1] carried over");
+  assert.equal(resumed.phase, s.phase, "phase carried over");
+  assert.equal(resumed.round, s.round, "round carried over");
+  // The resumed match can step without throwing.
+  step(resumed, [{ ...EMPTY_INPUT }, { ...EMPTY_INPUT }]);
+  assert.ok(true, "resumed match stepped without error");
 }
 
 console.log("check-sim: all good");

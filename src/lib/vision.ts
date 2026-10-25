@@ -306,7 +306,7 @@ function offlineAnalysis(image: Buffer, note: string, facts: DrawingFacts | null
   const special = pickSpecial(picks, { kind, name, description }, h[9]);
   // The ultimate: the class's own (or the next pool entry when the pick took it), named from the ultimate list.
   const ult = pickUlt(picks, undefined, special.kind, cls, h[10]);
-  const element = picks.element ?? suggestElement(facts?.colors ?? features.dominant_colors);
+  const element = picks.element ?? suggestElement(facts?.colors ?? features.dominant_colors, facts?.penWidth);
   return build(
     "offline",
     `${first} ${last}`,
@@ -334,7 +334,7 @@ export async function analyzeDrawing(image: Buffer, mediaType: MediaType, facts:
     try {
       const v = ai === "gemini" ? await callGemini(image, mediaType) : await callClaude(image, mediaType);
       const seen = v.detected_items.map((i) => i.toLowerCase());
-      const element = picks.element ?? v.element ?? suggestElement(facts?.colors ?? v.detected_features.dominant_colors);
+      const element = picks.element ?? v.element ?? suggestElement(facts?.colors ?? v.detected_features.dominant_colors, facts?.penWidth);
       const items = picks.item ? itemList({ item: picks.item } as DrawingFacts) : seen.length || !facts ? seen : itemList(facts);
       const special = pickSpecial(picks, v.special_move, image.length);
       return build(

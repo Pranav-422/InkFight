@@ -38,11 +38,15 @@ export type Lobby = {
 };
 
 // Guest → host (over the WebRTC data channels). The host applies its own actions locally.
-export type ClientMsg = { t: "input"; input: Input } | { t: "ready"; ready: boolean } | { t: "rematch" };
+// `sync` is only sent after a host-drop reconnect: the guest replies with its current match
+// snapshot so the returning host can resume the fight as the authoritative sim.
+export type ClientMsg = { t: "input"; input: Input } | { t: "ready"; ready: boolean } | { t: "rematch" } | { t: "sync"; s: Snapshot };
 
 // Host → guest.
 // `n` counts snapshots within a match so the guest can drop late ones.
-export type HostMsg = { t: "lobby"; lobby: Lobby } | { t: "snap"; s: Snapshot; n: number };
+// `reqsync` is sent by a returning host to ask the guest for its current match state so the
+// host can resume the fight without restarting from scratch.
+export type HostMsg = { t: "lobby"; lobby: Lobby } | { t: "snap"; s: Snapshot; n: number } | { t: "reqsync" };
 
 export const ROOM_CODE = /^[A-Z0-9]{4,8}$/;
 
