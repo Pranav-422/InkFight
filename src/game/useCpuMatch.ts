@@ -4,15 +4,16 @@
 // as useGameRoom so the same canvas + controls render it.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { cpuThink, newBrain, type Knobs, type Level } from "./cpu";
+import { cpuThink, newBrain, type Level } from "./cpu";
+import { bossKnobs, type BossRun } from "./dungeon";
 import type { Lobby, PublicFighter } from "./protocol";
 import { createMatch, EMPTY_INPUT, snapshot, step, TICK_HZ, type Input, type Match, type Snapshot } from "./sim";
 import type { SnapBuffer } from "./useGameRoom";
 
 const TICK_MS = 1000 / TICK_HZ;
 
-// knobs: a dungeon boss's AI over the level's (see src/game/dungeon.ts).
-export function useCpuMatch(me: PublicFighter, cpu: PublicFighter, level: Level, knobs?: Partial<Knobs>) {
+// boss: a dungeon fight: the boss's passive and second form go to the sim, its AI knobs (per form) over the level's (see src/game/dungeon.ts).
+export function useCpuMatch(me: PublicFighter, cpu: PublicFighter, level: Level, boss?: BossRun) {
   const snaps = useRef<SnapBuffer>({ prev: null, cur: null, at: 0 });
   const myInput = useRef<Input>({ ...EMPTY_INPUT });
   const [round, setRound] = useState(0); // bump to (re)start
@@ -20,8 +21,8 @@ export function useCpuMatch(me: PublicFighter, cpu: PublicFighter, level: Level,
 
   useEffect(() => {
     const cpuInput: Input = { ...EMPTY_INPUT };
-    const brain = newBrain(level, knobs);
-    const m: Match = createMatch({ ...me }, { ...cpu }, [myInput.current, cpuInput]);
+    const brain = newBrain(level, boss?.cpu);
+    const m: Match = createMatch({ ...me }, { ...cpu }, [myInput.current, cpuInput], boss ? { boss: boss.spec } : {});
     snaps.current = { prev: null, cur: null, at: 0 };
     let last = performance.now();
     let acc = 0;
@@ -31,6 +32,7 @@ export function useCpuMatch(me: PublicFighter, cpu: PublicFighter, level: Level,
       last = now;
       while (acc >= TICK_MS) {
         acc -= TICK_MS;
+        if (boss) brain.knobs = bossKnobs(boss, m.boss?.phase);
         cpuThink(m, 1, brain, cpuInput);
         step(m, [myInput.current, cpuInput]);
         const s = snapshot(m);
@@ -43,7 +45,7 @@ export function useCpuMatch(me: PublicFighter, cpu: PublicFighter, level: Level,
       }
     }, 4);
     return () => clearInterval(loop);
-  }, [me, cpu, level, knobs, round]); // knobs: pass a stable object (BOSSES[n].cpu), or the match restarts every render
+  }, [me, cpu, level, boss, round]); // boss: pass bossRun(floor) (a cached object), or the match restarts every render
 
   const lobby: Lobby = {
     code: "CPU",

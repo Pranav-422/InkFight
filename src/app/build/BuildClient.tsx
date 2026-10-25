@@ -5,12 +5,14 @@
 // (head cut-out, measuring, fair stats), so it fights and looks like any scanned drawing.
 
 import { Loader2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { FighterAvatar } from "@/components/FighterAvatar";
 import { MovePreview, type Demo } from "@/components/MovePreview";
 import { useLeaveGuard } from "@/components/useLeaveGuard";
-import { CLASS_SKILL, CLASS_ULT, SIDE_SKILLS, SKILL_INFO, SPECIAL_INFO, SPECIAL_KINDS, STYLE_INFO, STYLES, type SideSkill, type SpecialKind, type Style } from "@/game/moves";
+import { specialChoices, ultChoices } from "@/game/dungeon";
+import { CLASS_SKILL, CLASS_ULT, SIDE_SKILLS, SKILL_INFO, SPECIAL_INFO, STYLE_INFO, STYLES, type SideSkill, type SpecialKind, type Style } from "@/game/moves";
 import type { BoneName } from "@/game/skeleton";
 import { ITEMS, measureDrawing, type Item } from "@/game/sprite";
 import { drawStick, HEAD_R, solveStick } from "@/game/stickman";
@@ -36,7 +38,7 @@ const INK_COLOR_NAMES: Record<string, string> = {
 };
 const ITEM_NAME: Record<Item, string> = { sword: "Sword (Sword)", mace: "Mace (Mace)", book: "Spellbook (Attacker)", staff: "Staff (Attacker)", shield: "Shield (Tank)", bow: "Bow (Attacker)", nothing: "Bare fists (Fighter)" };
 
-type Build = { head: Head; ink: string; item: Item; style: Style; special: SpecialKind; ult: SpecialKind | ""; skill: SideSkill | ""; element: Element; name: string }; // skill, ult "": the class's
+type Build = { head: Head; ink: string; item: Item; style: Style; special: SpecialKind; variant: string; ult: SpecialKind | ""; skill: SideSkill | ""; element: Element; name: string }; // skill, ult "": the class's
 
 // Draw the build as a stick-figure "drawing": 720 x 800, white paper, ink lines. Wide
 // enough that a sword held out front stays on the page (ink touching the edge is ignored).
@@ -129,9 +131,10 @@ function Choice<T extends string>({ label, value, options, onChange, show }: { l
   );
 }
 
-export function BuildClient() {
+// cleared: Dungeon floors this player has beaten: the new special kinds and named variants they copied are in the pickers.
+export function BuildClient({ cleared }: { cleared: number }) {
   const router = useRouter();
-  const [b, setB] = useState<Build>({ head: "round", ink: INKS[0][1], item: "sword", style: "Karate", special: "slash", ult: "", skill: "", element: "NONE", name: "" });
+  const [b, setB] = useState<Build>({ head: "round", ink: INKS[0][1], item: "sword", style: "Karate", special: "slash", variant: "", ult: "", skill: "", element: "NONE", name: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -143,6 +146,14 @@ export function BuildClient() {
     setDemo((d) => ({ kind: k, n: d.n + 1 }));
   };
   const cls = useMemo(() => classFromItems(b.item === "nothing" ? [] : [b.item]), [b.item]);
+  const specials = useMemo(() => specialChoices(cleared), [cleared]);
+  // A named variant is its kind plus its own element.
+  const pickSpecial = (id: string) => {
+    const c = specials.find((x) => x.id === id);
+    if (!c) return;
+    setB((x) => ({ ...x, special: c.kind, variant: c.variant?.id ?? "", element: (c.variant?.element as Element | undefined) ?? x.element }));
+    setDemo((d) => ({ kind: "special", n: d.n + 1 }));
+  };
   const autoElement = suggestElement([INK_COLOR_NAMES[b.ink] ?? "black"]);
   useLeaveGuard(!busy, "Your fighter isn't saved yet. Leave without building it?");
 
@@ -165,6 +176,7 @@ export function BuildClient() {
       form.append("pick_item", b.item);
       form.append("pick_style", b.style);
       form.append("pick_special", b.special);
+      if (b.variant) form.append("pick_variant", b.variant);
       if (b.ult) form.append("pick_ult", b.ult);
       if (b.skill) form.append("pick_skill", b.skill);
       form.append("pick_element", b.element);
@@ -206,9 +218,10 @@ export function BuildClient() {
         <Choice label="Weapon / item (sets the class)" value={b.item} options={ITEMS} onChange={pick("item")} show={(i) => ITEM_NAME[i]} />
         <Choice label="Fighting style" value={b.style} options={STYLES} onChange={pick("style")} show={(s) => s} />
         <p className="-mt-2 px-1 text-xs text-muted">{STYLE_INFO[b.style].blurb}</p>
-        <Choice label="Special move (L, half a meter)" value={b.special} options={SPECIAL_KINDS} onChange={pick("special")} show={(k) => k} />
-        <p className="-mt-2 px-1 text-xs text-muted">{SPECIAL_INFO[b.special].looks}</p>
-        <Choice label="Ultimate (S + L, full meter)" value={b.ult} options={["", ...SPECIAL_KINDS] as const} onChange={pick("ult")} show={(k) => (k ? k : `Class: ${CLASS_ULT[cls]}`)} />
+        <Choice label="Special move (L, half a meter)" value={b.variant || b.special} options={specials.map((c) => c.id)} onChange={pickSpecial} show={(id) => specials.find((c) => c.id === id)?.label ?? id} />
+        <p className="-mt-2 px-1 text-xs text-muted">{specials.find((c) => c.id === (b.variant || b.special))?.how ?? SPECIAL_INFO[b.special].looks}</p>
+        {cleared < 10 && <p className="-mt-2 px-1 text-xs text-muted">More specials unlock in <Link href="/play/dungeon" className="font-semibold text-hit underline">the Dungeon</Link>: beat a boss to copy its move.</p>}
+        <Choice label="Ultimate (S + L, full meter)" value={b.ult} options={["", ...ultChoices(cleared)] as const} onChange={pick("ult")} show={(k) => (k ? k.replace("_", " ") : `Class: ${CLASS_ULT[cls]}`)} />
         <p className="-mt-2 px-1 text-xs text-muted">Grabs the opponent and pounds them before launching them. {SPECIAL_INFO[b.ult || CLASS_ULT[cls]].looks}</p>
         <Choice label="Side skill (U)" value={b.skill} options={["", ...SIDE_SKILLS] as const} onChange={pick("skill")} show={(k) => (k ? SKILL_INFO[k].name : `Class: ${SKILL_INFO[CLASS_SKILL[cls]].name}`)} />
         <p className="-mt-2 px-1 text-xs text-muted">{SKILL_INFO[b.skill || CLASS_SKILL[cls]].how}</p>
@@ -230,7 +243,7 @@ export function BuildClient() {
         <div className="aspect-square rounded-2xl bg-white ring-1 ring-line">
           {preview && <FighterAvatar key={preview} fighter={{ imageUrl: preview, class: cls, item: b.item, style: b.style }} />}
         </div>
-        {preview && <MovePreview fighter={{ imageUrl: preview, class: cls, item: b.item, style: b.style, specialKind: b.special, ultKind: b.ult || null, sideSkill: b.skill || null }} demo={demo} />}
+        {preview && <MovePreview fighter={{ imageUrl: preview, class: cls, item: b.item, style: b.style, specialKind: b.special, ultKind: b.ult || null, element: b.element, sideSkill: b.skill || null }} demo={demo} />}
         <p className="-mt-1 text-center text-xs text-muted">Pick a style, special or ultimate to try it on the dummy.</p>
         <p className="text-center text-sm">
           <span className="font-semibold">{cls}</span> · {b.style} · {b.special} / {b.ult || CLASS_ULT[cls]} · {b.element}

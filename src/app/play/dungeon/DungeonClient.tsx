@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ClassBadge } from "@/components/ClassBadge";
 import { FighterAvatar } from "@/components/FighterAvatar";
-import { BOSSES, bossFighter, FLOORS, type Boss } from "@/game/dungeon";
+import { BOSSES, bossFighter, bossRun, FLOORS, type Boss } from "@/game/dungeon";
 import type { PublicFighter } from "@/game/protocol";
 import { CpuFight } from "../cpu/CpuClient";
 
@@ -47,7 +47,7 @@ export function DungeonClient({ userId, cleared: initialCleared, mine }: { userI
           me={me}
           cpu={boss}
           level="hard"
-          knobs={b.cpu}
+          boss={bossRun(floor)}
           label={`Floor ${floor} · ${b.title}`}
           exitLabel="Back to the ladder"
           onExit={() => setFloor(null)}

@@ -8,7 +8,7 @@ import { itemOf, MOVES, SKILL_INFO, STYLE_INFO, type SideSkill } from "./moves";
 import { ceremonyPose, poseFor } from "./poses";
 import { resolvePose, type BoneName, type Vec } from "./skeleton";
 import type { Sprite } from "./sprite";
-import { ARENA, BEAM, BODY, SPECIAL_DURATION, TICK_HZ, WINS_NEEDED, type GameEvent, type Slot, type Snapshot, type SpecialKind } from "./sim";
+import { ARENA, BEAM, BODY, SPECIAL_DURATION, TICK_HZ, WINS_NEEDED, type GameEvent, type PassiveId, type Slot, type Snapshot, type SpecialKind } from "./sim";
 import { AVERAGE_BUILD, drawStick, solveStick, STICK_REST, type Build, type StickPose } from "./stickman";
 
 const C = {
@@ -45,6 +45,7 @@ export class Renderer {
   private dim: { slot: Slot; life: number } | null = null; // special start: darken + speed lines
   private impact: { x: number; y: number; until: number } | null = null; // impact frame: where (world) and until when
   private view = { cx: ARENA.w / 2, cy: ARENA.h / 2, z: 1 }; // the camera as drawn this frame (world → screen)
+  private redPage = 0; // 0..1: the page bleeds red once the Redline Regent unseals its second form (eased)
   private cine = 0; // 0..1: how far into the ultimate's blackout we are (eased)
   private banner: { text: string; color: string; life: number } | null = null;
   private lastEventId = 0;
@@ -191,6 +192,20 @@ export class Renderer {
       this.particles.push({ x: e.x, y: e.y - 30, vx: 0, vy: -1.3, life: 0, max: 30, text: "CLASH!", color: C.gold, size: 26 });
       this.shake = Math.max(this.shake, 8);
       this.flash = Math.max(this.flash, 2);
+    } else if (e.type === "phase") {
+      // A boss changed form: new class look, the page bleeds red (see draw), a banner and a burst.
+      this.classes[e.slot] = e.cls;
+      this.items[e.slot] = e.item;
+      this.banner = { text: "THE MARGIN TEARS", color: C.hit, life: 140 };
+      const f = s.fighters[e.slot];
+      this.shake = 24;
+      this.flash = Math.max(this.flash, 5);
+      this.rings.push({ x: f.x, y: f.y - BODY.h * 0.55, r: 12, grow: 18, life: 0, max: 26, color: C.hit, width: 10 });
+      this.rings.push({ x: f.x, y: f.y - BODY.h * 0.55, r: 4, grow: 26, life: 0, max: 20, color: C.ink, width: 4 });
+      for (let i = 0; i < 30; i++) {
+        const a = Math.random() * Math.PI * 2;
+        this.particles.push({ x: f.x, y: f.y - BODY.h * 0.55, vx: Math.cos(a) * (3 + Math.random() * 7), vy: Math.sin(a) * (3 + Math.random() * 7), life: 0, max: 30, color: Math.random() < 0.5 ? C.hit : C.ink, size: 3 + Math.random() * 4 });
+      }
     } else if (e.type === "skill") {
       const f = s.fighters[e.by];
       this.rings.push({ x: f.x, y: f.y - BODY.h * 0.55, r: 30, grow: 4, life: 0, max: 14, color: C.guard, width: 3 });
@@ -269,13 +284,19 @@ export class Renderer {
       ctx.fillStyle = `rgba(5,5,12,${0.62 * this.cine})`;
       ctx.fillRect(-20, -20, ARENA.w + 40, ARENA.h + 40);
     }
+    this.redPage += ((cur.bossPhase === 2 ? 1 : 0) - this.redPage) * ease;
+    if (this.redPage > 0.01) {
+      ctx.fillStyle = `rgba(158,27,27,${0.13 * this.redPage})`;
+      ctx.fillRect(-20, -20, ARENA.w + 40, ARENA.h + 40);
+    }
+    for (const h of cur.hazards ?? []) this.hazard(h, fighters[1 - h.owner], now);
     if (this.dim) this.speedLines(fighters[this.dim.slot]);
 
     // Whoever is doing a special is drawn on top.
     const order = [...fighters].sort((a, b) => (a.action === "special" ? 1 : 0) - (b.action === "special" ? 1 : 0));
-    for (const f of order) this.fighter(f, (f.ult ? cur.ults?.[f.slot] : null) ?? cur.specials[f.slot], cur.styles[f.slot], now, hud.you === f.slot, cur.skills?.[f.slot]);
+    for (const f of order) this.fighter(f, (f.ult ? cur.ults?.[f.slot] : null) ?? cur.specials[f.slot], cur.styles[f.slot], now, hud.you === f.slot, cur.skills?.[f.slot], cur.passives?.[f.slot] ?? null);
     this.lastNow = now;
-    for (const p of projectiles) this.projectile(p.kind, p.x, p.y, p.r, p.vx, now, p.owner);
+    for (const p of projectiles) if (!p.delay) this.projectile(p.kind, p.x, p.y, p.r, p.vx, now, p.owner, fighters[p.owner].x);
     this.fx();
     ctx.restore();
 
@@ -300,6 +321,183 @@ export class Renderer {
     if (this.preview) return;
     this.hud(cur, hud, now);
     this.phaseText(cur);
+  }
+
+  // A drawn threat: the Regent's ruled line on the floor, or the crosshair and column of a remote detonation.
+  // It darkens as it nears the cut and flashes for the last 8 ticks.
+  private hazard(h: Snapshot["hazards"][number], target: F, now: number) {
+    const { ctx } = this;
+    const p = 1 - h.left / h.max, flash = h.left <= 8 && Math.floor(now / 70) % 2 === 0;
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.strokeStyle = flash ? "#ffffff" : `rgba(190,30,30,${0.25 + 0.6 * p})`;
+    ctx.fillStyle = `rgba(190,30,30,${0.06 + 0.16 * p})`;
+    if (h.kind === "line") {
+      ctx.lineWidth = 3 + 3 * p;
+      ctx.beginPath();
+      ctx.moveTo(h.x - h.w / 2, ARENA.ground + 5);
+      ctx.lineTo(h.x + h.w / 2, ARENA.ground + 5);
+      ctx.moveTo(h.x - h.w / 2, ARENA.ground - 8);
+      ctx.lineTo(h.x - h.w / 2, ARENA.ground + 5);
+      ctx.moveTo(h.x + h.w / 2, ARENA.ground - 8);
+      ctx.lineTo(h.x + h.w / 2, ARENA.ground + 5);
+      ctx.stroke();
+    } else {
+      ctx.fillRect(h.x - h.w / 2, 60, h.w, ARENA.ground - 60);
+      ctx.lineWidth = 2 + 2 * p;
+      ctx.beginPath();
+      ctx.moveTo(h.x - h.w / 2, 60);
+      ctx.lineTo(h.x - h.w / 2, ARENA.ground);
+      ctx.moveTo(h.x + h.w / 2, 60);
+      ctx.lineTo(h.x + h.w / 2, ARENA.ground);
+      ctx.stroke();
+      const cy = target.y - BODY.h * 0.55, r = 30 - 10 * p;
+      ctx.beginPath();
+      ctx.arc(h.x, cy, r, 0, Math.PI * 2);
+      ctx.moveTo(h.x - r - 10, cy);
+      ctx.lineTo(h.x + r + 10, cy);
+      ctx.moveTo(h.x, cy - r - 10);
+      ctx.lineTo(h.x, cy + r + 10);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // A boss's aura, by passive: what the fighter glows with right now (and how hard), or null.
+  private bossGlow(f: F, passive: PassiveId, now: number): { color: string; blur: number } | null {
+    const pv = f.pv ?? {};
+    switch (passive) {
+      case "heat-stacks": {
+        const h = pv.heat ?? 0;
+        return h > 0 ? { color: "#ff8a1f", blur: 4 + h * 4 + (h >= 3 ? Math.sin(now / 45) * 3 : 0) } : null;
+      }
+      case "sheathed-draw":
+        return (pv.still ?? 0) >= 20 ? { color: "#ffffff", blur: 16 } : (pv.still ?? 0) > 0 ? { color: "#8fb4ff", blur: 3 + (pv.still ?? 0) / 5 } : null;
+      case "unbending-spine": {
+        const mv = f.move ? MOVES[f.move] : null;
+        return (f.action === "attack" || f.action === "kick") && mv && f.t < mv.from ? { color: "#000000", blur: 14 } : null;
+      }
+      case "royal-pride":
+        return f.hp < 80 ? { color: "#7b4fd6", blur: 9 + Math.sin(now / 120) * 2 } : null;
+      case "endless-dance":
+        return (pv.restarts ?? 0) > 0 ? { color: C.gold, blur: 5 + 4 * (pv.restarts ?? 0) } : null;
+      case "whiteout-guard":
+        return (pv.cracks ?? 0) >= 2 ? { color: "#dfe6ee", blur: 12 } : null;
+      case "infinite-margin":
+        return (pv.shimmer ?? 0) > 0 ? { color: "#8fd3e8", blur: 14 + Math.sin(now / 50) * 4 } : null;
+      default:
+        return null;
+    }
+  }
+
+  // The passive's other tells, drawn over the boss: the crown, the shield cracks, the pencil case, the ruled grid and blink ripple,
+  // heat embers, sword sparks, gold footwork. (x, y) is the fighter's feet in the world; hand is its front hand.
+  private bossFx(f: F, passive: PassiveId, x: number, y: number, hand: Vec) {
+    const { ctx } = this;
+    const pv = f.pv ?? {};
+    const rnd = Math.random;
+    if (passive === "royal-pride" && f.hp < 80) {
+      // A crown of ink floats above the head.
+      const cx = x, cy = y - BODY.h * 1.1 - 16;
+      ctx.save();
+      ctx.strokeStyle = C.ink;
+      ctx.fillStyle = C.gold;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(cx - 17, cy + 10);
+      ctx.lineTo(cx - 17, cy - 8);
+      ctx.lineTo(cx - 8, cy + 2);
+      ctx.lineTo(cx, cy - 12);
+      ctx.lineTo(cx + 8, cy + 2);
+      ctx.lineTo(cx + 17, cy - 8);
+      ctx.lineTo(cx + 17, cy + 10);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    } else if (passive === "whiteout-guard" && (pv.cracks ?? 0) > 0) {
+      ctx.save();
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 2.5;
+      for (let i = 0; i < (pv.cracks ?? 0); i++) {
+        ctx.beginPath();
+        ctx.moveTo(hand.x + 6 + i * 3, hand.y - 22 + i * 14);
+        ctx.lineTo(hand.x + 14 + i * 3, hand.y - 8 + i * 14);
+        ctx.lineTo(hand.x + 8 + i * 3, hand.y + 2 + i * 14);
+        ctx.stroke();
+      }
+      ctx.restore();
+      if ((pv.cracks ?? 0) >= 2 && rnd() < 0.4) this.particles.push({ x: hand.x + (rnd() - 0.5) * 40, y: hand.y + (rnd() - 0.5) * 60, vx: 0, vy: -0.8, life: 0, max: 24, color: "#dfe6ee", size: 5 + rnd() * 4 });
+    } else if (passive === "pencil-case" && ((pv.timer ?? 0) >= 420 || (pv.swap ?? 0) > 0)) {
+      // The pencil case pops open above the head and names the weapon coming next.
+      const next = ["SWORD", "SHIELD", "MACE"][pv.weapon ?? 0];
+      ctx.save();
+      ctx.font = `800 13px ${this.fontDisplay}`;
+      ctx.textAlign = "center";
+      ctx.fillStyle = C.ink;
+      ctx.strokeStyle = C.paper;
+      ctx.lineWidth = 4;
+      const ty = y - BODY.h * 1.1 - 22;
+      ctx.strokeText(`✎ ${(pv.swap ?? 0) > 0 ? "SWAPPING" : "NEXT"}: ${next}`, x, ty);
+      ctx.fillText(`✎ ${(pv.swap ?? 0) > 0 ? "SWAPPING" : "NEXT"}: ${next}`, x, ty);
+      ctx.restore();
+    } else if (passive === "infinite-margin") {
+      // A ruled-line grid shimmers around him; the blink is an ink-blot ripple on him.
+      ctx.save();
+      ctx.strokeStyle = `rgba(80,150,190,${(pv.shimmer ?? 0) > 0 ? 0.5 : 0.18})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        ctx.moveTo(x - 70, y - i * 32);
+        ctx.lineTo(x + 70, y - i * 32);
+      }
+      for (let i = -2; i <= 2; i++) {
+        ctx.moveTo(x + i * 32, y);
+        ctx.lineTo(x + i * 32, y - 190);
+      }
+      ctx.stroke();
+      if ((pv.shimmer ?? 0) > 0) {
+        const k = 1 - (pv.shimmer ?? 0) / 18;
+        ctx.strokeStyle = C.ink;
+        ctx.lineWidth = 4 * (1 - k) + 1;
+        ctx.globalAlpha = 0.7;
+        for (let i = 0; i < 3; i++) {
+          ctx.beginPath();
+          ctx.ellipse(x, y - BODY.h * 0.5, 20 + k * 90 + i * 14, 30 + k * 120 + i * 14, 0, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    } else if (passive === "heat-stacks" && (pv.heat ?? 0) >= 3 && rnd() < 0.7) {
+      this.particles.push({ x: hand.x + (rnd() - 0.5) * 20, y: hand.y, vx: (rnd() - 0.5) * 1.5, vy: -1.5 - rnd() * 2, life: 0, max: 20, color: rnd() < 0.5 ? "#ff8a1f" : C.hit, size: 4 + rnd() * 4 });
+    } else if (passive === "sheathed-draw" && (pv.still ?? 0) > 0 && rnd() < 0.5) {
+      // Blue sparks crawl along the blade, then it flashes white.
+      this.particles.push({ x: hand.x + f.facing * rnd() * 50, y: hand.y - rnd() * 60, vx: 0, vy: -0.4, life: 0, max: 12, color: (pv.still ?? 0) >= 20 ? "#ffffff" : "#8fb4ff", size: 2.5 });
+    } else if (passive === "endless-dance" && (pv.restarts ?? 0) > 0 && (f.action === "attack" || f.action === "kick") && rnd() < 0.8) {
+      this.particles.push({ x: x + (rnd() - 0.5) * 50, y: ARENA.ground - 3, vx: -f.facing * rnd() * 2, vy: -rnd() * 1.5, life: 0, max: 22, color: C.gold, size: 4 + (pv.restarts ?? 0) * 2 });
+    }
+  }
+
+  // Curse Marks: red tally strokes on the marked fighter's body, one per mark; the fourth pulses.
+  private marksFx(f: F, x: number, y: number, now: number) {
+    const { ctx } = this;
+    ctx.save();
+    ctx.strokeStyle = C.hit;
+    ctx.lineCap = "round";
+    ctx.lineWidth = f.marks >= 4 && Math.floor(now / 120) % 2 ? 5 : 3;
+    const top = y - BODY.h * 0.78;
+    for (let i = 0; i < f.marks; i++) {
+      ctx.beginPath();
+      if (i < 4) {
+        ctx.moveTo(x - 12 + i * 8, top);
+        ctx.lineTo(x - 12 + i * 8, top + 22);
+      } else {
+        ctx.moveTo(x - 16, top + 18);
+        ctx.lineTo(x + 18, top + 4); // the fifth stroke crosses the four
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   // The manga impact frame: the arena inverted, black and white wedges fanning out from the point of impact.
@@ -430,7 +628,7 @@ export class Renderer {
     ctx.restore();
   }
 
-  private fighter(f: F, special: SpecialKind, style: Snapshot["styles"][number], now: number, isYou: boolean, skill?: SideSkill) {
+  private fighter(f: F, special: SpecialKind, style: Snapshot["styles"][number], now: number, isYou: boolean, skill?: SideSkill, passive: PassiveId | null = null) {
     const { ctx } = this;
     const sprite = this.sprites[f.slot];
     const cls = this.classes[f.slot];
@@ -502,9 +700,10 @@ export class Renderer {
       ctx.restore();
     }
 
-    // Afterimages while a special is out.
+    // Afterimages while a special is out (and Smudge's grey trail while its Afterimage is ready).
     const trail = this.trails[f.slot];
-    if (f.action === "special" && special !== "beam") {
+    const ghost = passive === "afterimage" && (f.pv?.cd ?? 1) === 0;
+    if ((f.action === "special" && special !== "beam") || ghost) {
       trail.unshift(pose);
       trail.length = Math.min(trail.length, 5);
     } else trail.length = 0;
@@ -512,7 +711,7 @@ export class Renderer {
     const hurt = f.action === "hit" && f.t < 8;
     const nc = normClass(cls);
     const accent = nc === "Tank" || nc === "Attacker" ? C.guard : nc === "Fighter" ? C.hit : C.gold;
-    const look = { ink: hurt ? C.hit : (sprite?.ink ?? C.ink), head: sprite?.head ?? null, prop: sprite?.prop ?? null, cls, item: this.items[f.slot], accent, width: sprite?.width ?? 7, build: this.builds[f.slot], now };
+    const look = { ink: hurt ? C.hit : (sprite?.ink ?? C.ink), head: sprite?.head ?? null, prop: sprite?.prop ?? null, cls, item: passive === "pencil-case" ? ["mace", "sword", "shield"][f.pv?.weapon ?? 0] : this.items[f.slot], accent, width: sprite?.width ?? 7, build: this.builds[f.slot], now };
 
     ctx.save();
     ctx.translate(f.x + dx, f.y + lift);
@@ -527,7 +726,7 @@ export class Renderer {
     const base = (f.action === "ko" ? 0.75 : 1) * motion.alpha;
     trail.slice(1).forEach((p, i) => {
       ctx.globalAlpha = (0.24 - i * 0.05) * Math.max(0.3, motion.alpha);
-      drawStick(ctx, p, { ...look, ink: C.hit, head: null, prop: null, plain: true });
+      drawStick(ctx, p, { ...look, ink: ghost ? "#6b6b73" : C.hit, head: null, prop: null, plain: true });
     });
     ctx.globalAlpha = base;
     const skillOn = f.skillT > 0 && f.action !== "ko" ? skill : undefined;
@@ -540,6 +739,10 @@ export class Renderer {
     } else if (f.status) {
       ctx.shadowColor = STATUS_COLOR[f.status.kind] ?? C.muted; // a faint halo in the element's colour
       ctx.shadowBlur = 7;
+    } else if (passive && this.bossGlow(f, passive, now)) {
+      const g = this.bossGlow(f, passive, now)!;
+      ctx.shadowColor = g.color;
+      ctx.shadowBlur = g.blur;
     } else if (f.tension > 0.1 && f.action !== "ko") {
       ctx.shadowColor = C.hit; // tension: a red aura that swells with it and pulses
       ctx.shadowBlur = 5 + f.tension * 10 + Math.sin(now / 90) * 2 * f.tension;
@@ -555,6 +758,8 @@ export class Renderer {
       this.particles.push({ x: f.x + dx + (Math.random() - 0.5) * 50, y: f.y + lift - Math.random() * BODY.h * 0.6, vx: (Math.random() - 0.5) * 0.8, vy: -1.4 - Math.random(), life: 0, max: 26, color: Math.random() < 0.5 ? C.hit : C.gold, size: 3 + Math.random() * 3 });
     }
     if (f.status && f.action !== "ko") this.statusFx(f.status.kind, f.x + dx - f.facing * 38, f.y + lift - 150, now);
+    if (passive && f.action !== "ko") this.bossFx(f, passive, f.x + dx, f.y + lift, toWorld(pose.joints.handF));
+    if (f.marks > 0 && f.action !== "ko") this.marksFx(f, f.x + dx, f.y + lift, now);
 
     if (f.blocking) {
       ctx.strokeStyle = C.guard;
@@ -711,6 +916,48 @@ export class Renderer {
         ctx.fill();
         ctx.fillRect(Math.min(x, x - f.facing * 26), y - 2, 26, 4);
       }
+    } else if (kind === "shatter" && t >= 11 && t <= 18) {
+      // An open hand closing: cracks radiate from the grab.
+      const gx = f.x + f.facing * 60, gy = f.y - BODY.h * 0.55;
+      ctx.strokeStyle = C.ink;
+      ctx.lineWidth = 3;
+      ctx.globalAlpha = Math.max(0, 1 - (t - 11) / 8);
+      ctx.beginPath();
+      for (let i = 0; i < 9; i++) {
+        const a = (i / 9) * Math.PI * 2 + 0.3, r0 = 8 + (t - 11) * 2, r1 = r0 + 22 + (i % 3) * 10;
+        ctx.moveTo(gx + Math.cos(a) * r0, gy + Math.sin(a) * r0);
+        ctx.lineTo(gx + Math.cos(a + 0.12) * (r0 + r1) / 2, gy + Math.sin(a + 0.12) * (r0 + r1) / 2);
+        ctx.lineTo(gx + Math.cos(a) * r1, gy + Math.sin(a) * r1);
+      }
+      ctx.stroke();
+      if (t === 12) this.rings.push({ x: gx, y: gy, r: 6, grow: 8, life: 0, max: 14, color: C.gold, width: 5 });
+    } else if (kind === "counter" && t < 26) {
+      // The stance: a white-gold arc in front, brightest at the start of the 24-tick window.
+      ctx.strokeStyle = t < 24 ? C.gold : "rgba(255,255,255,.5)";
+      ctx.lineWidth = 6;
+      ctx.globalAlpha = 0.5 + 0.4 * Math.sin(now / 50);
+      ctx.beginPath();
+      ctx.arc(f.x + f.facing * 6, f.y - BODY.h * 0.55, 80, f.facing > 0 ? -1.1 : Math.PI - 1.1, f.facing > 0 ? 1.1 : Math.PI + 1.1);
+      ctx.stroke();
+      if (f.landed && t >= 40 && t <= 42) this.rings.push({ x: f.x + f.facing * 50, y: f.y - BODY.h * 0.55, r: 10, grow: 10, life: 0, max: 14, color: C.gold, width: 6 });
+    } else if (kind === "dash_slash" && t >= 10 && t <= 24) {
+      // The streak the dash leaves: a long gold line along the path, fading.
+      ctx.globalAlpha = Math.max(0, 1 - (t - 10) / 14);
+      ctx.fillStyle = C.gold;
+      const x0 = f.x - f.facing * (t <= 18 ? (t - 10) * 27.5 : 220), y0 = hand.y;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(f.x, y0 - 7);
+      ctx.lineTo(f.x, y0 + 7);
+      ctx.closePath();
+      ctx.fill();
+    } else if (kind === "remote_detonation" && t >= 2 && t <= 14) {
+      // A pointed finger: a little red tick marks the cast.
+      ctx.strokeStyle = C.hit;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(hand.x + f.facing * 12, hand.y, 7 + (t % 6), 0, Math.PI * 2);
+      ctx.stroke();
     } else if (kind === "meteor") {
       if (t > 14 && !f.hitN) {
         const foot = toWorld(j.footF);
@@ -808,7 +1055,7 @@ export class Renderer {
     ctx.restore();
   }
 
-  private projectile(kind: SpecialKind | "blast", x: number, y: number, r: number, vx: number, now: number, owner: Slot) {
+  private projectile(kind: SpecialKind | "blast", x: number, y: number, r: number, vx: number, now: number, owner: Slot, fromX = x) {
     const { ctx } = this;
     const d = Math.sign(vx);
     ctx.save();
@@ -846,6 +1093,24 @@ export class Renderer {
         ctx.arc(x + d * r * 0.3, y - r * 0.3, r * 0.28, 0, Math.PI * 2);
         ctx.fill();
       }
+    } else if (kind === "pull") {
+      // Iron Reel: a hook on a line that runs back to the thrower's hand.
+      ctx.strokeStyle = C.ink;
+      ctx.lineWidth = 3;
+      ctx.setLineDash([10, 6]);
+      ctx.beginPath();
+      ctx.moveTo(fromX + d * 40, y);
+      ctx.lineTo(x - d * 8, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 0.8, d > 0 ? -2.4 : Math.PI - 2.4 - 0.4, d > 0 ? 2.4 : Math.PI + 2.4 + 0.4, d < 0);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x + d * r * 0.7, y - r * 0.5);
+      ctx.lineTo(x + d * (r * 0.7 + 8), y - r * 0.9);
+      ctx.stroke();
     } else if (kind === "arrow") {
       ctx.strokeStyle = C.ink;
       ctx.lineWidth = 4;

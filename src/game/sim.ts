@@ -553,7 +553,7 @@ function bossHits(m: Match, att: Fighter, vic: Fighter, blocked: boolean, opts: 
     att.pv.last = blocked ? 0 : 1;
     if (blocked) att.pv.stop = 1;
   }
-  if (ap === "curse-marks" && !blocked && vic.hp > 0) {
+  if ((ap === "curse-marks" || ap === "red-margin-lines") && !blocked && vic.hp > 0) { // (the second form keeps the marks)
     vic.marks++;
     vic.markT = 0;
     if (vic.marks >= 5) {

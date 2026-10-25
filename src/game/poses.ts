@@ -180,6 +180,11 @@ export function poseFor(f: F, special: SpecialKind, now: number, cls = ""): Body
         // Tuck the legs, arms up for balance.
         return still({ thighF: abs(DOWN - 0.8), shinF: abs(DOWN + 0.15), thighB: abs(DOWN - 0.25), shinB: abs(DOWN + 0.7), upperF: rel(-0.7), upperB: rel(0.6) });
       }
+      // Pencil Case: the boss rummages in its pencil case with both hands: clearly not a fighting pose.
+      if ((f.pv?.swap ?? 0) > 0) {
+        const w = Math.sin(now / 55) * 0.25;
+        return still({ upperF: abs(0.9 + w), foreF: abs(-1.3 - w), upperB: abs(0.8 - w), foreB: abs(-1.2 + w), torso: rel(0.28), head: rel(0.3), ...STANCE });
+      }
       if (f.blocking) return still({ ...GUARD, ...STANCE, upperF: abs(0.9), foreF: abs(-1.45), torso: rel(-0.12), head: rel(-0.15) });
       if (f.moving) {
         const s = Math.sin(now / 105);
@@ -299,6 +304,29 @@ function specialPose(kind: SpecialKind, f: F, now: number): BodyMotion {
         { lunge: 6},
       );
     }
+    case "shatter":
+      if (t < 12) return still({ upperF: abs(-0.3), foreF: abs(-0.15), upperB: abs(0.1), foreB: abs(-0.3), torso: rel(-0.12), ...wide });
+      if (t <= 16) return still({ upperF: abs(0), foreF: abs(0), upperB: abs(0.05), foreB: abs(0.02), torso: rel(0.32), ...wide }, { lunge: 8 });
+      return still({ ...FIGHT, torso: rel(0.2) });
+    case "counter":
+      // A calm stance with open palms; the answer is a palm thrust.
+      if (f.landed && t >= 40) return still({ upperF: abs(-0.05), foreF: abs(-0.3), upperB: abs(0.9), foreB: abs(-0.6), torso: rel(0.25), thighF: abs(DOWN - 0.5), thighB: abs(DOWN + 0.5) }, { lunge: 10 });
+      if (t < 24) return still({ upperF: abs(0.5), foreF: abs(-0.7), upperB: abs(0.9), foreB: abs(-0.5), torso: rel(-0.05), head: rel(-0.05), ...wide });
+      return still({ ...FIGHT, torso: rel(0.1) });
+    case "dash_slash":
+      if (t < 10) return still({ upperF: abs(BACK - 0.3), foreF: abs(BACK - 0.1), upperB: abs(BACK - 0.5), foreB: abs(BACK - 0.3), torso: rel(-0.25), thighF: abs(DOWN - 0.6), shinF: abs(DOWN + 0.4), thighB: abs(DOWN + 0.6), shinB: abs(DOWN + 0.2) });
+      if (t <= 18) return still({ upperF: abs(-0.02), foreF: abs(-0.02), upperB: abs(BACK - 0.3), foreB: abs(BACK - 0.2), torso: rel(0.5), thighF: abs(DOWN - 0.95), shinF: abs(DOWN - 0.1), thighB: abs(DOWN + 0.95), shinB: abs(BACK - 0.6) });
+      return still({ ...FIGHT, upperF: abs(0.6), foreF: abs(0.4), torso: rel(0.1) }); // sheathing, back to back
+    case "pull": {
+      // Throws the hook (arm back, then out) and hauls on the line.
+      if (t < 12) return still({ upperF: abs(BACK - 0.6), foreF: abs(BACK - 0.4), upperB: abs(1.2), foreB: abs(-0.8), torso: rel(-0.2), ...wide });
+      const heave = Math.sin(now / 90) * 0.15;
+      return still({ upperF: abs(-0.05 + heave), foreF: abs(-0.05 + heave), upperB: abs(0.15), foreB: abs(0.1), torso: rel(t < 20 ? 0.2 : -0.1 + heave), ...wide }, { lunge: t < 20 ? 4 : -4 });
+    }
+    case "remote_detonation":
+      // Points where they stand, then closes the fist.
+      if (t < 8) return still({ upperF: abs(-0.05), foreF: abs(-0.05), upperB: abs(1.3), foreB: abs(-0.7), torso: rel(0.05), ...wide });
+      return still({ upperF: abs(UP + 0.4), foreF: abs(UP + 0.2), upperB: abs(1.3), foreB: abs(-0.7), torso: rel(-0.05), ...wide });
     case "meteor":
       if (t <= 14) return still({ thighF: abs(DOWN - 1.2), shinF: abs(DOWN + 0.3), thighB: abs(DOWN - 0.9), shinB: abs(DOWN + 0.6), upperF: abs(UP + 0.4), upperB: abs(UP + 0.1), torso: rel(0.2) });
       if (!f.hitN) return still({ thighF: abs(0.8), shinF: abs(0.75), thighB: abs(DOWN + 0.9), shinB: abs(BACK - 0.6), upperF: abs(UP - 0.6), upperB: abs(BACK + 0.4), torso: rel(-0.2) });

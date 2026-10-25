@@ -16,7 +16,8 @@ const LEVELS: Record<Level, Knobs> = {
 };
 
 // How close it must be before a special is worth throwing: ranged ones from afar, the rest up close.
-const specialRange = (kind: SpecialKind) => (SPECIAL_INFO[kind].ranged ? 650 : kind === "teleport" ? 400 : kind === "meteor" || kind === "spiral" ? 300 : 170);
+const RANGE: Partial<Record<SpecialKind, number>> = { teleport: 400, meteor: 300, spiral: 300, shatter: 110, counter: 170, dash_slash: 260, pull: 330, remote_detonation: 480 };
+const specialRange = (kind: SpecialKind) => RANGE[kind] ?? (SPECIAL_INFO[kind].ranged ? 650 : 170);
 
 // How often a sword steps back after a chain. Every time makes a slow class unable to ever reach it
 // (Sword vs Mace 64%); never throws its reach away (32%). Tuned with scripts/balance.ts.
@@ -118,13 +119,15 @@ export function cpuThink(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
 
   // Specials as soon as they're useful: the ultimate (S + L) with a full meter, slot 1 from half a meter unless
   // it is saving up. Teleport and meteor reach from mid-range; the rest need to be close.
-  if (me.energy >= ULT_COST && me.grounded && dist < specialRange(myDef.ult) && Math.random() < L.aggro) {
+  // A counter stance is only worth taking when a swing is coming; a grab needs them on the ground.
+  const worth = (kind: SpecialKind) => (kind === "counter" ? (op.action === "attack" || op.action === "kick") && dist < opReach : kind === "shatter" ? op.grounded : true);
+  if (me.energy >= ULT_COST && me.grounded && dist < specialRange(myDef.ult) && worth(myDef.ult) && Math.random() < L.aggro) {
     input.block = true;
     input.special++;
     brain.saving = Math.random() < brain.ultUse;
     return;
   }
-  if (me.energy >= SLOT1_COST && !brain.saving && dist < specialRange(myDef.special) && Math.random() < L.aggro) {
+  if (me.energy >= SLOT1_COST && !brain.saving && dist < specialRange(myDef.special) && worth(myDef.special) && Math.random() < L.aggro) {
     input.special++;
     brain.saving = Math.random() < brain.ultUse;
     return;

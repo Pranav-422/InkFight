@@ -1,10 +1,13 @@
 // The Dungeon: ten floors, one boss each, harder as you climb (Sprint 5). Boss data is game data, written
 // from docs/research/v2/bosses.json (original titles only). Bosses fight as tinted stickmen drawn by
-// /boss-art/[floor], with the floor's stat budget (clampStats honours `budget`/`cap`, which only bosses carry)
-// and CPU knobs. Still to come after Sprint 3 merges (they live in sim.ts/moves.ts): the passives, floor 10's
-// phase 2, and the 5 new special kinds (shatter, counter, dash_slash, pull, and floor 10's reward). Until
-// then a boss whose special doesn't exist yet uses its class's default (specialOf).
+// /boss-art/[floor], with the floor's stat budget (clampStats honours `budget`/`cap`, which only bosses carry),
+// CPU knobs, and a passive that only exists inside createMatch(..., { boss: bossRun(floor).spec }) (sim.ts).
+// Beating floors 2, 4, 6, 8 and 10 unlocks the five special kinds in UNLOCK_FLOOR (moves.ts); the other floors
+// unlock a named, element-tinted variant of an existing kind (VARIANTS below).
 
+import type { Knobs } from "./cpu";
+import { BASE_KINDS, SPECIAL_INFO, UNLOCK_FLOOR, UNLOCK_KINDS, type SpecialKind } from "./moves";
+import type { BossSpec, FighterStats, PassiveId } from "./sim";
 import type { PublicFighter } from "./protocol";
 
 export type Boss = {
@@ -22,13 +25,23 @@ export type Boss = {
   cap: number; // highest allowed stat
   stats: { atk: number; def: number; spd: number; agi: number; iq: number };
   cpu: { react: number; block: number; aggro: number; dodge: number; think: number }; // cpu.ts knobs
-  passive: { id: string; name: string; rule: string; telegraph: string; hint: string }; // rule/telegraph: for the sim; hint: for players
+  passive: { id: PassiveId; name: string; rule: string; telegraph: string; hint: string }; // rule/telegraph: for the sim; hint: for players
   counterplay: string;
   teaches: string;
   taunt: string;
   reward: { type: string; name: string; kind: string; element?: string; description: string };
-  phase2?: Record<string, unknown>;
+  phase2?: Phase2;
   phase2Taunt?: string;
+};
+
+// The second form (floor 10): a whole new kit at 50% health. `cpu.special` (a keener special) has no matching knob in cpu.ts, so it is unused.
+export type Phase2 = {
+  title: string; class: string; style: string; item: string; element: string; special: string;
+  stats: { atk: number; def: number; spd: number; agi: number; iq: number };
+  cpu: { react: number; block: number; aggro: number; dodge: number; think: number; special?: number };
+  passive: { name: string; rule: string; telegraph: string; hook?: string; implementation?: string };
+  trigger?: string; transition?: unknown; ai_personality?: string; // design notes: the sim implements them (sim.ts checkPhase2)
+  counterplay: string;
 };
 
 export const BOSSES: Boss[] = [
@@ -545,4 +558,62 @@ export function bossFighter(floor: number): PublicFighter & { budget: number; ca
     budget: b.budget,
     cap: b.cap,
   };
+}
+
+// The sim's side of a boss (passive, second form) and the CPU's (knobs per form), built once per floor so a React
+// effect that depends on it doesn't restart the match.
+export type BossRun = { spec: BossSpec; cpu: Partial<Knobs>; cpu2?: Partial<Knobs> };
+const runs = new Map<number, BossRun>();
+export function bossRun(floor: number): BossRun {
+  let r = runs.get(floor);
+  if (!r) {
+    const b = BOSSES[floor - 1];
+    const p2 = b.phase2;
+    const { special: _unusedKnob, ...cpu2 } = p2?.cpu ?? {}; // eslint-disable-line @typescript-eslint/no-unused-vars
+    const stats: FighterStats | null = p2
+      ? { hp: 200, ...p2.stats, class: p2.class, item: p2.item, style: p2.style, element: p2.element, specialKind: p2.special, budget: b.budget, cap: b.cap }
+      : null;
+    r = {
+      spec: { slot: 1, passive: b.passive.id, ...(p2 && stats && { phase2: { stats, passive: "red-margin-lines" as const, cls: p2.class, item: p2.item } }) },
+      cpu: b.cpu,
+      ...(p2 && { cpu2 }),
+    };
+    runs.set(floor, r);
+  }
+  return r;
+}
+
+// The CPU's knobs for the form the boss is in now.
+export const bossKnobs = (run: BossRun, phase: 1 | 2 | undefined): Partial<Knobs> => (phase === 2 && run.cpu2 ? run.cpu2 : run.cpu);
+
+// ---------------------------------------------------------------- what the floors unlock
+
+// The odd floors' rewards: a named, element-tinted version of an existing kind (the element is set with it).
+export type Variant = { floor: number; id: string; name: string; kind: SpecialKind; element: string; description: string };
+export const VARIANTS: Variant[] = BOSSES.filter((b) => b.reward.type === "element_variant").map((b) => ({
+  floor: b.floor,
+  id: `v${b.floor}`,
+  name: b.reward.name,
+  kind: b.reward.kind as SpecialKind,
+  element: b.reward.element ?? "NONE",
+  description: b.reward.description,
+}));
+
+// One entry per thing a player can pick for the special slot, given the floors they have cleared.
+export type SpecialChoice = { id: string; label: string; kind: SpecialKind; how: string; variant?: Variant };
+export function specialChoices(cleared: number): SpecialChoice[] {
+  return [
+    ...BASE_KINDS.map((k) => ({ id: k, label: k, kind: k, how: SPECIAL_INFO[k].looks })),
+    ...UNLOCK_KINDS.filter((k) => UNLOCK_FLOOR[k] <= cleared).map((k) => ({ id: k, label: k.replace("_", " "), kind: k, how: SPECIAL_INFO[k].looks })),
+    ...VARIANTS.filter((v) => v.floor <= cleared).map((v) => ({ id: v.id, label: `${v.name} (${v.kind}, ${v.element.toLowerCase()})`, kind: v.kind, how: v.description, variant: v })),
+  ];
+}
+// Kinds an ultimate may be (variants are for the special slot only).
+export const ultChoices = (cleared: number): SpecialKind[] => [...BASE_KINDS, ...UNLOCK_KINDS.filter((k) => UNLOCK_FLOOR[k] <= cleared)];
+
+// null when `kind` may be picked with `cleared` floors done, else why not.
+export function lockedReason(kind: string, cleared: number): string | null {
+  const floor = UNLOCK_FLOOR[kind as keyof typeof UNLOCK_FLOOR];
+  if (!floor || floor <= cleared) return null;
+  return `${kind.replace("_", " ")} is locked: beat floor ${floor} of the Dungeon (${BOSSES[floor - 1].title}) to copy it.`;
 }

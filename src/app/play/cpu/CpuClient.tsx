@@ -6,7 +6,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ClassBadge } from "@/components/ClassBadge";
 import { FighterAvatar } from "@/components/FighterAvatar";
 import { GameCanvas } from "@/components/GameCanvas";
-import type { Knobs, Level } from "@/game/cpu";
+import type { Level } from "@/game/cpu";
+import type { BossRun } from "@/game/dungeon";
 import type { PublicFighter } from "@/game/protocol";
 import { useCpuMatch } from "@/game/useCpuMatch";
 import { useLeaveGuard } from "@/components/useLeaveGuard";
@@ -161,14 +162,14 @@ function FighterGrid({
   );
 }
 
-// knobs/label/onResult: the dungeon's boss fights (src/app/play/dungeon) reuse this with a boss's AI.
+// boss/label/onResult: the dungeon's boss fights (src/app/play/dungeon) reuse this with a boss's passive and AI.
 export function CpuFight({
   me,
   cpu,
   level,
   onExit,
   exitLabel = "Change fighters",
-  knobs,
+  boss,
   label,
   onResult,
 }: {
@@ -177,11 +178,11 @@ export function CpuFight({
   level: Level;
   onExit: () => void;
   exitLabel?: string;
-  knobs?: Partial<Knobs>;
+  boss?: BossRun;
   label?: string;
   onResult?: (won: boolean) => void;
 }) {
-  const { lobby, snaps, matchOver, sendInput, rematch } = useCpuMatch(me, cpu, level, knobs);
+  const { lobby, snaps, matchOver, sendInput, rematch } = useCpuMatch(me, cpu, level, boss);
   const result = matchOver?.matchWinner ?? null;
   const report = useRef(onResult);
   useEffect(() => {

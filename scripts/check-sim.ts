@@ -638,6 +638,14 @@ const p2 = (): BossSpec => bossOf("curse-marks", { phase2: { stats: { ...fighter
   assert.equal(x.m.freeze, 40, "phase 2 holds the fight still for 40 ticks");
   const ev = x.m.events.filter((e) => e.type === "phase");
   assert.equal(ev.length, 1);
+  // ...and the marks keep counting in the second form.
+  x.m.fighters[1].hp = 100;
+  run(x, 45);
+  x.m.fighters[0].x = x.m.fighters[1].x - 90;
+  x.m.defs[1].dodge = 0;
+  x.ib.attack++;
+  for (let i = 0; i < 16 && x.m.fighters[0].marks === 0; i++) run(x, 1);
+  assert.ok(x.m.fighters[0].marks >= 1, "the second form stopped marking");
   // A big combo can't skip it: a huge blow from a higher HP still stops at exactly 100.
   const y = fight(fighter("Fighter", { atk: 100 }), fighter("Fighter", { agi: 40 }), 100, p2());
   y.m.fighters[1].hp = 125;
