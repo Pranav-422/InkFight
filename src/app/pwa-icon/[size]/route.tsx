@@ -9,7 +9,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/pwa-icon/[size]">) 
   if (!SIZES.has(size)) return new Response("Unknown icon size", { status: 404 });
   return new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", background: "#f4ecdc" }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", background: "#fff9ed" }}>
         <svg width={size} height={size} viewBox="0 0 100 100">
           <circle cx="50" cy="50" r="44" fill="#e5482d" />
           <g stroke="#17171a" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" fill="none">

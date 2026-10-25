@@ -2,12 +2,12 @@ import { Brain, Heart, Shield, Swords, Wind, Zap, type LucideIcon } from "lucide
 import { STAT_CAPS, type StatKey } from "@/lib/stats";
 
 const META: Record<StatKey, { label: string; icon: LucideIcon; color: string }> = {
-  hp: { label: "HP", icon: Heart, color: "bg-ink" },
-  atk: { label: "STR", icon: Swords, color: "bg-hit" }, // strength: physical damage
-  def: { label: "DUR", icon: Shield, color: "bg-guard" }, // durability: how little damage it takes
-  spd: { label: "SPD", icon: Zap, color: "bg-gold" },
-  agi: { label: "AGI", icon: Wind, color: "bg-emerald-600" }, // jump, air control, hit recovery
-  iq: { label: "IQ", icon: Brain, color: "bg-violet-600" }, // energy gain, magic damage
+  hp: { label: "HP", icon: Heart, color: "#171717" },
+  atk: { label: "STR", icon: Swords, color: "#e5482d" }, // strength: physical damage
+  def: { label: "DUR", icon: Shield, color: "#2f5be0" }, // durability: how little damage it takes
+  spd: { label: "SPD", icon: Zap, color: "#f2b705" },
+  agi: { label: "AGI", icon: Wind, color: "#16a34a" }, // jump, air control, hit recovery
+  iq: { label: "IQ", icon: Brain, color: "#7c3aed" }, // energy gain, magic damage
 };
 
 export function StatBar({ stat, value, compact = false }: { stat: StatKey; value: number; compact?: boolean }) {
@@ -17,11 +17,17 @@ export function StatBar({ stat, value, compact = false }: { stat: StatKey; value
   return (
     <div className="flex items-center gap-2">
       <Icon className={`${compact ? "size-3" : "size-4"} shrink-0 text-muted`} />
-      <span className={`w-8 shrink-0 font-semibold ${compact ? "text-[10px]" : "text-xs"} text-muted`}>{label}</span>
-      <div className={`relative flex-1 overflow-hidden rounded-full bg-line ${compact ? "h-1.5" : "h-2.5"}`}>
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
+      <span className={`w-8 shrink-0 font-display font-extrabold tracking-wider ${compact ? "text-[10px]" : "text-xs"}`}>{label}</span>
+      {/* A segmented meter in an ink track. */}
+      <div className={`relative flex-1 overflow-hidden border-2 border-ink bg-white ${compact ? "h-2.5" : "h-3.5"}`}>
+        <div
+          className="h-full"
+          style={{ width: `${pct}%`, backgroundImage: `repeating-linear-gradient(90deg, ${color} 0 7px, transparent 7px 9px)` }}
+        />
       </div>
-      <span className={`w-8 shrink-0 text-right tabular-nums font-semibold ${compact ? "text-xs" : "text-sm"}`}>{value}</span>
+      <span className={`w-8 shrink-0 text-right font-display font-extrabold tabular-nums ${compact ? "text-xs" : "text-sm"}`} style={{ color }}>
+        {value}
+      </span>
     </div>
   );
 }

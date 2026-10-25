@@ -1,6 +1,6 @@
 import { LogOut } from "lucide-react";
 import type { Metadata, Viewport } from "next";
-import { Bricolage_Grotesque, Inter } from "next/font/google";
+import { Epilogue, Manrope } from "next/font/google";
 import Link from "next/link";
 import { BackButton } from "@/components/BackButton";
 import { InstallButton } from "@/components/InstallButton";
@@ -10,8 +10,8 @@ import { getSession, isAdmin } from "@/lib/auth";
 import { logout } from "./(auth)/actions";
 import "./globals.css";
 
-const display = Bricolage_Grotesque({ variable: "--font-display", subsets: ["latin"], weight: ["600", "800"] });
-const body = Inter({ variable: "--font-body", subsets: ["latin"] });
+const display = Epilogue({ variable: "--font-display", subsets: ["latin"], weight: ["700", "800", "900"] });
+const body = Manrope({ variable: "--font-body", subsets: ["latin"], weight: ["500", "600", "700", "800"] });
 
 export const metadata: Metadata = {
   title: "Inkfight",
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   icons: { icon: "/pwa-icon/192", apple: "/pwa-icon/180" },
 };
 
-export const viewport: Viewport = { themeColor: "#f4ecdc", viewportFit: "cover" };
+export const viewport: Viewport = { themeColor: "#fff9ed", viewportFit: "cover" };
 
 type NavItem = { href: string; label: string; short?: string; desktopOnly?: boolean };
 const NAV_IN: NavItem[] = [
@@ -37,21 +37,18 @@ const NAV_OUT: NavItem[] = [
   { href: "/leaderboard", label: "Leaderboard", short: "Ranks" },
 ];
 
-const linkCls = "rounded-full px-2.5 py-1.5 text-muted whitespace-nowrap hover:bg-ink/5 hover:text-ink sm:px-3";
+const linkCls = "px-2.5 py-1.5 font-display text-xs font-extrabold uppercase tracking-wider text-muted whitespace-nowrap hover:bg-gold hover:text-ink sm:px-3";
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const session = await getSession();
   return (
     <html lang="en" className={`${display.variable} ${body.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col font-sans">
-        <header className="sticky top-0 z-20 border-b-2 border-ink bg-paper/95 backdrop-blur">
+        <header className="sticky top-0 z-20 border-b-[3px] border-ink bg-paper">
           <nav className="mx-auto flex max-w-5xl items-center gap-2 px-4 py-3 sm:gap-4">
             <BackButton home={session ? "/home" : "/"} />
-            <Link
-              href={session ? "/home" : "/"}
-              className="-rotate-2 rounded-lg border-2 border-ink bg-gold px-2 font-display text-xl font-extrabold tracking-tight shadow-[2px_2px_0_var(--ink)]"
-            >
-              ink<span className="text-hit">fight</span>
+            <Link href={session ? "/home" : "/"} className="font-display text-2xl font-black uppercase tracking-tighter [text-shadow:2px_2px_0_var(--gold)]">
+              Ink<span className="text-hit">fight</span>
             </Link>
             <div className="ml-auto flex items-center text-sm sm:gap-1">
               <InstallButton />

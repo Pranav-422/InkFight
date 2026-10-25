@@ -1,19 +1,23 @@
 @import "tailwindcss";
 
+/* "Graphic Arena" (the owner's Stitch design system): warm newsprint, carbon ink, impact gold,
+   sharp corners, heavy borders and hard offset shadows. */
 :root {
-  --paper: #f4ecdc; /* warm notebook cream */
-  --card: #fffbf2;
-  --ink: #17171a;
-  --muted: #6b6a66;
-  --line: #e2d7c1;
-  --hit: #e5482d;   /* attack / primary accent */
-  --guard: #2f5be0; /* defense / secondary accent */
-  --gold: #f2b705;  /* winners, top 3 */
+  --paper: #fff9ed; /* warm newsprint stock */
+  --card: #ffffff;
+  --cream: #fff4d6; /* inset frames inside a card */
+  --ink: #171717;
+  --muted: #5a564f; /* sketch-line ochre */
+  --line: #d0c6ad;
+  --hit: #e5482d;   /* attack crimson */
+  --guard: #2f5be0; /* guard cobalt */
+  --gold: #ffd83d;  /* impact gold */
 }
 
 @theme inline {
   --color-paper: var(--paper);
   --color-card: var(--card);
+  --color-cream: var(--cream);
   --color-ink: var(--ink);
   --color-muted: var(--muted);
   --color-line: var(--line);
@@ -24,19 +28,32 @@
   --font-display: var(--font-display);
 }
 
-/* Ruled notebook paper behind every page: the game is drawn on it. */
+/* Shapes are strictly sharp: every rounded-* class resolves to a right angle (rounded-full stays round). */
+@theme {
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  --radius-4xl: 0px;
+}
+
+/* Newsprint with a faint 45-degree halftone screen. */
 body {
   background-color: var(--paper);
-  background-image: linear-gradient(transparent 31px, rgba(47, 91, 224, 0.07) 32px);
-  background-size: 100% 32px;
+  background-image: radial-gradient(rgba(23, 23, 23, 0.08) 1px, transparent 1.3px);
+  background-size: 12px 12px;
   color: var(--ink);
 }
 
-/* Page and section titles shout a little. */
+/* Titles land like an ink stamp: heavy, uppercase, tight. */
 h1.font-display,
 h2.font-display {
   text-transform: uppercase;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.03em;
+  font-weight: 900;
 }
 
 @keyframes pop-in {
@@ -45,24 +62,58 @@ h2.font-display {
 }
 .pop-in { animation: pop-in 220ms ease-out; }
 
+@keyframes slam {
+  0% { opacity: 0; transform: scale(2.2) rotate(-12deg); }
+  60% { opacity: 1; transform: scale(0.92) rotate(-6deg); }
+  100% { transform: scale(1) rotate(-8deg); }
+}
+.slam { animation: slam 380ms cubic-bezier(.2, .9, .3, 1.2) both; }
+
+@keyframes slide-l { from { transform: translateX(-40%); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes slide-r { from { transform: translateX(40%); opacity: 0; } to { transform: none; opacity: 1; } }
+.slide-l { animation: slide-l 420ms cubic-bezier(.2, .9, .3, 1) both; }
+.slide-r { animation: slide-r 420ms cubic-bezier(.2, .9, .3, 1) both; }
+
 @media (prefers-reduced-motion: reduce) {
-  .pop-in { animation: none !important; }
+  .pop-in, .slam, .slide-l, .slide-r { animation: none !important; }
 }
 
-/* Sticker look for the main actions: ink border with a hard offset shadow that presses in on tap.
-   In the components layer so utilities (disabled:shadow-none, border colours) still win. */
+/* In the components layer so utilities (disabled:shadow-none, colours) still win. */
 @layer components {
-  .sticker {
-    border: 2px solid var(--ink);
-    box-shadow: 4px 4px 0 var(--ink);
-  }
-  /* Every content card: inked edge with a small hard shadow. */
+  /* Cards and panels: 3px ink with a 3px hard shadow. */
   .card-edge {
-    border: 2px solid var(--ink);
+    border: 3px solid var(--ink);
     box-shadow: 3px 3px 0 var(--ink);
   }
+  /* Hero buttons and featured panels: thicker lift that presses flat on tap. */
+  .sticker {
+    border: 3px solid var(--ink);
+    box-shadow: 5px 5px 0 var(--ink);
+  }
+  .lift {
+    border: 3px solid var(--ink);
+    box-shadow: 6px 6px 0 var(--ink);
+  }
   .press { transition: transform 90ms ease-out, box-shadow 90ms ease-out; }
-  .press:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+  .press:active { transform: translate(4px, 4px); box-shadow: 0 0 0 var(--ink); }
+  /* Small stamped labels. */
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border: 2px solid var(--ink);
+    padding: 0.15rem 0.5rem;
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    line-height: 1.2;
+  }
+  /* Impact burst behind "VS", "K.O." and the like. */
+  .burst {
+    clip-path: polygon(50% 0%, 61% 18%, 82% 8%, 78% 30%, 100% 35%, 83% 52%, 98% 70%, 75% 72%, 76% 95%, 57% 82%, 44% 100%, 37% 79%, 15% 90%, 20% 67%, 0% 58%, 17% 44%, 4% 22%, 27% 24%, 28% 3%, 43% 18%);
+  }
 }
 
 /* The phone tab bar steps aside while a fight runs. */
@@ -71,3 +122,5 @@ body[data-fight] main { padding-bottom: 2rem; }
 
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
+
+input[type="checkbox"], input[type="radio"] { accent-color: var(--ink); }

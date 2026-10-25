@@ -1,14 +1,16 @@
 "use client";
 
 import type { Character } from "@prisma/client";
-import { Camera, Check, Copy, Loader2, Share2, Trophy } from "lucide-react";
+import { Camera, Check, Copy, Loader2, Share2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ClassBadge } from "@/components/ClassBadge";
 import { FighterAvatar } from "@/components/FighterAvatar";
+import { ResultPanel } from "@/components/ResultPanel";
+import { Versus } from "@/components/Versus";
 import { GameCanvas } from "@/components/GameCanvas";
-import { resultUrl, ShareResult } from "@/components/ShareResult";
+import { resultUrl } from "@/components/ShareResult";
 import { ultTitle } from "@/game/moves";
 import type { LobbyPlayer } from "@/game/protocol";
 import { useGameRoom } from "@/game/useGameRoom";
@@ -106,35 +108,20 @@ function Room({ code, fighterId, userId, onChangeFighter }: { code: string; figh
             {lobby.notice}
           </p>
         )}
-        {lobby.status === "over" && winner !== null && (
-          <div className="pop-in absolute inset-x-0 top-[12%] mx-auto w-[min(92%,26rem)] rounded-2xl bg-ink p-6 text-center text-white shadow-2xl">
-            <Trophy className="mx-auto size-8 text-gold" />
-            <p className="mt-2 text-xs font-semibold uppercase tracking-widest text-gold">{winner === lobby.you ? "You win!" : "You lose"}</p>
-            <p className="font-display text-3xl font-extrabold">{lobby.players[winner]!.name}</p>
-            <p className="mt-1 text-sm text-white/60">
-              {matchOver!.wins[0]} – {matchOver!.wins[1]} in rounds
-            </p>
-            {lobby.notice && <p className="mt-3 text-sm text-gold">{lobby.notice}</p>}
-            <div className="mt-5 flex justify-center gap-2">
-              <button
-                onClick={() => send({ t: "rematch" })}
-                disabled={me.rematch}
-                className="rounded-xl bg-hit px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-60"
-              >
-                {me.rematch ? "Waiting for them…" : "Rematch"}
-              </button>
-              <Link href="/leaderboard" className="rounded-xl bg-white/10 px-4 py-2.5 text-sm font-semibold hover:bg-white/20">
-                Leaderboard
-              </Link>
-            </div>
-            <div className="mt-2 flex justify-center">
-              <ShareResult
-                title={`${lobby.players[winner]!.name} wins on InkFight`}
-                text={`${lobby.players[0]!.name} ${matchOver!.wins[0]} – ${matchOver!.wins[1]} ${lobby.players[1]!.name}`}
-                getUrl={() => resultUrl(lobby.players[0]!.id, lobby.players[1]!.id, [matchOver!.wins[0], matchOver!.wins[1]])}
-              />
-            </div>
-          </div>
+        {lobby.status === "over" && winner !== null && matchOver && (
+          <ResultPanel
+            you={lobby.you}
+            players={[lobby.players[0]!, lobby.players[1]!]}
+            over={matchOver}
+            notice={lobby.notice}
+            primary={{ label: me.rematch ? "Waiting for them…" : "Rematch", onClick: () => send({ t: "rematch" }), disabled: me.rematch }}
+            secondary={{ label: "Leaderboard", href: "/leaderboard" }}
+            share={{
+              title: `${lobby.players[winner]!.name} wins on InkFight`,
+              text: `${lobby.players[0]!.name} ${matchOver.wins[0]} – ${matchOver.wins[1]} ${lobby.players[1]!.name}`,
+              getUrl: () => resultUrl(lobby.players[0]!.id, lobby.players[1]!.id, [matchOver.wins[0], matchOver.wins[1]]),
+            }}
+          />
         )}
         </GameCanvas>
       </div>
@@ -149,18 +136,26 @@ function Room({ code, fighterId, userId, onChangeFighter }: { code: string; figh
           <p className="text-xs font-semibold uppercase tracking-widest text-muted">Room</p>
           <h1 className="font-display text-4xl font-extrabold tracking-wider">{lobby.code}</h1>
         </div>
-        <button onClick={onChangeFighter} className="shrink-0 rounded-full bg-card px-3 py-1.5 text-sm font-semibold ring-1 ring-line hover:ring-ink">
+        <button onClick={onChangeFighter} className="press card-edge shrink-0 bg-card px-3 py-1.5 font-display text-xs font-extrabold uppercase tracking-wider">
           Change fighter
         </button>
       </div>
 
-      {lobby.notice && <p className="pop-in rounded-xl bg-gold/20 px-4 py-3 text-sm font-medium">{lobby.notice}</p>}
+      {lobby.notice && <p className="pop-in border-2 border-ink bg-gold/30 px-4 py-3 text-sm font-semibold">{lobby.notice}</p>}
 
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4">
-        <SeatCard p={p0} you={lobby.you === 0} />
-        <span className="rotate-[-8deg] rounded-lg border-2 border-ink bg-gold px-2 py-0.5 font-display text-xl font-extrabold sm:text-2xl">VS</span>
-        <SeatCard p={p1} you={lobby.you === 1} />
-      </div>
+      {p0 && p1 ? (
+        <Versus
+          title={p0.ready && p1.ready ? "Fight!" : "Face-off"}
+          left={{ fighter: p0, tone: "hit", tag: `P1${lobby.you === 0 ? " (you)" : ""} // ${p0.ready ? "Locked in" : "Choosing"}` }}
+          right={{ fighter: p1, tone: "guard", tag: `P2${lobby.you === 1 ? " (you)" : ""} // ${p1.ready ? "Ready" : "Choosing"}` }}
+        />
+      ) : (
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4">
+          <SeatCard p={p0} you={lobby.you === 0} />
+          <span className="rotate-[-8deg] border-[3px] border-ink bg-gold px-2 py-0.5 font-display text-xl font-black italic sm:text-2xl">VS</span>
+          <SeatCard p={p1} you={lobby.you === 1} />
+        </div>
+      )}
 
       {!both && <InvitePanel code={lobby.code} />}
 
@@ -169,8 +164,8 @@ function Room({ code, fighterId, userId, onChangeFighter }: { code: string; figh
         <button
           onClick={() => send({ t: "ready", ready: !me.ready })}
           disabled={!both}
-          className={`press sticker w-full max-w-sm rounded-xl px-6 py-3.5 font-display text-lg font-extrabold transition disabled:cursor-not-allowed disabled:border-ink/30 disabled:bg-card disabled:text-muted disabled:shadow-none ${
-            me.ready ? "bg-ink text-white" : "bg-hit text-white"
+          className={`press sticker w-full max-w-sm px-6 py-3.5 font-display text-xl font-black uppercase tracking-tighter transition disabled:cursor-not-allowed disabled:border-ink/30 disabled:bg-card disabled:text-muted disabled:shadow-none ${
+            me.ready ? "bg-ink text-gold" : "bg-gold text-ink"
           }`}
         >
           {!both ? "Waiting for your friend…" : me.ready ? "Ready! (tap to cancel)" : "I'm ready"}

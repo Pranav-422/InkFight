@@ -16,7 +16,7 @@ const TABS: [string, string, LucideIcon, (p: string) => boolean][] = [
 export function TabBar() {
   const path = usePathname();
   return (
-    <nav className="tabbar fixed inset-x-0 bottom-0 z-30 border-t-2 border-ink bg-paper/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+    <nav className="tabbar fixed inset-x-0 bottom-0 z-30 border-t-[3px] border-ink bg-paper pb-[env(safe-area-inset-bottom)] md:hidden">
       <ul className="mx-auto grid max-w-md grid-cols-5">
         {TABS.map(([href, label, Icon, on]) => {
           const active = on(path);
@@ -26,7 +26,7 @@ export function TabBar() {
                 <Link
                   href={href}
                   aria-label="New fighter"
-                  className="press -mt-5 flex size-14 items-center justify-center rounded-2xl border-2 border-ink bg-gold text-ink shadow-[3px_3px_0_var(--ink)]"
+                  className="press sticker -mt-5 flex size-14 items-center justify-center bg-gold text-ink"
                 >
                   <Plus className="size-7" strokeWidth={2.6} />
                 </Link>
@@ -38,9 +38,9 @@ export function TabBar() {
               <Link
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className={`flex flex-col items-center gap-0.5 py-2 text-[11px] font-bold uppercase tracking-wide ${active ? "text-ink" : "text-muted"}`}
+                className={`flex flex-col items-center gap-0.5 py-2 font-display text-[10px] font-extrabold uppercase tracking-wider ${active ? "text-ink" : "text-muted"}`}
               >
-                <span className={`rounded-full px-3 py-0.5 ${active ? "bg-gold ring-2 ring-ink" : ""}`}>
+                <span className={`px-3 py-0.5 ${active ? "bg-gold outline-2 outline-ink" : ""}`}>
                   <Icon className="size-5" strokeWidth={active ? 2.5 : 2} />
                 </span>
                 {label}

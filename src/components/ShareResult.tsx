@@ -36,7 +36,7 @@ export function ShareResult({ title, text, url: fixed, getUrl, className = "" }:
       type="button"
       onClick={share}
       disabled={state === "busy"}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-xl bg-white/10 px-4 py-2.5 text-sm font-semibold hover:bg-white/20 disabled:opacity-60 ${className}`}
+      className={`inline-flex items-center justify-center gap-1.5 disabled:opacity-60 ${className || "rounded-xl bg-white/10 px-4 py-2.5 text-sm font-semibold hover:bg-white/20"}`}
     >
       {state === "copied" ? <Check className="size-4" /> : <Share2 className="size-4" />}
       {state === "copied" ? "Link copied" : state === "failed" ? "Couldn't share" : "Share result"}

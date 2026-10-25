@@ -1,12 +1,14 @@
 "use client";
 
-import { Bot, Swords, Trophy } from "lucide-react";
+import { Bot, Swords } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ClassBadge } from "@/components/ClassBadge";
 import { FighterAvatar } from "@/components/FighterAvatar";
 import { GameCanvas } from "@/components/GameCanvas";
-import { cardUrl, ShareResult } from "@/components/ShareResult";
+import { ResultPanel } from "@/components/ResultPanel";
+import { Versus } from "@/components/Versus";
+import { cardUrl } from "@/components/ShareResult";
 import type { Level } from "@/game/cpu";
 import type { BossRun } from "@/game/dungeon";
 import type { PublicFighter } from "@/game/protocol";
@@ -39,6 +41,7 @@ export function CpuClient({
   const [cpuId, setCpuId] = useState<string | null>(initialOpponent);
   const [level, setLevel] = useState<Level>("normal");
   const [fighting, setFighting] = useState(false);
+  const [intro, setIntro] = useState(false); // the face-off before the fight
 
   // Default to the fighter last used in online play.
   useEffect(() => {
@@ -56,6 +59,18 @@ export function CpuClient({
   const cpu = useMemo(() => gallery.find((g) => g.id === cpuId) ?? null, [gallery, cpuId]);
 
   if (fighting && me && cpu) return <CpuFight me={me} cpu={cpu} level={level} onExit={() => setFighting(false)} />;
+  if (intro && me && cpu)
+    return (
+      <FaceOff
+        me={me}
+        cpu={cpu}
+        level={level}
+        onGo={() => {
+          setIntro(false);
+          setFighting(true);
+        }}
+      />
+    );
 
   if (mine.length === 0) {
     return (
@@ -83,7 +98,7 @@ export function CpuClient({
           try {
             if (me) localStorage.setItem(key, me.id);
           } catch {}
-          setFighting(true);
+          setIntro(true);
         }}
         className="press sticker ml-auto shrink-0 rounded-xl bg-hit px-6 py-3 font-display text-lg font-extrabold text-white disabled:opacity-40"
       >
@@ -132,6 +147,25 @@ export function CpuClient({
       {/* Phones: the matchup and the button stay in reach above the tab bar. */}
       <div className="sticky bottom-24 z-10 flex items-center gap-3 rounded-2xl bg-paper/95 p-3 ring-1 ring-line backdrop-blur md:hidden">{fightBar}</div>
     </div>
+  );
+}
+
+// A short face-off on the split stage, then the fight. Tap to skip.
+function FaceOff({ me, cpu, level, onGo }: { me: PublicFighter; cpu: GalleryFighter; level: Level; onGo: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onGo, 2600);
+    return () => clearTimeout(t);
+  }, [onGo]);
+  return (
+    <button onClick={onGo} className="block w-full text-left" aria-label="Start the fight">
+      <Versus
+        title="Fight!"
+        left={{ fighter: me, tone: "hit", tag: "P1 (you) // Locked in" }}
+        right={{ fighter: cpu, tone: "guard", tag: `CPU // ${level}`, owner: cpu.ownerHandle }}
+      >
+        <p className="text-center font-display text-sm font-extrabold uppercase tracking-widest text-muted">Get ready… tap to skip</p>
+      </Versus>
+    </button>
   );
 }
 
@@ -214,33 +248,22 @@ export function CpuFight({
       </div>
       <GameCanvas snaps={snaps} players={players} you={0} onInput={sendInput} onExit={onExit}>
       {matchOver && matchOver.matchWinner !== null && (
-        <div className="pop-in absolute inset-x-0 top-[12%] mx-auto w-[min(92%,26rem)] rounded-2xl bg-ink p-6 text-center text-white shadow-2xl">
-          <Trophy className="mx-auto size-8 text-gold" />
-          <p className="mt-2 text-xs font-semibold uppercase tracking-widest text-gold">
-            {matchOver.matchWinner === 0 ? "You beat the computer!" : "The computer wins"}
-          </p>
-          <p className="font-display text-3xl font-extrabold">{(matchOver.matchWinner === 0 ? me : cpu).name}</p>
-          <p className="mt-1 text-sm text-white/60">
-            {matchOver.wins[0]} – {matchOver.wins[1]} in rounds
-          </p>
-          <div className="mt-5 flex justify-center gap-2">
-            <button onClick={rematch} className="rounded-xl bg-hit px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110">
-              Rematch
-            </button>
-            <button onClick={onExit} className="rounded-xl bg-white/10 px-4 py-2.5 text-sm font-semibold hover:bg-white/20">
-              New matchup
-            </button>
-          </div>
-          {!me.id.startsWith("sample-") && !cpu.id.startsWith("sample-") && (
-            <div className="mt-2 flex justify-center">
-              <ShareResult
-                title={`${(matchOver.matchWinner === 0 ? me : cpu).name} wins on InkFight`}
-                text={`${me.name} ${matchOver.wins[0]} – ${matchOver.wins[1]} ${cpu.name}`}
-                getUrl={() => cardUrl(me.id, cpu.id, [matchOver.wins[0], matchOver.wins[1]])}
-              />
-            </div>
-          )}
-        </div>
+        <ResultPanel
+          you={0}
+          players={[me, cpu]}
+          over={matchOver}
+          primary={{ label: "Rematch", onClick: rematch }}
+          secondary={{ label: "New matchup", onClick: onExit }}
+          share={
+            !me.id.startsWith("sample-") && !cpu.id.startsWith("sample-")
+              ? {
+                  title: `${(matchOver.matchWinner === 0 ? me : cpu).name} wins on InkFight`,
+                  text: `${me.name} ${matchOver.wins[0]} – ${matchOver.wins[1]} ${cpu.name}`,
+                  getUrl: () => cardUrl(me.id, cpu.id, [matchOver.wins[0], matchOver.wins[1]]),
+                }
+              : undefined
+          }
+        />
       )}
       </GameCanvas>
     </div>
