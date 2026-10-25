@@ -917,7 +917,6 @@ function arena(tick: number, x0 = 300, x1 = 660, hazards = false) {
   m.fighters[1].x = x1;
   return { m, ia, ib };
 }
-const arenaEvents = (m: Match) => m.events.filter((e) => e.type === "arena");
 
 // The arena is one 5:00 round with a bigger health pool; the five scenes change at the exact ticks and announce themselves.
 {

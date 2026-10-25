@@ -582,36 +582,53 @@ export class ArenaView {
     glow.addColorStop(1, "rgba(255,80,20,0)");
     ctx.fillStyle = glow;
     ctx.fillRect(c.x - c.w, y - c.w * 0.9, c.w * 2, c.w * 1.1);
-    // The fissure: a jagged slot across the strip and down the face.
+    // The fissure: the floor strip is seen at a grazing angle, so a crack zone is a flat glowing patch with a jagged edge, and the
+    // crack runs on down the front of the slab.
+    const R = rng(c.id * 17 + 3);
+    const topY = y - 17, botY = y - 1, n = 7;
     ctx.beginPath();
-    ctx.moveTo(x0, y - 18);
-    const n = 6;
-    for (let k = 1; k <= n; k++) ctx.lineTo(x0 + (w * k) / n, y - 18 + ((k % 2) * 6 - 2));
-    ctx.lineTo(x0 + w * 0.9, y + 4);
-    ctx.lineTo(x0 + w * 0.62, y + 24);
-    ctx.lineTo(x0 + w * 0.55, y + 44);
-    ctx.lineTo(x0 + w * 0.45, y + 30);
-    ctx.lineTo(x0 + w * 0.1, y + 6);
+    ctx.moveTo(x0, (topY + botY) / 2);
+    for (let k = 1; k < n; k++) ctx.lineTo(x0 + (w * k) / n, topY + R() * 5 - 1);
+    ctx.lineTo(x0 + w, (topY + botY) / 2);
+    for (let k = n - 1; k > 0; k--) ctx.lineTo(x0 + (w * k) / n, botY - R() * 4 + 1);
     ctx.closePath();
     ctx.fillStyle = live ? `rgb(255,${150 + pulse * 70},40)` : `rgba(255,${100 + pulse * 60},30,${0.35 + 0.4 * Math.min(1, (tick - c.born) / c.glow)})`;
     ctx.fill();
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = 3.5;
-    ctx.stroke();
     if (!live) {
-      // Telegraph: a hazard-hatched warning, so a harmless crack reads differently from a leaking one.
+      // Telegraph: hazard hatching, so a harmless crack reads differently from a leaking one.
       ctx.save();
       ctx.clip();
-      ctx.strokeStyle = "rgba(15,13,18,.7)";
-      ctx.lineWidth = 3;
-      for (let hx = x0 - 20; hx < x0 + w + 20; hx += 11) {
+      ctx.strokeStyle = "rgba(15,13,18,.75)";
+      ctx.lineWidth = 2.5;
+      for (let hx = x0 - 20; hx < x0 + w + 20; hx += 9) {
         ctx.beginPath();
-        ctx.moveTo(hx, y - 20);
-        ctx.lineTo(hx + 18, y + 40);
+        ctx.moveTo(hx, topY - 2);
+        ctx.lineTo(hx + 14, botY + 2);
         ctx.stroke();
       }
       ctx.restore();
-    } else {
+    }
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
+    // Fissures down the front of the slab, lit from within.
+    for (let f = 0; f < 3; f++) {
+      let fx = x0 + w * (0.18 + 0.32 * f), fy = botY;
+      const pts: [number, number][] = [[fx, fy]];
+      for (let k = 0; k < 4; k++) {
+        fx += (R() - 0.5) * 12;
+        fy += 11 + R() * 4;
+        pts.push([fx, fy]);
+      }
+      for (const [lw, col] of [[4.5, INK], [2.6, live ? "#ff7a1a" : "rgba(255,120,30,.55)"], [1.1, live ? "#ffe07a" : "rgba(255,210,120,.4)"]] as const) {
+        ctx.strokeStyle = col;
+        ctx.lineWidth = lw * grow;
+        ctx.beginPath();
+        pts.forEach(([px, py], k) => (k ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+        ctx.stroke();
+      }
+    }
+    if (live) {
       // Leaking: bubbles popping on the surface, a drip down the face.
       for (let b = 0; b < 4; b++) {
         const t = ((now / 700 + b * 0.27 + c.x * 0.013) % 1);
@@ -620,12 +637,12 @@ export class ArenaView {
         ctx.strokeStyle = INK;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.arc(bx, y - 20 - t * 14, 2 + (1 - t) * 4, 0, Math.PI * 2);
+        ctx.arc(bx, topY + 4 - t * 16, 2 + (1 - t) * 4, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
       }
       ctx.fillStyle = "#ff8a22";
-      ctx.fillRect(c.x - 2, y + 6, 4, 34 + pulse * 6);
+      ctx.fillRect(c.x - 2, y, 4, 40 + pulse * 6);
     }
   }
 
@@ -969,6 +986,17 @@ export class ArenaView {
       ctx.restore();
     }
 
+    // The first seconds of scene 5: how to come down from a platform (hold block, press jump).
+    if (scene === 4 && into < 10 * TICK_HZ) {
+      ctx.font = `700 ${Math.round(12 * z)}px ${this.fontBody}`;
+      const tip = "On a platform: hold BLOCK and press JUMP to drop down";
+      const tw = ctx.measureText(tip).width + 20;
+      ctx.fillStyle = `rgba(15,13,18,${0.75 * Math.min(1, (10 * TICK_HZ - into) / 30)})`;
+      ctx.fillRect(ARENA.w / 2 - tw / 2, ARENA.h - 30 - 4 * (z - 1), tw, 20 + 4 * (z - 1));
+      ctx.fillStyle = "#fff9ed";
+      ctx.fillText(tip, ARENA.w / 2, ARENA.h - 15);
+    }
+
     // Warnings: one or two short red tags under the clock for what is about to hurt.
     const warns: string[] = [];
     if (a.cracks.some((c) => tick < c.born + c.glow)) warns.push("GROUND CRACKING");
@@ -979,7 +1007,7 @@ export class ArenaView {
       const pulse = 0.75 + 0.25 * Math.sin(now / 120);
       ctx.font = `800 ${Math.round(12 * z)}px ${this.fontDisplay}`;
       const tw = ctx.measureText(w).width + 18;
-      const y = 98 + 8 * (z - 1) + k * (20 + 4 * (z - 1));
+      const y = 118 + 8 * (z - 1) + k * (20 + 4 * (z - 1)); // under the HUD plates
       ctx.fillStyle = `rgba(229,72,45,${pulse})`;
       ctx.fillRect(ARENA.w / 2 - tw / 2, y - 13, tw, 18);
       ctx.fillStyle = "#fff";

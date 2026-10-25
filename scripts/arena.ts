@@ -1,7 +1,7 @@
 // Arena 1 (Inferno Crater) checks: the staircase is built within what the weakest jumper can do (asserted from the sim's own
 // numbers and by real jumps through step()), the telegraphs and hazard limits hold, and the computer plays the mode.
 //   npx tsx scripts/arena.ts [fights per class pair, default 100]
-//   npx tsx scripts/arena.ts --tune [fights per pair]   find ARENA_TUNE.classTune (src/game/arena.ts) for the arena's class balance
+//   npx tsx scripts/arena.ts --tune [fights per pair]   find ARENA_TUNE.matchup (src/game/arena.ts): the arena's per-matchup damage trims
 // Prints the platform layout as ASCII at each stage, then the CPU numbers. Exits 1 on a failed assert or a missed target:
 // >= 95% of the fighters still fighting 10 s after the staircase stands reach the final platform, hazards deal 10-25% of all damage,
 // every class pair is 35-65%, every fight ends (KO or the clock), and the same seed gives the same fights.
@@ -148,6 +148,7 @@ assert.ok(T.meteor.warn >= TICK_HZ, "meteor marker >= 1 s");
 assert.ok(T.crack.max <= 2, "<= 2 crack zones at once");
 assert.ok(T.crack.width[1] <= MAX_GAP, `a crack (${T.crack.width[1]} px) can be jumped by the weakest jumper (${MAX_GAP.toFixed(0)})`);
 assert.ok(T.crack.safe >= 200, "a safe strip of >= 200 px");
+assert.ok(T.crack.max * T.crack.width[1] <= 0.6 * (ARENA.w - 2 * ARENA.wall), "at least 40% of the floor is always free of cracks");
 assert.deepEqual(T.scenes.map((t) => t / TICK_HZ), [0, 30, 60, 105, 150]);
 assert.equal(T.matchTicks / TICK_HZ, 300);
 console.log(`  rises <= ${MAX_RISE.toFixed(1)} (staircase: ${ROCK_DEFS.filter((r) => r.kind === "step").map((r) => ARENA.ground - r.top).join(", ")}), gaps <= ${MAX_GAP.toFixed(1)}, final platform ${fin.w} px wide (${2 * fightDist} needed), ${height} px up. ok`);
@@ -220,35 +221,27 @@ for (let i = 0; i < CLASSES.length; i++) for (let j = i; j < CLASSES.length; j++
 const firstHash: string[] = [];
 
 if (TUNING) {
-  // Class factors: nudge each class's damage by how far its average win rate against the other four is from 50%, a few rounds.
-  const matrix = (n: number) => {
-    const sum: Record<string, number> = {};
-    for (const A of CLASSES) sum[A] = 0;
+  // Matchup trims: for each pair, nudge the damage factor of the side that wins too often (a factor moves a pair's log-odds by about
+  // 18 per unit of log factor, measured), a few rounds, with the hard CPU.
+  const logit = (r: number) => Math.log(Math.max(0.02, Math.min(0.98, r)) / (1 - Math.max(0.02, Math.min(0.98, r))));
+  for (let round = 1; round <= 3; round++) {
+    seedRandom(500 + round);
+    const rates: string[] = [];
     for (const [A, B] of pairs) {
       if (A === B) continue;
       let w = 0;
-      for (let g = 0; g < n; g++) {
+      for (let g = 0; g < N; g++) {
         const seat = g % 2;
         const r = seat === 0 ? play(kit(A), kit(B), "hard") : play(kit(B), kit(A), "hard");
         w += r.winner === null ? 0.5 : r.winner === seat ? 1 : 0;
       }
-      sum[A] += w / n;
-      sum[B] += 1 - w / n;
+      const rate = w / N, key = `${A}-${B}`;
+      rates.push(`${key} ${(rate * 100).toFixed(0)}%`);
+      T.matchup[key] = Math.round(T.matchup[key] * Math.exp((-logit(rate) / 17.8) * 0.7) * 1000) / 1000;
     }
-    return sum;
-  };
-  for (let round = 1; round <= 4; round++) {
-    seedRandom(500 + round);
-    const sum = matrix(N);
-    const next: Record<string, number> = {};
-    for (const c of CLASSES) {
-      const rate = sum[c] / (CLASSES.length - 1);
-      next[c] = Math.round(T.classTune[c] * (1 + (0.5 - rate) * 0.8) * 1000) / 1000;
-    }
-    console.log(`round ${round}: ${CLASSES.map((c) => `${c} ${((sum[c] / (CLASSES.length - 1)) * 100).toFixed(0)}% x${T.classTune[c]}`).join("  ")}`);
-    Object.assign(T.classTune, next);
+    console.log(`round ${round}: ${rates.join(", ")}`);
   }
-  console.log(`\nclassTune: ${JSON.stringify(T.classTune)}`);
+  console.log(`\nmatchup: ${JSON.stringify(T.matchup)}`);
   process.exit(0);
 }
 

@@ -6,7 +6,7 @@ import { CLASS_CHAIN, CLASS_CHAIN_POWER, CLASS_TUNE, COMBO_WINDOW, ELEMENT_TUNE,
 
 export type { SpecialKind } from "./moves";
 
-import { ARENA_TUNE, arenaBoost, arenaClampX, arenaStep, arenaSurface, cloneArena, newArena, standingOn, type ArenaGameEvent, type ArenaId, type ArenaState } from "./arena";
+import { ARENA_TUNE, arenaBoost, arenaClampX, arenaStep, arenaSurface, cloneArena, matchupFactor, newArena, standingOn, type ArenaGameEvent, type ArenaId, type ArenaState } from "./arena";
 import { ARENA, BODY, TICK_HZ } from "./space";
 
 export { ARENA, BODY, TICK_HZ };
@@ -78,6 +78,9 @@ export type FighterDef = {
   cls: CharacterClass;
   item: string;
   element: string; // one of ELEMENTS
+  // Arena 1 hook for the planned constellation buff "Lava Adaptation" (spec section 6: a plausibility cost for better movement
+  // on lava). Nothing reads it yet and nothing sets it: the constellation system doesn't exist in the game.
+  lavaResist?: number;
 };
 
 // Spans per stat (see scripts/balance.ts: one stat alone should win 50-60% against an all-70 fighter).
@@ -275,13 +278,7 @@ function spawn(slot: Slot, def: FighterDef, seen: Fighter["seen"]): Fighter {
 export function createMatch(a: FighterStats, b: FighterStats, inputs: [Input, Input], opts: { boss?: BossSpec; arena?: ArenaId } = {}): Match {
   const defs: [FighterDef, FighterDef] = [deriveDef(a), deriveDef(b)];
   // Arena fight: a bigger health pool, so a fight lasts minutes and the scenes get played (ARENA_TUNE.hpMul).
-  if (opts.arena) {
-    for (const d of defs) {
-      d.maxHp *= ARENA_TUNE.hpMul;
-      d.punch *= ARENA_TUNE.classTune[d.cls] ?? 1;
-      d.magic *= ARENA_TUNE.classTune[d.cls] ?? 1;
-    }
-  }
+  if (opts.arena) for (const d of defs) d.maxHp *= ARENA_TUNE.hpMul;
   // The only place a passive enters a fight: the dungeon names the boss's seat.
   if (opts.boss) defs[opts.boss.slot] = { ...defs[opts.boss.slot], passive: opts.boss.passive };
   const m: Match = {
@@ -413,7 +410,8 @@ function applyHit(
   }
   const def = m.defs[vic.slot];
   const ad = m.defs[att.slot];
-  if (m.arena) raw *= 1 - m.arena.weak[att.slot]; // lava and cracks weaken a fighter's hits for a while (ARENA_TUNE.weak)
+  // Arena fights: lava and cracks weaken a fighter's hits for a while (ARENA_TUNE.weak), and each matchup has a small trim (ARENA_TUNE.matchup).
+  if (m.arena) raw *= (1 - m.arena.weak[att.slot]) * matchupFactor(ad.cls, def.cls);
   // Slip-weave: the hit is slipped and the weaver's next move comes out fast, to punish with
   // (an automatic counter stunned the attacker every time: a free win, not a read).
   if (def.skill === "weave" && vic.skillT > 0 && !opts.proj && vic.action !== "hit") {

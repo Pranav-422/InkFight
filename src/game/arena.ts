@@ -6,6 +6,7 @@
 // Opt-in: createMatch(a, b, inputs, { arena: "inferno" }). Without it nothing here runs and a match is exactly the
 // normal best-of-3.
 
+import { CLASSES } from "../lib/stats";
 import { ARENA, BODY, TICK_HZ } from "./space";
 import type { Fighter, Match, Slot } from "./sim";
 
@@ -17,6 +18,7 @@ export const ARENA_INFO: Record<ArenaId, { name: string; short: string }> = {
 export const isArenaId = (v: unknown): v is ArenaId => typeof v === "string" && (ARENAS as readonly string[]).includes(v);
 
 const S = TICK_HZ;
+const CLASS_ORDER = CLASSES as readonly string[];
 
 // Every number of the mode lives here. Damage is a fraction of the fighter's health pool (see hpMul) so the same table
 // works whatever the pool is. The spec leaves all of these open ("do not hardcode assumed values as final"): they are
@@ -27,9 +29,11 @@ export const ARENA_TUNE = {
   // A normal fight is over in about 30 seconds, which would never reach scene 3. The arena pool is bigger so a fight
   // takes minutes (every hit counts the same relative to it: class balance is unchanged). HP bars show a fraction.
   hpMul: 18,
-  // The long fight shifts the class matchup (a Tank's guard and armor pay off over minutes), so the arena has its own damage
-  // factor per class, on top of CLASS_TUNE. Found with `npx tsx scripts/arena.ts --tune`; 1 = no change.
-  classTune: { Sword: 1.044, Mace: 1.021, Tank: 0.92, Attacker: 0.998, Fighter: 1.013 } as Record<string, number>,
+  // The long fight shifts some class matchups (the same Sword steps back from a Tank for minutes, a Tank's guard pays off
+  // over a long pool), and class factors alone can't fix a matchup that goes in a circle. So the arena trims damage per
+  // matchup: "A-B" (in CLASSES order) is the factor on what A deals to B; B deals to A the inverse. Found with
+  // `npx tsx scripts/arena.ts --tune`; 1 = no change. Normal fights have no trims.
+  matchup: { "Sword-Mace": 0.989, "Sword-Tank": 0.96, "Sword-Attacker": 1.069, "Sword-Fighter": 0.991, "Mace-Tank": 1.006, "Mace-Attacker": 1.023, "Mace-Fighter": 0.989, "Tank-Attacker": 0.946, "Tank-Fighter": 0.928, "Attacker-Fighter": 1.012 } as Record<string, number>,
   // Scene 2, Heatwave: both fighters lose a sliver of health on a slow beat. Small, symmetrical, capped like every hazard.
   heat: { every: 150, dmg: 0.004 },
   // Scene 3, Ground Fracture: crack zones on the floor. A zone glows `glow` ticks (harmless) before it leaks, then leaks
@@ -178,6 +182,13 @@ export const cloneArena = (a: ArenaState): ArenaState => ({
   immune: [...a.immune],
   drop: [...a.drop],
 });
+
+// The arena's damage trim for a class hitting another (ARENA_TUNE.matchup).
+export function matchupFactor(att: string, vic: string): number {
+  const i = CLASS_ORDER.indexOf(att), j = CLASS_ORDER.indexOf(vic);
+  if (i < 0 || j < 0 || i === j) return 1;
+  return i < j ? (ARENA_TUNE.matchup[`${att}-${vic}`] ?? 1) : 1 / (ARENA_TUNE.matchup[`${vic}-${att}`] ?? 1);
+}
 
 export const arenaBoost = (m: Match) => (m.arena && sceneAt(arenaTick(m)) === 4 ? ARENA_TUNE.boost : { jump: 1, air: 1 });
 
