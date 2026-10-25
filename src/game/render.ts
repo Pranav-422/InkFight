@@ -4,6 +4,7 @@
 
 import { normClass } from "../lib/stats";
 import { getReduceFlashes } from "./flashes";
+import { play, type Sfx } from "./sound";
 import { itemOf, MOVES, SKILL_INFO, STYLE_INFO, type SideSkill } from "./moves";
 import { ceremonyPose, poseFor } from "./poses";
 import { resolvePose, type BoneName, type Vec } from "./skeleton";
@@ -120,17 +121,44 @@ export class Renderer {
     return (this.page = c);
   }
 
-  // Turn new sim events into visual effects (deduped by id).
+  private ingested = false; // the first snapshot has been seen (what it carries from before we joined stays silent)
+  private quiet = false;
+  private swing: [string, string] = ["", ""]; // the swing each fighter's whiff sound was last played for
+
+  // Sound for the effect being shown (silent while catching up on events from before this renderer existed).
+  private sfx(name: Sfx, power?: number) {
+    if (!this.quiet) play(name, power);
+  }
+
+  // Turn new sim events into visual effects (deduped by id), and play their sounds.
   ingest(s: Snapshot, hud: HudInfo) {
+    // A guest joining mid-match gets up to 16 old events in its first snapshot: show them, don't play them.
+    const first = !this.ingested;
+    this.quiet = first && s.phase !== "intro";
+    this.ingested = true;
     for (const e of s.events) {
       if (e.id <= this.lastEventId) continue;
       this.lastEventId = e.id;
       this.effect(e, hud, s);
     }
+    this.quiet = false;
+    // A swing: the swish when a punch or kick starts (a hit that lands plays its thud on top). timer + t is the same
+    // number for the whole move, so it names the swing.
+    for (const f of s.fighters) {
+      if ((f.action !== "attack" && f.action !== "kick") || f.t > 3 || s.phase !== "fight") continue;
+      const key = `${f.move}:${s.timer + f.t}`;
+      if (this.swing[f.slot] === key) continue;
+      this.swing[f.slot] = key;
+      if (!first) play("whiff", f.action === "kick" ? 0.7 : 0.4);
+    }
   }
 
   private effect(e: GameEvent, hud: HudInfo, s: Snapshot) {
     if (e.type === "hit") {
+      // Blocked or absorbed: a tock. Otherwise a thud, lower and louder with the damage; a kick sounds heavier than a fist.
+      const att = s.fighters[e.by];
+      if (e.blocked || e.dmg === 0) this.sfx("block");
+      else this.sfx(att.action === "kick" ? "kick" : "punch", Math.min(1, e.dmg / 24 + (e.special ? 0.25 : 0)));
       const color = e.blocked ? C.guard : C.hit;
       const big = e.special || e.dmg >= 10;
       const n = e.special ? 22 : 10;
@@ -171,16 +199,19 @@ export class Renderer {
       }
       if (e.crit) this.particles.push({ x: e.x, y: e.y - 56, vx: 0, vy: -1, life: 0, max: 44, text: "INK FLASH!", color: C.gold, size: 26 });
     } else if (e.type === "special") {
+      this.sfx(e.ult ? "ultimate" : "special");
       const name = (e.ult && hud.ultNames?.[e.by]) || hud.specialNames[e.by];
       this.banner = { text: `${name}!`, color: C.hit, life: e.ult ? 100 : 60 };
       // Only the ultimate gets the full blackout and speed lines; slot 1 is a quick flourish.
       this.dim = { slot: e.by, life: e.ult ? 24 : 8 };
       this.shake = Math.max(this.shake, e.ult ? 4 : 2);
     } else if (e.type === "dodge") {
+      this.sfx("slip");
       // A quick afterimage ring and a word, no damage number.
       this.rings.push({ x: e.x, y: e.y, r: 18, grow: 3, life: 0, max: 10, color: C.guard, width: 2 });
       this.particles.push({ x: e.x, y: e.y - 30, vx: 0, vy: -1, life: 0, max: 28, text: ["SLIP", "MISS", "WHIFF"][e.id % 3], color: C.guard, size: 20 });
     } else if (e.type === "clash") {
+      this.sfx("clash");
       // Two strikes meet: sparks and a burst of ink at the contact point, nobody takes damage.
       this.rings.push({ x: e.x, y: e.y, r: 6, grow: 9, life: 0, max: 14, color: C.gold, width: 6 });
       this.rings.push({ x: e.x, y: e.y, r: 2, grow: 14, life: 0, max: 12, color: C.ink, width: 2 });
@@ -193,6 +224,7 @@ export class Renderer {
       this.shake = Math.max(this.shake, 8);
       this.flash = Math.max(this.flash, 2);
     } else if (e.type === "phase") {
+      this.sfx("phase");
       // A boss changed form: new class look, the page bleeds red (see draw), a banner and a burst.
       this.classes[e.slot] = e.cls;
       this.items[e.slot] = e.item;
@@ -207,10 +239,14 @@ export class Renderer {
         this.particles.push({ x: f.x, y: f.y - BODY.h * 0.55, vx: Math.cos(a) * (3 + Math.random() * 7), vy: Math.sin(a) * (3 + Math.random() * 7), life: 0, max: 30, color: Math.random() < 0.5 ? C.hit : C.ink, size: 3 + Math.random() * 4 });
       }
     } else if (e.type === "skill") {
+      this.sfx("skill");
       const f = s.fighters[e.by];
       this.rings.push({ x: f.x, y: f.y - BODY.h * 0.55, r: 30, grow: 4, life: 0, max: 14, color: C.guard, width: 3 });
       this.particles.push({ x: f.x, y: f.y - BODY.h - 30, vx: 0, vy: -1, life: 0, max: 40, text: SKILL_INFO[e.kind].name.toUpperCase(), color: C.guard, size: 18 });
+    } else if (e.type === "round") {
+      this.sfx("round");
     } else if (e.type === "ko") {
+      this.sfx("ko");
       this.shake = 20;
       this.flash = 6;
       const f = s.fighters[e.loser];

@@ -3,6 +3,7 @@
 import { Gamepad2 } from "lucide-react";
 import type { Input } from "@/game/sim";
 import { ReduceFlashes } from "./ReduceFlashes";
+import { SoundSwitch } from "./SoundSwitch";
 
 export type Control = keyof Input;
 
@@ -61,6 +62,7 @@ export function Controller({ press, lit, energy, skill, showKeys, gamepad }: Pro
           {gamepad ? <span className="text-gold">Gamepad connected</span> : <span>Plug in a gamepad<br />or use the keys</span>}
           <span className="mt-2 text-white/70">SPECIAL: half meter<br />BLOCK + SPECIAL: ultimate</span>
           <ReduceFlashes className="mt-2" />
+          <SoundSwitch />
         </div>
 
         {/* Face buttons */}
