@@ -56,7 +56,7 @@ export const BOSSES: Boss[] = [
     element: "BLEED",
     special: "teleport",
     tint: "#6b6b73",
-    budget: 369,
+    budget: 350,
     cap: 100,
     stats: {
       atk: 62,
@@ -101,7 +101,7 @@ export const BOSSES: Boss[] = [
     element: "FIRE",
     special: "shatter",
     tint: "#e5482d",
-    budget: 301,
+    budget: 311,
     cap: 100,
     stats: {
       atk: 98,
@@ -145,7 +145,7 @@ export const BOSSES: Boss[] = [
     element: "ELECTRIC",
     special: "slash",
     tint: "#2f5be0",
-    budget: 332,
+    budget: 327,
     cap: 100,
     stats: {
       atk: 92,
@@ -190,7 +190,7 @@ export const BOSSES: Boss[] = [
     element: "FROST",
     special: "counter",
     tint: "#dfe6ee",
-    budget: 359,
+    budget: 354,
     cap: 100,
     stats: {
       atk: 76,
@@ -234,7 +234,7 @@ export const BOSSES: Boss[] = [
     element: "GRAVITY",
     special: "beam",
     tint: "#7b4fd6",
-    budget: 322,
+    budget: 297,
     cap: 100,
     stats: {
       atk: 70,
@@ -279,7 +279,7 @@ export const BOSSES: Boss[] = [
     element: "FIRE",
     special: "dash_slash",
     tint: "#f2b705",
-    budget: 325,
+    budget: 320,
     cap: 115,
     stats: {
       atk: 98,
@@ -323,7 +323,7 @@ export const BOSSES: Boss[] = [
     element: "POISON",
     special: "arrow",
     tint: "#3f8f5a",
-    budget: 334,
+    budget: 331,
     cap: 115,
     stats: {
       atk: 104,
@@ -368,7 +368,7 @@ export const BOSSES: Boss[] = [
     element: "NONE",
     special: "pull",
     tint: "#17171a",
-    budget: 316,
+    budget: 304,
     cap: 115,
     stats: {
       atk: 115,
@@ -412,7 +412,7 @@ export const BOSSES: Boss[] = [
     element: "FROST",
     special: "orb",
     tint: "#8fd3e8",
-    budget: 334,
+    budget: 328,
     cap: 115,
     stats: {
       atk: 64,
@@ -457,7 +457,7 @@ export const BOSSES: Boss[] = [
     element: "POISON",
     special: "spiral",
     tint: "#9e1b1b",
-    budget: 339,
+    budget: 330,
     cap: 115,
     stats: {
       atk: 110,
@@ -579,6 +579,11 @@ export function bossRun(floor: number): BossRun {
       ...(p2 && { cpu2 }),
     };
     runs.set(floor, r);
+  }
+  // The second form shares the floor's budget, and the tuner (scripts/dungeon.ts) changes budgets on the fly.
+  if (r.spec.phase2) {
+    r.spec.phase2.stats.budget = BOSSES[floor - 1].budget;
+    r.spec.phase2.stats.cap = BOSSES[floor - 1].cap;
   }
   return r;
 }

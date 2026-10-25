@@ -65,7 +65,7 @@ const rateOf = (floor: number) => {
 if (TUNING) {
   // More budget, fewer clears: bisect each floor onto its target.
   for (const b of BOSSES) {
-    let lo = 280, hi = 560;
+    let lo = 200, hi = 560;
     for (let i = 0; i < 8; i++) {
       b.budget = Math.round((lo + hi) / 2);
       if (rateOf(b.floor) > TARGET[b.floor - 1]) lo = b.budget;
