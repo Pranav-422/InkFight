@@ -5,12 +5,12 @@
 // The on/off switch is kept in localStorage (default on) and is separate from "Reduce flashes". Browsers block
 // audio until a user gesture, so the context is created on the first pointer press or key press (installUnlock).
 
-export type Sfx = "punch" | "kick" | "block" | "whiff" | "slip" | "special" | "ultimate" | "clash" | "ko" | "round" | "skill" | "phase" | "tap";
+export type Sfx = "punch" | "kick" | "block" | "whiff" | "slip" | "special" | "ultimate" | "clash" | "ko" | "round" | "skill" | "phase" | "tap" | "rumble" | "crack" | "meteor" | "impact" | "grind" | "eruption" | "hiss";
 
 const KEY = "inkfight.sound";
 const MAX_VOICES = 10;
 // Sounds that must never be dropped by the voice cap (the rest are).
-const IMPORTANT: Sfx[] = ["ko", "ultimate", "special", "round", "phase"];
+const IMPORTANT: Sfx[] = ["ko", "ultimate", "special", "round", "phase", "eruption"];
 
 let on: boolean | null = null;
 const listeners = new Set<() => void>();
@@ -180,6 +180,34 @@ export const RECIPES: Record<Sfx, Recipe> = {
     return blip(r, "square", 330, 110, 0.9, 0.15, 0.1);
   },
   tap: (r) => blip(r, "sine", 950, 700, 0.035, 0.18),
+  // Arena 1 (src/game/arena.ts): light cues, so the fight stays audible. Every damaging hazard also has a visual warning.
+  rumble: (r) => {
+    // The ground trembles: low noise under a wobbling sub.
+    burst(r, "lowpass", 220, 70, 0.9, 0.45, 0, 0.8);
+    return blip(r, "sine", 55, 38, 0.9, 0.5);
+  },
+  crack: (r) => {
+    // A stone crack: a sharp snap, then a low thud.
+    burst(r, "highpass", 3500, 1200, 0.06, 0.4);
+    burst(r, "bandpass", 900, 250, 0.18, 0.35, 0.02, 1.4);
+    return blip(r, "sine", 120, 45, 0.2, 0.45, 0.03);
+  },
+  meteor: (r) => blip(r, "sawtooth", 1500, 260, 0.5, 0.09), // the descending whistle that goes with the marker
+  impact: (r) => {
+    burst(r, "lowpass", 1800, 120, 0.35, 0.6);
+    return blip(r, "sine", 100, 36, 0.4, 0.75);
+  },
+  grind: (r) => {
+    // A boulder rising: scraping stone.
+    burst(r, "bandpass", 300, 700, 0.7, 0.4, 0, 2.5);
+    return blip(r, "sawtooth", 62, 48, 0.7, 0.14);
+  },
+  eruption: (r) => {
+    burst(r, "lowpass", 1400, 90, 1.6, 0.7);
+    blip(r, "sawtooth", 70, 28, 1.5, 0.35);
+    return blip(r, "sine", 55, 30, 1.6, 0.8, 0.05);
+  },
+  hiss: (r) => burst(r, "highpass", 4000, 6500, 0.18, 0.1),
 };
 
 // ---------------------------------------------------------------- playing
