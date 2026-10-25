@@ -142,7 +142,7 @@ ${SPECIAL_KINDS.map((k) => `  - ${k}: ${SPECIAL_INFO[k].looks}`).join("\n")}
 ${STYLES.map((s) => `  - ${s}: ${STYLE_INFO[s].blurb}`).join("\n")}
 - a one-line flavor text, playful trash-talk tone, under 90 characters
 - which edge of the image the head points toward (the drawing may be sideways in the photo)
-- the pose: where the figure's head center, shoulder (where the arms meet the body), hip (where the legs meet the body), both elbows, hands, knees and feet are, as fractions of the whole image (x from the left edge, y from the top edge). "left"/"right" mean the image's left/right side. If a joint isn't drawn (stick arms have no elbow), give the midpoint of that limb
+- the pose: where the figure's head center, shoulder (where the arms meet the body), hip (where the legs meet the body), both elbows, hands, knees and feet are, as fractions of the whole image (x from the left edge, y from the top edge). "left"/"right" mean the image's left/right side. If a joint isn't drawn (stick arms have no elbow), give the midpoint of that limb. The head center is the middle of the drawn head or face circle itself: ignore hats, caps, hair, horns, crowns and scribbled shading around it. A hand is where the arm stroke ends (where it grips an item), never the far tip of a sword, staff or bow it holds. Marks that aren't part of the figure (stray lines, letters, shading) are not joints
 If the image is not a drawing of a character, still do your best with whatever is drawn.`;
 
 type MediaType = "image/jpeg" | "image/png" | "image/webp" | "image/gif";
