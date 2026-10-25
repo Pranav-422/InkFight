@@ -3,9 +3,11 @@
 //   npx tsx scripts/check-sim.ts
 
 import assert from "node:assert/strict";
-import { STYLE_INFO } from "../src/game/moves";
-import { createMatch, EMPTY_INPUT, step, TICK_HZ, type FighterStats, type Input, type Match } from "../src/game/sim";
-import { CLASSES, ruleStats } from "../src/lib/stats";
+import { CLASS_ULT, SLOT1_COST, SPECIAL_KINDS, STYLE_INFO, ULT_COST } from "../src/game/moves";
+import { poseFor } from "../src/game/poses";
+import { AVERAGE_BUILD, buildFor, solveStick } from "../src/game/stickman";
+import { createMatch, deriveDef, snapshot, EMPTY_INPUT, step, TICK_HZ, type FighterStats, type Input, type Match } from "../src/game/sim";
+import { CLASSES, clampStats, ruleStats } from "../src/lib/stats";
 
 const neutral = { size: "medium", pose: "neutral", dominant_colors: [] } as const;
 const fighter = (cls: string, extra: Partial<FighterStats> = {}): FighterStats => ({ ...ruleStats(cls, { ...neutral, dominant_colors: [] }), class: cls, ...extra });
@@ -102,6 +104,249 @@ for (const [att, stays] of [["Fighter", true], ["Mace", false]] as const) {
   }
   assert.equal(x.m.fighters[0].move, STYLE_INFO.Boxing.mix, "no mix finisher");
   assert.ok(x.m.fighters[0].mix);
+}
+
+// Two special slots. L costs half a meter, S + L the whole one; a lone S + L below a full meter falls back to slot 1.
+{
+  const x = fight(fighter("Fighter"), fighter("Fighter"));
+  x.m.fighters[0].energy = SLOT1_COST - 1;
+  x.ia.special++;
+  run(x, 1);
+  assert.equal(x.m.fighters[0].action, "idle", "slot 1 fired below its cost");
+  x.m.fighters[0].energy = SLOT1_COST;
+  x.ia.special++;
+  run(x, 1);
+  const f = x.m.fighters[0];
+  assert.ok(f.action === "special" && !f.ult, "L didn't start slot 1");
+  assert.ok(f.energy < 1, "slot 1 should cost the 50 it had");
+  assert.equal(x.m.freeze, 6, "slot 1 freezes 6 ticks");
+  assert.equal(events(x.m, "special").length, 1);
+}
+{
+  const x = fight(fighter("Fighter"), fighter("Fighter"));
+  const f = x.m.fighters[0];
+  f.energy = ULT_COST - 1;
+  x.ia.block = true;
+  x.ia.special++;
+  run(x, 1);
+  assert.ok(f.action === "special" && !f.ult, "S + L below a full meter should fire slot 1");
+  const y = fight(fighter("Fighter"), fighter("Fighter"));
+  y.m.fighters[0].energy = ULT_COST;
+  y.ia.block = true;
+  y.ia.special++;
+  run(y, 1);
+  const g = y.m.fighters[0];
+  assert.ok(g.action === "special" && g.ult, "S + L didn't start the ultimate");
+  assert.ok(g.energy < 1);
+  assert.equal(y.m.freeze, 16, "the ultimate freezes 16 ticks");
+  const e = events(y.m, "special")[0];
+  assert.ok(e.type === "special" && e.ult && e.kind === CLASS_ULT.Fighter);
+}
+// The ultimate defaults to the class's, a stored kind overrides it, junk is ignored; slot 1 is never used twice by default.
+for (const c of CLASSES) {
+  const d = deriveDef(fighter(c));
+  assert.equal(d.ult, CLASS_ULT[c]);
+  assert.ok(d.ult !== d.special, `${c}: both slots default to ${d.ult}`);
+}
+assert.equal(deriveDef(fighter("Sword", { ultKind: "orb" })).ult, "orb");
+assert.equal(deriveDef(fighter("Sword", { ultKind: "nonsense" })).ult, CLASS_ULT.Sword);
+// Every kind runs as slot 1 and as the ultimate without throwing, and ends (nobody stays in the special forever).
+for (const kind of SPECIAL_KINDS) {
+  for (const ult of [false, true]) {
+    const x = fight(fighter("Fighter", { specialKind: kind, ultKind: kind }), fighter("Fighter"), 150);
+    x.m.fighters[0].energy = 100;
+    x.ia.block = ult;
+    x.ia.special++;
+    run(x, 1);
+    x.ia.block = false;
+    run(x, 400);
+    assert.notEqual(x.m.fighters[0].action, "special", `${kind} ${ult ? "ult" : "slot 1"} never ended`);
+  }
+}
+
+// Hit-lock: an ultimate that connects holds the opponent (no input, pinned 60 px in front), keeps hitting, and ends
+// with a launch. Slot 1 never locks, a guard stops the lock, and interrupting the attacker lets go.
+const ultOn = (kind: string, gap: number, defender: Partial<FighterStats> = {}) => {
+  const x = fight(fighter("Fighter", { specialKind: "bolt", ultKind: kind }), fighter("Fighter", defender), gap);
+  x.m.fighters[0].energy = 100;
+  x.ia.block = true;
+  x.ia.special++;
+  run(x, 1);
+  x.ia.block = false;
+  return x;
+};
+{
+  const x = ultOn("slash", 110);
+  const [a, b] = x.m.fighters;
+  let held = 0, lockedAt = -1;
+  for (let i = 0; i < 200 && a.action === "special"; i++) {
+    x.ib.attack++; // the victim mashes: nothing may come of it
+    x.ib.jump++;
+    run(x, 1);
+    if (b.locked) {
+      held++;
+      if (lockedAt < 0) lockedAt = i;
+      assert.equal(b.action, "hit", "a held fighter acts");
+      assert.ok(Math.abs(b.x - Math.min(930 - 35, Math.max(65, a.x + a.facing * 60))) < 0.5, `held ${Math.round(Math.abs(b.x - a.x))} px away, not 60`);
+    }
+  }
+  assert.ok(lockedAt >= 0 && held >= 30, `slash ult held the opponent for ${held} ticks`);
+  assert.ok(!b.locked, "still locked after the ultimate ended");
+  assert.ok(b.vy < -8 && b.action === "hit", `no launch at the end (vy ${b.vy})`);
+  const hits = x.m.events.filter((e) => e.type === "hit" && e.by === 0).length;
+  assert.ok(hits >= 4, `only ${hits} hits recorded (opener + echoes + finale)`);
+  assert.ok(b.hp < 200 - 10);
+}
+for (const kind of ["beam", "barrage", "teleport", "uppercut", "spiral", "meteor", "charge"]) {
+  const x = ultOn(kind, kind === "beam" ? 350 : kind === "meteor" || kind === "teleport" ? 200 : 110);
+  const b = x.m.fighters[1];
+  let was = false;
+  for (let i = 0; i < 200 && x.m.fighters[0].action === "special"; i++) {
+    run(x, 1);
+    was ||= b.locked;
+  }
+  assert.ok(was, `${kind} ultimate never locked the opponent`);
+  assert.ok(!b.locked, `${kind} ultimate never let go`);
+}
+// A projectile ultimate pulls the attacker back into the move and locks on contact.
+for (const kind of ["bolt", "arrow", "orb", "wave"]) {
+  const x = ultOn(kind, 300);
+  const [a, b] = x.m.fighters;
+  let was = false;
+  for (let i = 0; i < 400 && !was; i++) {
+    run(x, 1);
+    was = b.locked;
+  }
+  assert.ok(was && a.action === "special" && a.ult && a.ultEnd > 0, `${kind} ultimate didn't lock on contact`);
+  for (let i = 0; i < 200 && b.locked; i++) run(x, 1);
+  assert.ok(!b.locked && b.vy < -8, `${kind} ultimate didn't end with a launch`);
+}
+{
+  const x = fight(fighter("Fighter", { specialKind: "slash" }), fighter("Fighter"), 110); // slot 1 (L), not the ultimate
+  x.m.fighters[0].energy = 100;
+  x.ia.special++;
+  for (let i = 0; i < 40; i++) {
+    run(x, 1);
+    assert.ok(!x.m.fighters[1].locked, "slot 1 locked the opponent");
+  }
+}
+{
+  const x = fight(fighter("Fighter", { ultKind: "slash" }), fighter("Fighter"), 110);
+  x.ib.block = true; // a guard stops the grab (the blocked blow still chips)
+  x.m.fighters[0].energy = 100;
+  x.ia.block = true;
+  x.ia.special++;
+  run(x, 1);
+  x.ia.block = false;
+  for (let i = 0; i < 60; i++) {
+    run(x, 1);
+    assert.ok(!x.m.fighters[1].locked, "a blocked ultimate locked");
+  }
+}
+{
+  const x = ultOn("slash", 110);
+  const [a, b] = x.m.fighters;
+  while (!b.locked) run(x, 1);
+  Object.assign(a, { action: "hit", t: 0, stun: 10 }); // the attacker is knocked out of it
+  run(x, 10); // (the hit-stop of the blow that locked has to play out first)
+  assert.ok(!b.locked && b.vy > -3, "the victim wasn't let go (or was launched anyway)");
+}
+
+// Ink Flash: chain finishers (only) crit with 0.03 + 0.003 per IQ point over 60, rolled from the match clock.
+{
+  // (stats are rebalanced into the shared budget first, so a 100 IQ asked for is what clampStats leaves of it)
+  for (const iq of [40, 60, 75, 100]) {
+    const asked = fighter("Fighter", { iq });
+    assert.ok(Math.abs(deriveDef(asked).crit - (0.03 + Math.max(0, clampStats(asked).iq - 60) * 0.003)) < 1e-9, `crit at IQ ${iq}`);
+  }
+  assert.equal(deriveDef(fighter("Fighter", { iq: 40 })).crit, 0.03);
+  const crits = () => {
+    const x = fight(fighter("Fighter", { iq: 100, atk: 70, style: "Boxing" }), fighter("Fighter"), 100);
+    const [a, b] = x.m.fighters;
+    const seen = new Set<number>();
+    const out: number[] = [];
+    let finishers = 0;
+    for (let i = 0; i < 9000; i++) {
+      b.hp = 200;
+      b.action = "idle";
+      if (a.action === "idle" && a.cooldown === 0 || (a.action === "attack" && a.t > 12)) x.ia.attack++;
+      run(x, 1);
+      for (const e of x.m.events) {
+        if (e.type !== "hit" || e.by !== 0 || seen.has(e.id)) continue;
+        seen.add(e.id);
+        if (a.combo === 3 && a.move === "uppercutP") finishers++;
+        if (e.crit) {
+          out.push(e.id);
+          assert.ok(a.combo === 3 && a.move === "uppercutP", `crit on ${a.move} (combo ${a.combo}): only a chain finisher may crit`);
+          assert.ok(!e.special && !e.blocked);
+        }
+      }
+    }
+    assert.ok(finishers > 20, `only ${finishers} finishers landed`);
+    return { out, finishers };
+  };
+  const one = crits(), two = crits();
+  assert.ok(one.out.length >= 1, `no Ink Flash in ${one.finishers} finishers`);
+  assert.deepEqual(one.out, two.out, "crits aren't deterministic");
+}
+
+// Spine recoil: a blow above 70% of body height sets hitHigh (hook = head, jab = body), and the hit pose follows it.
+{
+  const land = (style: string) => {
+    const x = fight(fighter("Fighter", { style }), fighter("Fighter", { agi: 40 }), 100); // (no agility: nothing is slipped)
+    x.ia.attack++;
+    for (let i = 0; i < 20 && x.m.fighters[1].hp === 200; i++) run(x, 1);
+    assert.ok(x.m.fighters[1].hp < 200, `${style}: the first punch didn't land`);
+    return x.m.fighters[1].hitHigh;
+  };
+  assert.equal(land("Street"), true, "a hook to the head should be a high hit");
+  assert.equal(land("Boxing"), false, "a jab to the body should be a low hit");
+  const x = fight(fighter("Fighter"), fighter("Fighter"));
+  const f = snapshot(x.m).fighters[1];
+  const at = (hitHigh: boolean) => poseFor({ ...f, action: "hit", t: 4, hitHigh }, "bolt", 0, "Fighter").pose;
+  const high = at(true), low = at(false);
+  assert.ok("rel" in high.head! && high.head.rel < -0.5 && "rel" in high.torso! && high.torso.rel < 0, "a head hit should snap the head back");
+  assert.ok("rel" in low.torso! && low.torso.rel > 0.4 && "rel" in low.head! && low.head.rel > 0, "a body hit should fold the torso forward");
+  assert.ok("abs" in low.upperF! && low.upperF.abs > 1 && "abs" in low.upperB! && low.upperB.abs > 1.5, "a body hit should drop the arms");
+}
+
+// Body proportions follow DUR and SPD, and an average fighter is drawn exactly as before.
+{
+  assert.deepEqual(buildFor(70, 70), { shoulder: 0, thick: 1, legs: 1 });
+  const bulky = buildFor(100, 40), lean = buildFor(40, 100);
+  assert.ok(bulky.shoulder > 8 && bulky.thick > 1.2 && bulky.legs < 1, "high DUR / low SPD should be broad, thick and short-legged");
+  assert.ok(lean.shoulder === 0 && lean.thick < 0.9 && lean.legs > 1.05, "low DUR / high SPD should be lean with longer legs");
+  const feet = (b: typeof AVERAGE_BUILD) => solveStick({} as never, b).joints.footF.y;
+  assert.ok(feet(lean) > feet(AVERAGE_BUILD) && feet(AVERAGE_BUILD) > feet(bulky), "longer legs reach lower (the renderer then lifts the body)");
+  assert.equal(solveStick({} as never).joints.footF.y, feet(AVERAGE_BUILD));
+}
+
+// Tension: below 30% health it rises by the tick and with every blow taken, and speeds the meter up; above it, nothing.
+{
+  const x = fight(fighter("Fighter"), fighter("Fighter"), 500);
+  const [a, b] = x.m.fighters;
+  a.hp = 59;
+  b.hp = 150;
+  run(x, 120);
+  assert.ok(a.tension > 0.45 && a.tension < 0.55, `tension after 2 s below 30%: ${a.tension}`);
+  assert.equal(b.tension, 0, "a healthy fighter built tension");
+  const energyPerSec = (tension: number) => {
+    const y = fight(fighter("Fighter"), fighter("Fighter"), 500);
+    const f = y.m.fighters[0];
+    f.hp = 200;
+    f.tension = tension;
+    f.energy = 0;
+    run(y, 60);
+    return f.energy;
+  };
+  const ratio = energyPerSec(1) / energyPerSec(0);
+  assert.ok(Math.abs(ratio - 1.8) < 0.05, `full tension should earn ${1.8}x the energy, got ${ratio}`);
+  const z = fight(fighter("Fighter"), fighter("Fighter", { agi: 40 }), 100);
+  z.m.fighters[1].hp = 50;
+  const before = z.m.fighters[1].tension;
+  z.ia.attack++;
+  for (let i = 0; i < 20 && z.m.fighters[1].hp === 50; i++) run(z, 1);
+  assert.ok(z.m.fighters[1].hp < 50 && z.m.fighters[1].tension >= before + 0.1, "a blow taken while hurt should add tension");
 }
 
 console.log("check-sim: all good");

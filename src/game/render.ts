@@ -3,12 +3,13 @@
 // impact FX (smears, rings, ink splats, hit-stop shake) and the HUD.
 
 import { normClass } from "../lib/stats";
+import { getReduceFlashes } from "./flashes";
 import { itemOf, MOVES, SKILL_INFO, STYLE_INFO, type SideSkill } from "./moves";
 import { ceremonyPose, poseFor } from "./poses";
 import { resolvePose, type BoneName, type Vec } from "./skeleton";
 import type { Sprite } from "./sprite";
-import { ARENA, BEAM, BODY, TICK_HZ, WINS_NEEDED, type GameEvent, type Slot, type Snapshot, type SpecialKind } from "./sim";
-import { drawStick, solveStick, STICK_REST, type StickPose } from "./stickman";
+import { ARENA, BEAM, BODY, SPECIAL_DURATION, TICK_HZ, WINS_NEEDED, type GameEvent, type Slot, type Snapshot, type SpecialKind } from "./sim";
+import { AVERAGE_BUILD, drawStick, solveStick, STICK_REST, type Build, type StickPose } from "./stickman";
 
 const C = {
   paper: "#f7f5f0",
@@ -27,7 +28,7 @@ type F = Snapshot["fighters"][number];
 type Doodle = { x: number; y: number; kind: number; speed: number; spin: number; size: number };
 
 // buffs: the admin buff is on for that side (shown, so the other player knows).
-export type HudInfo = { names: [string, string]; specialNames: [string, string]; you: Slot; buffs?: [boolean, boolean] };
+export type HudInfo = { names: [string, string]; specialNames: [string, string]; ultNames?: [string, string]; you: Slot; buffs?: [boolean, boolean] };
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 // Element status colours: the halo on the stickman and the badge beside its head.
@@ -42,6 +43,9 @@ export class Renderer {
   private shake = 0;
   private flash = 0; // white screen flash, frames left
   private dim: { slot: Slot; life: number } | null = null; // special start: darken + speed lines
+  private impact: { x: number; y: number; until: number } | null = null; // impact frame: where (world) and until when
+  private view = { cx: ARENA.w / 2, cy: ARENA.h / 2, z: 1 }; // the camera as drawn this frame (world → screen)
+  private cine = 0; // 0..1: how far into the ultimate's blackout we are (eased)
   private banner: { text: string; color: string; life: number } | null = null;
   private lastEventId = 0;
   private fontDisplay = "sans-serif";
@@ -49,6 +53,7 @@ export class Renderer {
   sprites: [Sprite | null, Sprite | null] = [null, null];
   classes: [string, string] = ["Fighter", "Fighter"];
   items: [string, string] = ["", ""]; // "" = the class's default item (see itemOf)
+  builds: [Build, Build] = [AVERAGE_BUILD, AVERAGE_BUILD]; // body proportions from DUR / SPD (stickman.ts buildFor)
   private limbs: [Record<BoneName, number> | null, Record<BoneName, number> | null] = [null, null];
   private trails: [StickPose[], StickPose[]] = [[], []];
   private smears: [Vec[], Vec[]] = [[], []];
@@ -157,10 +162,19 @@ export class Renderer {
         for (let i = 0; i < 8; i++) this.particles.push({ x: e.x + (Math.random() - 0.5) * 50, y: ARENA.ground - 4, vx: (Math.random() - 0.5) * 6, vy: -2 - Math.random() * 4, life: 0, max: 20, color: C.muted, size: 3 + Math.random() * 3 });
       }
       if (e.special) this.flash = Math.max(this.flash, 3);
+      // Impact frame on ultimate blows and Ink Flash crits: two ticks of inverted screen with speed lines from the
+      // hit point. "Reduce flashes" swaps it for a soft ring.
+      if (e.ult || e.crit) {
+        if (getReduceFlashes()) this.rings.push({ x: e.x, y: e.y, r: 14, grow: 9, life: 0, max: 22, color: C.gold, width: 9 });
+        else this.impact = { x: e.x, y: e.y, until: performance.now() + (2 * 1000) / TICK_HZ };
+      }
+      if (e.crit) this.particles.push({ x: e.x, y: e.y - 56, vx: 0, vy: -1, life: 0, max: 44, text: "INK FLASH!", color: C.gold, size: 26 });
     } else if (e.type === "special") {
-      this.banner = { text: `${hud.specialNames[e.by]}!`, color: C.hit, life: 80 };
-      this.dim = { slot: e.by, life: 24 };
-      this.shake = Math.max(this.shake, 4);
+      const name = (e.ult && hud.ultNames?.[e.by]) || hud.specialNames[e.by];
+      this.banner = { text: `${name}!`, color: C.hit, life: e.ult ? 100 : 60 };
+      // Only the ultimate gets the full blackout and speed lines; slot 1 is a quick flourish.
+      this.dim = { slot: e.by, life: e.ult ? 24 : 8 };
+      this.shake = Math.max(this.shake, e.ult ? 4 : 2);
     } else if (e.type === "dodge") {
       // A quick afterimage ring and a word, no damage number.
       this.rings.push({ x: e.x, y: e.y, r: 18, grow: 3, life: 0, max: 10, color: C.guard, width: 2 });
@@ -220,6 +234,11 @@ export class Renderer {
       tz = 1.35;
       tx = (loser.x + fighters[1 - loser.slot].x) / 2;
       ty = loser.y - BODY.h * 0.6;
+    } else if (cur.fighters.some((f) => f.locked)) {
+      // An ultimate has grabbed its target: push in on the pair.
+      tz = 1.35;
+      tx = (fighters[0].x + fighters[1].x) / 2;
+      ty = ARENA.ground - BODY.h * 0.6;
     } else if (sp) {
       tz = 1.14;
       tx = sp.x + sp.facing * 80;
@@ -231,6 +250,7 @@ export class Renderer {
     this.cam.y += (ty - this.cam.y) * ease;
     const z = this.cam.z, hw = ARENA.w / 2 / z, hh = ARENA.h / 2 / z;
     const cx = Math.min(ARENA.w - hw, Math.max(hw, this.cam.x)), cy = Math.min(ARENA.h - hh, Math.max(hh, this.cam.y));
+    this.view = { cx, cy, z };
 
     ctx.save();
     ctx.translate(ARENA.w / 2, ARENA.h / 2);
@@ -242,20 +262,33 @@ export class Renderer {
     }
     this.background();
     this.drawStains();
+    // The ultimate blacks out the page (fighters and effects are drawn over it).
+    const ultOn = cur.fighters.some((f) => f.action === "special" && f.ult);
+    this.cine += ((ultOn ? 1 : 0) - this.cine) * ease;
+    if (this.cine > 0.01) {
+      ctx.fillStyle = `rgba(5,5,12,${0.62 * this.cine})`;
+      ctx.fillRect(-20, -20, ARENA.w + 40, ARENA.h + 40);
+    }
     if (this.dim) this.speedLines(fighters[this.dim.slot]);
 
     // Whoever is doing a special is drawn on top.
     const order = [...fighters].sort((a, b) => (a.action === "special" ? 1 : 0) - (b.action === "special" ? 1 : 0));
-    for (const f of order) this.fighter(f, cur.specials[f.slot], cur.styles[f.slot], now, hud.you === f.slot, cur.skills?.[f.slot]);
+    for (const f of order) this.fighter(f, (f.ult ? cur.ults?.[f.slot] : null) ?? cur.specials[f.slot], cur.styles[f.slot], now, hud.you === f.slot, cur.skills?.[f.slot]);
     this.lastNow = now;
     for (const p of projectiles) this.projectile(p.kind, p.x, p.y, p.r, p.vx, now, p.owner);
     this.fx();
     ctx.restore();
 
     if (this.flash > 0) {
-      ctx.fillStyle = `rgba(255,255,255,${0.35 * this.flash})`;
-      ctx.fillRect(0, 0, ARENA.w, ARENA.h);
+      if (!getReduceFlashes()) {
+        ctx.fillStyle = `rgba(255,255,255,${0.35 * this.flash})`;
+        ctx.fillRect(0, 0, ARENA.w, ARENA.h);
+      }
       this.flash--;
+    }
+    if (this.impact) {
+      if (now < this.impact.until) this.impactFrame(this.impact.x, this.impact.y);
+      else this.impact = null;
     }
     // KO slow-motion: cinema bars.
     if (cur.slow > 0) {
@@ -267,6 +300,29 @@ export class Renderer {
     if (this.preview) return;
     this.hud(cur, hud, now);
     this.phaseText(cur);
+  }
+
+  // The manga impact frame: the arena inverted, black and white wedges fanning out from the point of impact.
+  private impactFrame(wx: number, wy: number) {
+    const { ctx } = this;
+    const { cx, cy, z } = this.view;
+    const x = (wx - cx) * z + ARENA.w / 2, y = (wy - cy) * z + ARENA.h / 2;
+    ctx.save();
+    ctx.globalCompositeOperation = "difference";
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, ARENA.w, ARENA.h);
+    ctx.globalCompositeOperation = "source-over";
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2 + 0.07 * (i % 3);
+      const r0 = 24 + (i % 4) * 14, half = 0.012 + 0.014 * (i % 3);
+      ctx.fillStyle = i % 2 ? "#000" : "#fff";
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(a) * r0, y + Math.sin(a) * r0);
+      ctx.lineTo(x + Math.cos(a - half) * 1400, y + Math.sin(a - half) * 1400);
+      ctx.lineTo(x + Math.cos(a + half) * 1400, y + Math.sin(a + half) * 1400);
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
   private background() {
@@ -406,7 +462,7 @@ export class Renderer {
       cur[name] = p0 + Math.atan2(Math.sin(target[name] - p0), Math.cos(target[name] - p0)) * k;
     }
     this.limbs[f.slot] = cur;
-    const pose = solveStick(cur);
+    const pose = solveStick(cur, this.builds[f.slot]);
     // Keep the lowest foot on the floor: bent legs crouch the body instead of sinking it.
     const lift = (f.grounded && f.action !== "ko" ? -Math.max(pose.joints.footF.y, pose.joints.footB.y) : 0) - (motion.hover ?? 0);
     const dir = motion.flip ? -f.facing : f.facing;
@@ -456,7 +512,7 @@ export class Renderer {
     const hurt = f.action === "hit" && f.t < 8;
     const nc = normClass(cls);
     const accent = nc === "Tank" || nc === "Attacker" ? C.guard : nc === "Fighter" ? C.hit : C.gold;
-    const look = { ink: hurt ? C.hit : (sprite?.ink ?? C.ink), head: sprite?.head ?? null, prop: sprite?.prop ?? null, cls, item: this.items[f.slot], accent, width: sprite?.width ?? 7 };
+    const look = { ink: hurt ? C.hit : (sprite?.ink ?? C.ink), head: sprite?.head ?? null, prop: sprite?.prop ?? null, cls, item: this.items[f.slot], accent, width: sprite?.width ?? 7, build: this.builds[f.slot], now };
 
     ctx.save();
     ctx.translate(f.x + dx, f.y + lift);
@@ -471,7 +527,7 @@ export class Renderer {
     const base = (f.action === "ko" ? 0.75 : 1) * motion.alpha;
     trail.slice(1).forEach((p, i) => {
       ctx.globalAlpha = (0.24 - i * 0.05) * Math.max(0.3, motion.alpha);
-      drawStick(ctx, p, { ...look, ink: C.hit, head: null, prop: null });
+      drawStick(ctx, p, { ...look, ink: C.hit, head: null, prop: null, plain: true });
     });
     ctx.globalAlpha = base;
     const skillOn = f.skillT > 0 && f.action !== "ko" ? skill : undefined;
@@ -484,6 +540,9 @@ export class Renderer {
     } else if (f.status) {
       ctx.shadowColor = STATUS_COLOR[f.status.kind] ?? C.muted; // a faint halo in the element's colour
       ctx.shadowBlur = 7;
+    } else if (f.tension > 0.1 && f.action !== "ko") {
+      ctx.shadowColor = C.hit; // tension: a red aura that swells with it and pulses
+      ctx.shadowBlur = 5 + f.tension * 10 + Math.sin(now / 90) * 2 * f.tension;
     }
     if (base > 0.02) drawStick(ctx, pose, look);
     ctx.restore();
@@ -491,6 +550,10 @@ export class Renderer {
 
     if (f.action === "special") this.specialFx(f, special, pose, toWorld, now);
     if (skillOn) this.skillFx(f, skillOn, f.x + dx, f.y + lift, now);
+    // Embers rising off a fighter whose tension is up.
+    if (f.tension > 0.3 && f.action !== "ko" && Math.random() < f.tension * 0.3) {
+      this.particles.push({ x: f.x + dx + (Math.random() - 0.5) * 50, y: f.y + lift - Math.random() * BODY.h * 0.6, vx: (Math.random() - 0.5) * 0.8, vy: -1.4 - Math.random(), life: 0, max: 26, color: Math.random() < 0.5 ? C.hit : C.gold, size: 3 + Math.random() * 3 });
+    }
     if (f.status && f.action !== "ko") this.statusFx(f.status.kind, f.x + dx - f.facing * 38, f.y + lift - 150, now);
 
     if (f.blocking) {
@@ -637,7 +700,7 @@ export class Renderer {
         ctx.lineTo(x, y - 50);
         ctx.stroke();
       }
-    } else if (kind === "barrage" && t >= 6 && t < 42) {
+    } else if ((kind === "barrage" && t >= 6 && t < 42) || (f.ult && f.ultEnd > 0 && t >= SPECIAL_DURATION[kind])) {
       // Ghost fists everywhere in front.
       ctx.fillStyle = C.ink;
       ctx.globalAlpha = 0.35;
@@ -915,8 +978,9 @@ export class Renderer {
         ctx.fill();
       }
 
-      // HP bar
+      // HP bar, and a thin tension bar under it once the fighter is hurt badly enough for it to start filling.
       this.bar(x, 52, barW, 16, hpPct, hpPct > 0.5 ? C.ink : hpPct > 0.25 ? C.gold : C.hit, !left);
+      if (f.tension > 0) this.bar(x, 70, barW, 4, f.tension, f.tension >= 1 && Math.floor(now / 160) % 2 ? C.gold : C.hit, !left);
       if (z < 1.2) {
         ctx.font = `600 12px ${this.fontBody}`;
         ctx.fillStyle = C.muted;
@@ -928,14 +992,19 @@ export class Renderer {
       this.bar(left ? x : x + barW - 72, 76, 72, 7, skillPct, skillPct >= 1 ? C.guard : C.muted, !left);
 
       // Energy / special meter
+      // Half a meter fires the first special (L), a full one the ultimate (S + L): a notch marks the half.
       const full = f.energy >= 100;
+      const half = f.energy >= 50;
       const ex = left ? x + 80 : x;
-      this.bar(ex, 76, barW - 80, 7, f.energy / 100, full ? (Math.floor(now / 200) % 2 ? C.hit : C.gold) : C.gold, !left);
-      if (full) {
+      const ew = barW - 80;
+      this.bar(ex, 76, ew, 7, f.energy / 100, full ? (Math.floor(now / 200) % 2 ? C.hit : C.gold) : C.gold, !left);
+      ctx.fillStyle = C.ink;
+      ctx.fillRect(ex + ew / 2 - 1, 74, 2, 11);
+      if (half) {
         ctx.font = `800 ${Math.round(12 * z)}px ${this.fontDisplay}`;
-        ctx.fillStyle = C.hit;
+        ctx.fillStyle = full ? C.hit : C.gold;
         ctx.textAlign = left ? "right" : "left";
-        ctx.fillText("SPECIAL READY", left ? x + barW : x, 98 + 6 * (z - 1));
+        ctx.fillText(full ? "ULTIMATE READY" : "SPECIAL READY", left ? x + barW : x, 98 + 6 * (z - 1));
       }
       // Combo counter while a chain is running.
       if ((f.action === "attack" || f.action === "kick") && f.combo > 0) {

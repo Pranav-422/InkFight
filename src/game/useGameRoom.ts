@@ -144,7 +144,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
       if (me.status !== 200) return setError("That fighter doesn't exist. Draw a new one?");
       const myFighter: PublicFighter = {
         id: me.id, name: me.name, class: me.class, imageUrl: me.imageUrl, specialMove: me.specialMove,
-        hp: me.hp, atk: me.atk, def: me.def, spd: me.spd, agi: me.agi, iq: me.iq, element: me.element, item: me.item, pose: me.pose, rotation: me.rotation, specialKind: me.specialKind, style: me.style, sideSkill: me.sideSkill,
+        hp: me.hp, atk: me.atk, def: me.def, spd: me.spd, agi: me.agi, iq: me.iq, element: me.element, item: me.item, pose: me.pose, rotation: me.rotation, specialKind: me.specialKind, ultMove: (me as { ultName?: string }).ultName, ultKind: me.ultKind, style: me.style, sideSkill: me.sideSkill,
         flipItem: me.flipItem, ...(buff && { buff }),
       };
 

@@ -109,12 +109,12 @@ export const CLASS_CHAIN_POWER = Object.fromEntries(Object.entries(CLASS_CHAIN).
 // Damage factors found by simulation (`npx tsx scripts/balance.ts --tune`): each style
 // and special set so it wins about half its fights against a mixed pool of every
 // style x special with the same stats. Re-run the tuner after changing moves or specials.
-export const STYLE_TUNE: Record<Style, number> = { Boxing: 0.69, Taekwondo: 0.817, "Muay Thai": 0.796, Karate: 0.817, Street: 0.88, Systema: 0.69 };
-export const SPECIAL_TUNE: Record<SpecialKind, number> = { bolt: 1.492, arrow: 1.281, orb: 1.07, slash: 0.775, charge: 0.416, uppercut: 0.922, beam: 1.513, spiral: 1.661, wave: 1.914, teleport: 0.669, barrage: 0.543, meteor: 1.407 };
+export const STYLE_TUNE: Record<Style, number> = { Boxing: 0.775, Taekwondo: 0.859, "Muay Thai": 0.901, Karate: 0.796, Street: 0.901, Systema: 0.754 };
+export const SPECIAL_TUNE: Record<SpecialKind, number> = { bolt: 1.323, arrow: 1.26, orb: 1.112, slash: 0.648, charge: 0.311, uppercut: 0.796, beam: 2.188, spiral: 1.682, wave: 1.935, teleport: 0.627, barrage: 0.817, meteor: 1.218 };
 
 // Damage factor per class, found by simulation like the two above (scripts/balance.ts --tune):
 // each class's usual stat line and kit wins about half its fights against every class.
-export const CLASS_TUNE: Record<string, number> = { Sword: 0.997, Mace: 1.077, Tank: 1.291, Attacker: 1.123, Fighter: 1.29 };
+export const CLASS_TUNE: Record<string, number> = { Sword: 1.039, Mace: 1.142, Tank: 1.137, Attacker: 1.212, Fighter: 1.196 };
 // Strength of each element's status effect (1 = as described in sim.ts), tuned the same way.
 export const ELEMENT_TUNE: Record<string, number> = { NONE: 1, FIRE: 1, ELECTRIC: 1, FROST: 1, POISON: 1, BLEED: 1, GRAVITY: 1 };
 
@@ -141,6 +141,21 @@ export const itemOf = (item: string | null | undefined, cls: string): string => 
 
 export const specialOf = (kind: string | null | undefined, cls: string): SpecialKind =>
   (SPECIAL_KINDS as readonly string[]).includes(kind ?? "") ? (kind as SpecialKind) : (CLASS_SPECIAL[normClass(cls)] ?? "uppercut");
+
+// Two special slots: L spends SLOT1_COST energy on the first special, S + L spends ULT_COST on the ultimate
+// (the same twelve building blocks, plus a hit-lock: see lockOn in sim.ts). Old fighters have no ultimate
+// stored, so they get their class's.
+export const SLOT1_COST = 50;
+export const ULT_COST = 100;
+export const CLASS_ULT: Record<string, SpecialKind> = {
+  Sword: "meteor",
+  Mace: "uppercut",
+  Tank: "meteor",
+  Attacker: "spiral",
+  Fighter: "beam",
+};
+export const ultOf = (kind: string | null | undefined, cls: string): SpecialKind =>
+  (SPECIAL_KINDS as readonly string[]).includes(kind ?? "") ? (kind as SpecialKind) : (CLASS_ULT[normClass(cls)] ?? "meteor");
 export const styleOf = (style: string | null | undefined, cls: string): Style =>
   (STYLES as readonly string[]).includes(style ?? "") ? (style as Style) : (CLASS_STYLE[normClass(cls)] ?? "Street");
 
@@ -158,7 +173,7 @@ export const SKILL_INFO: Record<SideSkill, { name: string; how: string; cd: numb
 // Each skill's duration factor, found by simulation (scripts/balance.ts --tune N
 // skills): a class with its skill beats the same class without it 60% of the time. A mirror amplifies any edge,
 // so that is a few % of HP: worth pressing, not a matchup decider.
-export const SKILL_TUNE: Record<SideSkill, number> = { blade: 0.723, reflect: 0.587, bubble: 0.496, weave: 0.451, poise: 0.361 };
+export const SKILL_TUNE: Record<SideSkill, number> = { blade: 1.539, reflect: 1.086, bubble: 0.406, weave: 0.587, poise: 0.451 };
 export const CLASS_SKILL: Record<string, SideSkill> = { Sword: "blade", Mace: "poise", Tank: "reflect", Attacker: "bubble", Fighter: "weave" };
 export const skillOf = (skill: string | null | undefined, cls: string): SideSkill =>
   (SIDE_SKILLS as readonly string[]).includes(skill ?? "") ? (skill as SideSkill) : (CLASS_SKILL[normClass(cls)] ?? "weave");
@@ -172,7 +187,8 @@ export const CLASS_SPECIAL_POOL: Record<string, SpecialKind[]> = {
   Fighter: ["barrage", "uppercut", "spiral", "meteor"],
 };
 
-// Offline names: [prefix-free name, description]. Playful, a little anime.
+// Offline names: [prefix-free name, description]. Playful, a little anime. SPECIAL_NAMES is for the first
+// special, ULT_NAMES for the ultimate (bigger, louder, more final).
 export const SPECIAL_NAMES: Record<SpecialKind, [string, string][]> = {
   bolt: [["Ballpoint Bolt", "A crackling shot of pure ink"], ["Footnote Zap", "Cites you. Painfully."]],
   arrow: [["Pencil Javelin", "Sharpened to a deadly point"], ["Ruler Railshot", "Perfectly straight, perfectly rude"]],
@@ -187,3 +203,21 @@ export const SPECIAL_NAMES: Record<SpecialKind, [string, string][]> = {
   barrage: [["Ink Ink Ink Rush", "Fifty punches, zero hesitation"], ["Scribble Storm Fists", "A flurry so fast it smudges"]],
   meteor: [["Staple Meteor", "Drops from the sky like a heavy-duty staple"], ["Margin Drop Kick", "Leaves a crater in the page"]],
 };
+
+export const ULT_NAMES: Record<SpecialKind, [string, string][]> = {
+  bolt: [["Final Footnote", "One citation, delivered at lightning speed, then the pages keep coming"], ["Thesis Thunder", "A bolt that drags you in and grades you in person"]],
+  arrow: [["Last Line Volley", "The arrow lands, the ruler follows, the margin cheers"], ["Pencil Rain Execution", "Sharpened to a point, then sharpened again, on you"]],
+  orb: [["Total Blot Eclipse", "The orb swallows you whole and spits out a stain"], ["Rubber Planet Crush", "A world of eraser, rolling over one fighter"]],
+  beam: [["Ink-ame-hameha: Full Page", "Every line on the page lights up behind one scream"], ["Margin Sun Cannon", "A beam so wide the page gets a new border"], ["Highlighter Judgement", "Neon. Final. Unforgivable."]],
+  wave: [["Spine Crack Apocalypse", "The whole notebook folds and you are in the crease"], ["Seismic Staple Storm", "The ground rips, the wave grabs, the finale hits"]],
+  slash: [["Ten Thousand Cuts of Ink", "One stroke, then ten thousand, all before you blink"], ["Guillotine Margin", "The cut that ends the chapter"]],
+  charge: [["Hardcover Stampede", "A falling textbook, but it keeps falling"], ["Binder Breaker Rush", "Three rings of armor and zero brakes"]],
+  uppercut: [["Doodle Dragon Ascension", "A flaming fist, a locked grip, and a one-way trip to the ceiling"], ["Rising Sharpie Finale", "Leaves a permanent mark on the sky"]],
+  spiral: [["Scribble-gan: Maximum Tangle", "A sphere of scribbles that does not let go"], ["Great Spiral Notebook", "Spins until the page runs out"]],
+  teleport: [["Eraser Step: Infinite Redraw", "Erased, redrawn, erased again, always behind you"], ["Page Flip Massacre", "Turns every page at once, appears on all of them"]],
+  barrage: [["Ink Ink Ink Ink Rush", "Five hundred punches and not one apology"], ["Scribble Storm Overdrive", "So fast the paper smokes"]],
+  meteor: [["Staple Meteor: Armageddon", "Drops from orbit, takes you with it"], ["Margin Crater Finale", "Leaves a crater in the page and the page in the crater"]],
+};
+
+// The name to show for a fighter's ultimate: its own, or a stock one for old fighters that were made without.
+export const ultTitle = (name: string | null | undefined, kind: string | null | undefined, cls: string) => name || ULT_NAMES[ultOf(kind, cls)][0][0];

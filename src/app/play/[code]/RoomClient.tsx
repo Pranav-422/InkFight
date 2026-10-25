@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ClassBadge } from "@/components/ClassBadge";
 import { FighterAvatar } from "@/components/FighterAvatar";
 import { GameCanvas } from "@/components/GameCanvas";
+import { ultTitle } from "@/game/moves";
 import type { LobbyPlayer } from "@/game/protocol";
 import { useGameRoom } from "@/game/useGameRoom";
 import { useLeaveGuard } from "@/components/useLeaveGuard";
@@ -188,7 +189,7 @@ function SeatCard({ p, you }: { p: LobbyPlayer | null; you: boolean }) {
         </span>
       </div>
       <p className="mt-2 text-xs">
-        <span className="font-semibold text-hit">Special:</span> {p.specialMove}
+        <span className="font-semibold text-hit">Special:</span> {p.specialMove} · <span className="font-semibold text-hit">Ult:</span> {ultTitle(p.ultMove, p.ultKind, p.class)}
       </p>
     </div>
   );

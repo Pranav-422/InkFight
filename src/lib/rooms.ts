@@ -26,6 +26,8 @@ export function publicFighter(c: Character, buff = false): PublicFighter {
     rotation: c.rotation,
     flipItem: c.flipItem,
     specialKind: c.specialKind,
+    ultMove: c.ultName,
+    ultKind: c.ultKind,
     style: c.style,
     sideSkill: c.sideSkill,
     ...(buff && { buff }),

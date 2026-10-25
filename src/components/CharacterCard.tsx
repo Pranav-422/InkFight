@@ -1,4 +1,5 @@
 import type { Character } from "@prisma/client";
+import { ultTitle } from "@/game/moves";
 import { ClassBadge } from "./ClassBadge";
 import { FighterAvatar } from "./FighterAvatar";
 import { StatBar } from "./StatBar";
@@ -33,6 +34,9 @@ export function CharacterCard({ character: c, variant = "full" }: Props) {
               <p className="text-[11px] font-semibold uppercase tracking-wider text-hit">Special move</p>
               <p className="font-display text-lg font-extrabold">{c.specialMove}</p>
               {c.specialDesc && <p className="text-sm text-muted">{c.specialDesc}</p>}
+              <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-hit">Ultimate</p>
+              <p className="font-display text-lg font-extrabold">{ultTitle(c.ultName, c.ultKind, c.class)}</p>
+              {c.ultDesc && <p className="text-sm text-muted">{c.ultDesc}</p>}
             </div>
             <blockquote className="mt-4 border-l-0 px-1 text-center font-display text-base italic text-ink/80">
               “{c.flavorText}”

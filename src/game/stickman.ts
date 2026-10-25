@@ -3,6 +3,7 @@
 // class item sits in the front hand. Replaces bending the photo itself, which
 // tore apart on most real drawings.
 
+import { normClass } from "../lib/stats";
 import { itemOf } from "./moves";
 import { BONES, type BoneName, type Joints, type Vec } from "./skeleton";
 import type { Prop } from "./sprite";
@@ -40,8 +41,18 @@ export const STICK_REST = { rest: REST };
 
 export type StickPose = { joints: Joints; world: Record<BoneName, number> };
 
+// Body proportions from the stats (render only: hitboxes don't change). High DUR = broad shoulders and thicker
+// limbs, high SPD = lean with longer legs, and the opposite for low values. 70 is the average build (unchanged).
+export type Build = { shoulder: number; thick: number; legs: number };
+export const AVERAGE_BUILD: Build = { shoulder: 0, thick: 1, legs: 1 };
+export function buildFor(dur: number, spd: number): Build {
+  const d = Math.max(-1, Math.min(1, (dur - 70) / 30)); // 40..100 → -1..1
+  const s = Math.max(-1, Math.min(1, (spd - 70) / 30));
+  return { shoulder: Math.max(0, d) * 11, thick: Math.max(0.8, Math.min(1.4, 1 + 0.28 * d - 0.12 * s)), legs: 1 + 0.08 * s };
+}
+
 // Forward kinematics: local rotations (from resolvePose) → joint positions.
-export function solveStick(local: Record<BoneName, number>): StickPose {
+export function solveStick(local: Record<BoneName, number>, build: Build = AVERAGE_BUILD): StickPose {
   const joints = { ...REST_JOINTS };
   const world = {} as Record<BoneName, number>;
   const acc = {} as Record<BoneName, number>;
@@ -49,7 +60,8 @@ export function solveStick(local: Record<BoneName, number>): StickPose {
     acc[b.name] = (b.parent ? acc[b.parent] : 0) + (local[b.name] ?? 0);
     world[b.name] = REST[b.name] + acc[b.name];
     const from = joints[b.from];
-    joints[b.to] = { x: from.x + Math.cos(world[b.name]) * LEN[b.name], y: from.y + Math.sin(world[b.name]) * LEN[b.name] };
+    const len = LEN[b.name] * (b.name.startsWith("thigh") || b.name.startsWith("shin") ? build.legs : 1);
+    joints[b.to] = { x: from.x + Math.cos(world[b.name]) * len, y: from.y + Math.sin(world[b.name]) * len };
   }
   return { joints, world };
 }
@@ -64,27 +76,50 @@ const LIMBS: [keyof Joints, keyof Joints, keyof Joints][] = [
 export function drawStick(
   ctx: CanvasRenderingContext2D,
   { joints: j, world }: StickPose,
-  o: { ink: string; head: HTMLCanvasElement | null; prop: Prop | null; cls: string; item?: string | null; accent: string; width: number },
+  o: {
+    ink: string; head: HTMLCanvasElement | null; prop: Prop | null; cls: string; item?: string | null; accent: string; width: number;
+    build?: Build; // body proportions from DUR/SPD
+    now?: number; // ms, for the cosmetics that move (orbs, headband tails)
+    plain?: boolean; // no class cosmetics: afterimages, and the builder's drawing (which is measured like a scanned one)
+  },
 ) {
+  const build = o.build ?? AVERAGE_BUILD;
+  const cls = o.plain ? "" : normClass(o.cls);
+  const now = o.now ?? 0;
+  const pen = o.width * build.thick;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.strokeStyle = o.ink;
-  ctx.lineWidth = o.width; // the drawing's own pen weight
+  ctx.lineWidth = pen; // the drawing's own pen weight
+  // Shoulders: both arms start at the ends of a yoke across the top of the torso (a point for an average build).
+  const across = world.torso + Math.PI / 2; // torso angle turned a quarter: "forward" when upright
+  const half = build.shoulder;
+  const sF = { x: j.shoulder.x + Math.cos(across) * half, y: j.shoulder.y + Math.sin(across) * half };
+  const sB = { x: j.shoulder.x - Math.cos(across) * half, y: j.shoulder.y - Math.sin(across) * half };
   // Far limbs first, then torso, then near limbs: reads as depth.
-  const limb = ([a, b, c]: (typeof LIMBS)[number]) => {
+  const limb = ([a, b, c]: (typeof LIMBS)[number], from?: Vec) => {
     ctx.beginPath();
-    ctx.moveTo(j[a].x, j[a].y);
+    ctx.moveTo((from ?? j[a]).x, (from ?? j[a]).y);
     ctx.lineTo(j[b].x, j[b].y);
     ctx.lineTo(j[c].x, j[c].y);
     ctx.stroke();
   };
-  limb(LIMBS[0]);
+  if (cls === "Attacker") floatingOrbs(ctx, j, o, now);
+  limb(LIMBS[0], sB);
   limb(LIMBS[1]);
   ctx.beginPath();
   ctx.moveTo(j.hip.x, j.hip.y);
   ctx.lineTo(j.shoulder.x, j.shoulder.y);
   ctx.stroke();
+  if (half > 0.5) {
+    ctx.beginPath();
+    ctx.moveTo(sB.x, sB.y);
+    ctx.lineTo(sF.x, sF.y);
+    ctx.stroke();
+  }
+  if (cls === "Sword") sheath(ctx, j, world, o, pen);
   limb(LIMBS[2]);
+  if (cls === "Tank") shoulderPads(ctx, sB, sF, world, o);
 
   // Head: the player's drawing, turned with the neck. A plain circle until it loads.
   const tilt = world.head - REST.head;
@@ -106,6 +141,7 @@ export function drawStick(
     ctx.fill();
     ctx.stroke();
   }
+  if (cls === "Mace") headband(ctx, o.accent, now);
   ctx.restore();
 
   if (o.prop) {
@@ -120,9 +156,122 @@ export function drawStick(
     ctx.drawImage(p.img, -p.hx, -p.hy);
     ctx.restore();
   } else drawItem(ctx, itemOf(o.item, o.cls), j, world.foreF, o.ink, o.accent);
-  ctx.lineWidth = o.width;
+  ctx.lineWidth = pen;
   ctx.strokeStyle = o.ink;
-  limb(LIMBS[3]);
+  limb(LIMBS[3], sF);
+  if (cls === "Fighter") handWraps(ctx, j, o);
+}
+
+// ---------------------------------------------------------------- class cosmetics (ink colour, procedural)
+
+// Attacker: three small orbs circling behind the shoulders.
+function floatingOrbs(ctx: CanvasRenderingContext2D, j: Joints, o: { ink: string; accent: string }, now: number) {
+  ctx.save();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = o.ink;
+  for (let i = 0; i < 3; i++) {
+    const a = now / 700 + (i * Math.PI * 2) / 3;
+    const x = j.shoulder.x - 14 + Math.cos(a) * 40, y = j.shoulder.y - 8 + Math.sin(a) * 15 + Math.sin(now / 430 + i * 2) * 3;
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(x, y, 6.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = o.accent;
+    ctx.beginPath();
+    ctx.arc(x, y, 2.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// Sword: a scabbard on the back hip, on a belt.
+function sheath(ctx: CanvasRenderingContext2D, j: Joints, world: Record<BoneName, number>, o: { ink: string; accent: string }, pen: number) {
+  const rot = world.torso + Math.PI / 2; // 0 when the torso is upright
+  const at = (x: number, y: number): Vec => ({ x: j.hip.x + x * Math.cos(rot) - y * Math.sin(rot), y: j.hip.y + x * Math.sin(rot) + y * Math.cos(rot) });
+  const belt0 = at(-9, 0), belt1 = at(7, 0), top = at(-5, 2), tip = at(-21, 31);
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.strokeStyle = o.ink;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(belt0.x, belt0.y);
+  ctx.lineTo(belt1.x, belt1.y);
+  ctx.stroke();
+  ctx.lineWidth = Math.max(4, pen * 0.85);
+  ctx.beginPath();
+  ctx.moveTo(top.x, top.y);
+  ctx.lineTo(tip.x, tip.y);
+  ctx.stroke();
+  ctx.fillStyle = o.accent;
+  ctx.beginPath();
+  ctx.arc(tip.x, tip.y, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// Tank: a domed pad on each shoulder.
+function shoulderPads(ctx: CanvasRenderingContext2D, sB: Vec, sF: Vec, world: Record<BoneName, number>, o: { ink: string; accent: string }) {
+  const rot = world.torso + Math.PI / 2;
+  const mid = { x: (sB.x + sF.x) / 2, y: (sB.y + sF.y) / 2 };
+  const reach = Math.max(7, Math.hypot(sF.x - sB.x, sF.y - sB.y) / 2);
+  ctx.save();
+  ctx.fillStyle = o.accent;
+  ctx.strokeStyle = o.ink;
+  ctx.lineWidth = 3.5;
+  for (const side of [-1, 1]) {
+    ctx.save();
+    ctx.translate(mid.x + Math.cos(rot) * reach * side, mid.y + Math.sin(rot) * reach * side);
+    ctx.rotate(rot);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 12, 10, 0, Math.PI, Math.PI * 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+// Mace: a headband across the forehead with two tails fluttering behind (drawn in the head's own frame).
+function headband(ctx: CanvasRenderingContext2D, accent: string, now: number) {
+  const r = HEAD_R, y = -r * 0.4, f = Math.sin(now / 110) * 4;
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.97, y);
+  ctx.lineTo(r * 0.97, y);
+  ctx.stroke();
+  ctx.lineWidth = 3.5;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.95, y);
+  ctx.quadraticCurveTo(-r - 9, y - f, -r - 23, y + 5 + f);
+  ctx.moveTo(-r * 0.95, y);
+  ctx.quadraticCurveTo(-r - 7, y + 5 + f, -r - 19, y + 15 - f);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Fighter: three tape bands around each wrist.
+function handWraps(ctx: CanvasRenderingContext2D, j: Joints, o: { accent: string }) {
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.strokeStyle = o.accent;
+  ctx.lineWidth = 3;
+  for (const [e, h] of [[j.elbowF, j.handF], [j.elbowB, j.handB]] as const) {
+    const len = Math.hypot(h.x - e.x, h.y - e.y) || 1;
+    const dx = (h.x - e.x) / len, dy = (h.y - e.y) / len;
+    for (let k = 1; k <= 3; k++) {
+      const px = h.x - dx * (4 + k * 4.5), py = h.y - dy * (4 + k * 4.5);
+      ctx.beginPath();
+      ctx.moveTo(px - dy * 6, py + dx * 6);
+      ctx.lineTo(px + dy * 6, py - dx * 6);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
 }
 
 // The item, held in the front hand and aligned with the forearm. "nothing" = taped fists.

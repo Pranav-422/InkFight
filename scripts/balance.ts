@@ -3,13 +3,15 @@
 //   npx tsx scripts/balance.ts [matches per pairing, default 60]
 //   npx tsx scripts/balance.ts --tune [N] [passes]   find STYLE_TUNE / SPECIAL_TUNE / CLASS_TUNE /
 //       ELEMENT_TUNE (src/game/moves.ts) and the stat spans in TUNE (src/game/sim.ts);
-//       passes = comma list of specials,styles,skills,lines,classes,elements
+//       passes = comma list of specials,styles,skills,ult,lines,classes,elements (ult: TRAIT.ULT_SCALE, so that a
+//       fighter who saves its meter for the ultimate and one who spends it on slot 1 do equally well)
 // Exits 1 when a class pair (both cells together: 40-60%) or the stat lines (45-62%) miss their targets, or a class
 // can only be balanced at an extreme factor (a structural problem: fix the code, not the number).
 //   TUNE_JSON='{"STR_EXP":0.6}' npx tsx scripts/balance.ts   try other sim TUNE values
 //   TRAIT_JSON / CLASS_JSON: the same for TRAIT (sim.ts) and CLASS_TUNE
 //   LINES_ONLY=1 LINES=240 npx tsx scripts/balance.ts   just the stat-line check, 240 kits
 //   SKILLS_OFF=1 / MATRIX_ONLY=1   side skills do nothing / skip the stat lines
+//   ULT_ONLY=1 / SLOT1_ONLY=1   every CPU always saves for the ultimate / never does (what the two slots are worth)
 // Math.random is seeded so a run can be repeated; the CPU is the only user of it.
 
 import { cpuThink, newBrain } from "../src/game/cpu";
@@ -32,7 +34,7 @@ if (process.env.SKILLS_OFF) for (const k of SIDE_SKILLS) SKILL_INFO[k].dur = 0; 
 
 const TUNING = process.argv[2] === "--tune";
 const N = Number(TUNING ? (process.argv[3] ?? 96) : (process.argv[2] ?? 60));
-const PASSES = (TUNING && process.argv[4] ? process.argv[4] : "specials,styles,skills,lines,classes,elements").split(",");
+const PASSES = (TUNING && process.argv[4] ? process.argv[4] : "specials,styles,skills,ult,lines,classes,elements").split(",");
 const neutral = { size: "medium", pose: "neutral", dominant_colors: [] } as const;
 // A class's usual stat line with its default item, style and special.
 const fighter = (cls: string): FighterStats => ({
@@ -44,12 +46,18 @@ const fighter = (cls: string): FighterStats => ({
 });
 
 let totalSecs = 0;
-function play(a: FighterStats, b: FighterStats, skillA = 1, skillB = 1) {
+// ultA/ultB: 1 = saves its meter for the ultimate, 0 = spends it on slot 1 (undefined: the hard CPU's own mix).
+function play(a: FighterStats, b: FighterStats, skillA = 1, skillB = 1, ultA?: number, ultB?: number) {
   const ia = { ...EMPTY_INPUT }, ib = { ...EMPTY_INPUT };
   const m = createMatch(a, b, [ia, ib]);
   const ba = newBrain("hard"), bb = newBrain("hard");
   ba.skillUse = skillA;
   bb.skillUse = skillB;
+  for (const [br, u] of [[ba, process.env.ULT_ONLY ? 1 : process.env.SLOT1_ONLY ? 0 : ultA], [bb, process.env.ULT_ONLY ? 1 : process.env.SLOT1_ONLY ? 0 : ultB]] as const) {
+    if (u === undefined) continue;
+    br.ultUse = u;
+    br.saving = u >= 1;
+  }
   let ticks = 0, rounds = 0, lastRound = 1;
   while (m.phase !== "matchEnd" && ticks < TICK_HZ * 60 * 6) {
     cpuThink(m, 0, ba, ia);
@@ -76,7 +84,7 @@ function rate(a: FighterStats, b: FighterStats, n: number, start = SEED) {
 }
 
 // A style × special pair for match i: spread over every combination, the same for both sides of a test.
-const kit = (i: number) => ({ style: STYLES[i % STYLES.length], specialKind: SPECIAL_KINDS[(i * 5 + Math.floor(i / 12)) % SPECIAL_KINDS.length] });
+const kit = (i: number) => ({ style: STYLES[i % STYLES.length], specialKind: SPECIAL_KINDS[(i * 5 + Math.floor(i / 12)) % SPECIAL_KINDS.length], ultKind: SPECIAL_KINDS[(i * 7 + 3 + Math.floor(i / 12) * 2) % SPECIAL_KINDS.length] });
 const avg: FighterStats = { hp: 200, atk: 70, def: 70, spd: 70, agi: 70, iq: 70, class: "Fighter" };
 
 // Each stat alone: 100 in that stat and ~62 in the other four (same 350 budget) vs an all-70 fighter,
@@ -98,7 +106,8 @@ function statLines(n: number, only?: (keyof typeof NAMES)[]) {
 if (TUNING) {
   // Opponents: every style × special, with the current factors. Tuning against this mix
   // (not one fixed rival) balances melee vs ranged too. Two passes so factors settle.
-  const pool: FighterStats[] = STYLES.flatMap((style) => SPECIAL_KINDS.map((specialKind) => ({ ...avg, style, specialKind })));
+  // (the same kind in both slots, so a kind's factor prices it as slot 1 and as an ultimate together)
+  const pool: FighterStats[] = STYLES.flatMap((style) => SPECIAL_KINDS.map((specialKind) => ({ ...avg, style, specialKind, ultKind: specialKind })));
   const vs = (variant: (i: number) => FighterStats, opp: (i: number) => FighterStats) => {
     seed = SEED;
     let wins = 0;
@@ -129,13 +138,13 @@ if (TUNING) {
     if (PASSES.includes("styles")) {
       // A style is judged across all specials, a special across all styles.
       for (const s of STYLES) {
-        const win = () => vs((i) => ({ ...avg, style: s, specialKind: SPECIAL_KINDS[i % SPECIAL_KINDS.length] }), fromPool);
+        const win = () => vs((i) => ({ ...avg, style: s, specialKind: SPECIAL_KINDS[i % SPECIAL_KINDS.length], ultKind: SPECIAL_KINDS[i % SPECIAL_KINDS.length] }), fromPool);
         console.log(`pass ${pass} style ${s}: ${tune((v) => (STYLE_TUNE[s] = v), win)}`);
       }
     }
     if (PASSES.includes("specials")) {
       for (const k of SPECIAL_KINDS) {
-        const win = () => vs((i) => ({ ...avg, style: STYLES[i % STYLES.length], specialKind: k }), fromPool);
+        const win = () => vs((i) => ({ ...avg, style: STYLES[i % STYLES.length], specialKind: k, ultKind: k }), fromPool);
         console.log(`pass ${pass} special ${k}: ${tune((v) => (SPECIAL_TUNE[k] = v), win)}`);
       }
     }
@@ -157,6 +166,26 @@ if (TUNING) {
           console.log(`STRUCTURAL: ${k} only balances at the edge of its range`);
           structural = true;
         }
+      }
+    }
+    if (PASSES.includes("ult")) {
+      // The ultimate costs the whole meter and slot 1 half of it: a CPU that always saves for the ultimate vs the
+      // same class that always spends on slot 1 should come out even, so ULT_SCALE is set where they do (more
+      // scale = the ultimate wins more). Both ends sit in one factor, so it is judged across every class.
+      const n = Number(process.env.ULT_N ?? 240);
+      const win = () => {
+        seed = SEED;
+        let wins = 0, games = 0;
+        for (const c of CLASSES) {
+          for (let i = 0; i < n / CLASSES.length; i++, games++) wins += (i % 2 ? play(fighter(c), fighter(c), 1, 1, 0, 1).winner === 1 : play(fighter(c), fighter(c), 1, 1, 1, 0).winner === 0) ? 1 : 0;
+        }
+        return wins / games;
+      };
+      const v = tune((x) => (TRAIT.ULT_SCALE = x), win, 0.5, 0.15, 2.5);
+      console.log(`pass ${pass} ult: ULT_SCALE ${v} (the ultimate-saver wins ${Math.round(win() * 100)}%)`);
+      if (v <= 0.17 || v >= 2.4) {
+        console.log("STRUCTURAL: the ultimate only balances against slot 1 at the edge of its range");
+        structural = true;
       }
     }
     if (PASSES.includes("lines")) {
@@ -212,7 +241,7 @@ if (TUNING) {
       if (v >= 2.99 && win() < 0.5) console.log(`  !! ${e} is too weak even at 3`);
     }
   }
-  console.log(JSON.stringify({ STYLE_TUNE, SPECIAL_TUNE, CLASS_TUNE, ELEMENT_TUNE, SKILL_TUNE, TUNE }));
+  console.log(JSON.stringify({ STYLE_TUNE, SPECIAL_TUNE, CLASS_TUNE, ELEMENT_TUNE, SKILL_TUNE, TUNE, ULT_SCALE: TRAIT.ULT_SCALE }));
   process.exit(structural ? 1 : 0);
 }
 

@@ -6,7 +6,7 @@
 
 import { Eye, Lock } from "lucide-react";
 import { useEffect, useState, type RefObject } from "react";
-import { SKILL_INFO, skillOf, styleOf } from "@/game/moves";
+import { SKILL_INFO, skillOf, styleOf, ultTitle } from "@/game/moves";
 import type { LobbyPlayer } from "@/game/protocol";
 import type { Slot } from "@/game/sim";
 import type { SnapBuffer } from "@/game/useGameRoom";
@@ -54,6 +54,7 @@ export function InspectPanel({ me, them, slot, snaps }: { me: LobbyPlayer; them:
         {readsSpecial ? (
           <>
             <p className="text-xs"><span className="font-semibold text-hit">Special:</span> {them.specialMove}</p>
+            <p className="text-xs"><span className="font-semibold text-hit">Ultimate:</span> {ultTitle(them.ultMove, them.ultKind, them.class)}</p>
             <p className="text-xs"><span className="font-semibold text-guard">Skill:</span> {SKILL_INFO[skillOf(them.sideSkill, them.class)].name}</p>
           </>
         ) : (
@@ -63,7 +64,7 @@ export function InspectPanel({ me, them, slot, snaps }: { me: LobbyPlayer; them:
           energy !== null && (
             <p className="text-xs">
               <span className="font-semibold">Meter:</span> {energy}%{" "}
-              {energy >= 100 && <span className="ml-1 rounded bg-hit px-1.5 py-0.5 text-[10px] font-bold text-white">ULTIMATE READY</span>}
+              {energy >= 50 && <span className="ml-1 rounded bg-hit px-1.5 py-0.5 text-[10px] font-bold text-white">{energy >= 100 ? "ULTIMATE READY" : "SPECIAL READY"}</span>}
             </p>
           )
         ) : (

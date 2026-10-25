@@ -64,6 +64,7 @@ async function checkGemini() {
     stats: { hp: 90, atk: 70, def: 50, spd: 70, agi: 70, iq: 70 },
     element: "ELECTRIC",
     special_move: { kind: "beam", name: "Ink-ame-hameha", description: "A beam the width of the page" },
+    ultimate: { kind: "spiral", name: "Great Spiral Notebook", description: "Spins until the page runs out" },
     fighting_style: "Systema", flavor_text: "Reads the rules, then ignores them.", head_points: "up",
     pose: Object.fromEntries(["head", "shoulder", "hip", "left_elbow", "left_hand", "right_elbow", "right_hand", "left_knee", "left_foot", "right_knee", "right_foot"].map((k) => [k, { x: 0.5, y: 0.5 }])),
   };
@@ -79,6 +80,17 @@ async function checkGemini() {
   assert.equal(a.style, "Systema");
   assert.equal(a.class, "Attacker"); // class still comes from the item rule
   assert.equal(a.element, "ELECTRIC");
+  assert.deepEqual([a.ultimate.kind, a.ultimate.name], ["spiral", "Great Spiral Notebook"]);
+  // A player's pick wins and gets a stock name; an AI ultimate that repeats slot 1 moves on to the class's.
+  const picked = await analyzeDrawing(Buffer.from("img"), "image/png", null, { ult: "meteor" });
+  assert.equal(picked.ultimate.kind, "meteor");
+  assert.ok(picked.ultimate.name.length > 0);
+  reply.ultimate.kind = "beam";
+  const dup = await analyzeDrawing(Buffer.from("img"), "image/png", null);
+  assert.notEqual(dup.ultimate.kind, dup.specialKind, "the two slots must differ unless the player chose so");
+  // Builder mode skips the AI: both picks are kept as chosen.
+  const built = await analyzeDrawing(Buffer.from("img"), "image/png", null, { noAi: true, special: "beam", ult: "beam" });
+  assert.deepEqual([built.specialKind, built.ultimate.kind], ["beam", "beam"]);
   assert.ok(sent!.url.includes(":generateContent") && sent!.body.generationConfig.responseMimeType === "application/json");
   console.log("check-gemini: all good", a.specialMove.name);
 }

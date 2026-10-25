@@ -3,7 +3,7 @@
 
 import { MOVES, type MoveName } from "./moves";
 import type { PoseTargets } from "./skeleton";
-import { BEAM, type SpecialKind, type Snapshot } from "./sim";
+import { BEAM, SPECIAL_DURATION, type SpecialKind, type Snapshot } from "./sim";
 
 type F = Snapshot["fighters"][number];
 
@@ -205,8 +205,13 @@ export function poseFor(f: F, special: SpecialKind, now: number, cls = ""): Body
     }
     case "special":
       return specialPose(special, f, now);
-    case "hit":
-      return still({ torso: rel(-0.38), head: rel(-0.45), upperF: rel(0.8), upperB: rel(-0.8), foreF: rel(0.5), thighF: rel(0.25) }, { lunge: -6 });
+    case "hit": {
+      // Spine recoil: the pose follows where the blow landed. A hit to the head snaps the head back and arches the
+      // spine; a body blow folds the torso over the fist and drops the arms.
+      const snap = Math.min(1, t / 3); // reaches the full recoil in three ticks, so it reads as a snap, not a lean
+      if (f.hitHigh) return still({ torso: rel(-0.3 * snap), head: rel(-0.95 * snap), upperF: rel(0.9), upperB: rel(-0.9), foreF: rel(0.5), thighF: rel(0.25) }, { lunge: -7 });
+      return still({ torso: rel(0.62 * snap), head: rel(0.35 * snap), upperF: abs(DOWN - 0.25), foreF: abs(DOWN - 0.1), upperB: abs(DOWN + 0.3), foreB: abs(DOWN + 0.2), thighF: rel(0.3), thighB: rel(-0.25) }, { lunge: -4 });
+    }
     case "ko": {
       // Topple over (about the feet) with the limbs flopping out.
       const p = Math.min(1, t / 22);
@@ -231,6 +236,17 @@ export function ceremonyPose(kind: "intro" | "win", slot: number, now: number): 
 function specialPose(kind: SpecialKind, f: F, now: number): BodyMotion {
   const t = f.t;
   const wide = { thighF: abs(DOWN - 0.55), shinF: abs(DOWN - 0.2), thighB: abs(DOWN + 0.55), shinB: abs(DOWN + 0.3) };
+  // An ultimate that has grabbed its target pounds them with alternating fists once its own move has played out.
+  if (f.ult && f.ultEnd > 0 && t >= SPECIAL_DURATION[kind]) {
+    const left = Math.floor(t / 3) % 2 === 0;
+    const jitter = Math.sin(t * 2.3) * 0.2;
+    return still(
+      left
+        ? { upperF: abs(jitter), foreF: abs(jitter), upperB: abs(1.6), foreB: abs(-1.0), torso: rel(0.24), ...wide }
+        : { upperB: abs(jitter), foreB: abs(jitter), upperF: abs(1.5), foreF: abs(-1.1), torso: rel(0.3), ...wide },
+      { lunge: 6 },
+    );
+  }
   switch (kind) {
     case "bolt":
     case "arrow":
