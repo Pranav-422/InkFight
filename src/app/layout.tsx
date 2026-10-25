@@ -26,6 +26,7 @@ const NAV_IN: NavItem[] = [
   { href: "/home", label: "Home" },
   { href: "/create", label: "New fighter", desktopOnly: true },
   { href: "/play", label: "Fight a friend", short: "Fight" },
+  { href: "/play/dungeon", label: "Dungeon", desktopOnly: true },
   { href: "/gallery", label: "Gallery", desktopOnly: true },
   { href: "/leaderboard", label: "Leaderboard", short: "Ranks" },
 ];

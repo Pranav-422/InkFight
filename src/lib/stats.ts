@@ -111,22 +111,26 @@ export function ruleAdjustments(features: Features): Adjustment[] {
 
 // Fit any stat line into the fairness model: HP fixed, the five stats sum to BUDGET,
 // each inside its caps, keeping the line's proportions. Old fighters (no agi/iq) get 70s.
-export type StatLine = { hp: number; atk: number; def: number; spd: number; agi?: number; iq?: number };
+// budget/cap: dungeon bosses only (src/game/dungeon.ts). Player fighters never carry them: the server builds
+// every fighter field by field (publicFighter), so a player is always clamped to BUDGET and the normal caps.
+export type StatLine = { hp: number; atk: number; def: number; spd: number; agi?: number; iq?: number; budget?: number; cap?: number };
 export function clampStats(s: StatLine): Stats {
   const keys = STAT_KEYS;
+  const budget = s.budget ?? BUDGET;
+  const hi = (k: StatKey) => Math.max(STAT_CAPS[k][1], s.cap ?? 0);
   const v = { atk: Math.max(1, s.atk), def: Math.max(1, s.def), spd: Math.max(1, s.spd), agi: Math.max(1, s.agi ?? 70), iq: Math.max(1, s.iq ?? 70) };
   // Scale to the budget, clamp, then hand the leftover to stats that still have room.
   for (let round = 0; round < 4; round++) {
     const sum = keys.reduce((n, k) => n + v[k], 0);
-    const free = keys.filter((k) => (sum < BUDGET ? v[k] < STAT_CAPS[k][1] : v[k] > STAT_CAPS[k][0]));
-    if (Math.abs(sum - BUDGET) < 0.5 || !free.length) break;
+    const free = keys.filter((k) => (sum < budget ? v[k] < hi(k) : v[k] > STAT_CAPS[k][0]));
+    if (Math.abs(sum - budget) < 0.5 || !free.length) break;
     const share = free.reduce((n, k) => n + v[k], 0);
-    for (const k of free) v[k] = Math.min(STAT_CAPS[k][1], Math.max(STAT_CAPS[k][0], v[k] + ((BUDGET - sum) * v[k]) / share));
+    for (const k of free) v[k] = Math.min(hi(k), Math.max(STAT_CAPS[k][0], v[k] + ((budget - sum) * v[k]) / share));
   }
   const out = { hp: HP, atk: Math.round(v.atk), def: Math.round(v.def), spd: Math.round(v.spd), agi: Math.round(v.agi), iq: Math.round(v.iq) };
   // Rounding can leave the total a point or two off; settle it on the largest stat.
   const big = keys.reduce((a, b) => (out[a] >= out[b] ? a : b));
-  out[big] += BUDGET - keys.reduce((n, k) => n + out[k], 0);
+  out[big] += budget - keys.reduce((n, k) => n + out[k], 0);
   return out;
 }
 

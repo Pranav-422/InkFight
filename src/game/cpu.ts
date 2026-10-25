@@ -7,7 +7,8 @@ import { ARENA, BLAST_REACH, BODY, holds, moveReach, type Input, type Match, typ
 export type Level = "easy" | "normal" | "hard";
 
 // skill: how often it uses its side skill when the moment comes.
-const LEVELS: Record<Level, { react: number; block: number; aggro: number; dodge: number; think: number; skill: number }> = {
+export type Knobs = { react: number; block: number; aggro: number; dodge: number; think: number; skill: number };
+const LEVELS: Record<Level, Knobs> = {
   easy: { react: 24, block: 0.15, aggro: 0.35, dodge: 0.2, think: 14, skill: 0 },
   normal: { react: 14, block: 0.42, aggro: 0.6, dodge: 0.5, think: 8, skill: 0.5 },
   hard: { react: 7, block: 0.72, aggro: 0.85, dodge: 0.8, think: 4, skill: 1 },
@@ -28,12 +29,15 @@ export type CpuBrain = {
   retreatUntil: number;
   stepBack: boolean | null; // after this chain, step back out of range? (rolled once per chain, null between chains)
   skillUse: number; // chance to use the side skill when the moment comes (scripts/balance.ts sets 0 to price a skill)
+  knobs?: Partial<Knobs>; // a dungeon boss's own knobs over its level's (src/game/dungeon.ts)
 };
 
-export const newBrain = (level: Level): CpuBrain => ({ level, tick: 0, history: [], blockUntil: 0, nextThink: 0, reactedTo: "", guardFor: "", retreatUntil: 0, stepBack: null, skillUse: LEVELS[level].skill });
+export const newBrain = (level: Level, knobs?: Partial<Knobs>): CpuBrain => ({
+  level, tick: 0, history: [], blockUntil: 0, nextThink: 0, reactedTo: "", guardFor: "", retreatUntil: 0, stepBack: null, skillUse: knobs?.skill ?? LEVELS[level].skill, knobs,
+});
 
 export function cpuThink(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
-  const L = LEVELS[brain.level];
+  const L = brain.knobs ? { ...LEVELS[brain.level], ...brain.knobs } : LEVELS[brain.level];
   const me = m.fighters[slot];
   const op = m.fighters[1 - slot];
   // Hit-stop and slow-motion ticks don't advance the sim, so they don't advance the CPU either:

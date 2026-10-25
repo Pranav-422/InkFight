@@ -14,6 +14,7 @@ model User {
   name         String
   passwordHash String
   buff         Boolean     @default(false) // admin only: their own side hits harder and takes less (fights not recorded)
+  dungeonFloor Int         @default(0) // highest dungeon floor cleared (src/game/dungeon.ts)
   createdAt    DateTime    @default(now())
   characters   Character[]
 }

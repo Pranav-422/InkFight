@@ -40,6 +40,7 @@ npx tsx scripts/check-sim.ts
 npx tsx scripts/check-stats.ts
 npx tsx scripts/check-stick.ts
 npx tsx scripts/balance.ts 200   # must print "fair" and "ok" and exit 0
+npx tsx scripts/dungeon.ts       # once the dungeon exists: the clear rate falls floor by floor
 npx next build
 ```
 
@@ -92,6 +93,10 @@ Then the full retune: `--tune 160 specials,styles,skills,lines,classes`, gate, d
 No balance change expected; run the gate anyway.
 
 ## Sprint 5: the Dungeon (branch `sprint-5-dungeon`, after Sprint 3 is merged)
+
+**Status:** part 1 is on the branch (boss data, budgets, boss AI knobs, boss art, progress migration and API,
+the ladder page, `scripts/dungeon.ts` with a tuned curve): see `docs/changes/sprint-5.md`. Part 2 (below:
+items 3 and 5, plus re-tuning the curve) needs Sprint 3 merged first, then this branch rebased on `main`.
 
 Data for bosses: `docs/research/v2/bosses.json` (10 original-title bosses). No anime names reach game data.
 

@@ -2,11 +2,11 @@
 
 import { Bot, Swords, Trophy } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ClassBadge } from "@/components/ClassBadge";
 import { FighterAvatar } from "@/components/FighterAvatar";
 import { GameCanvas } from "@/components/GameCanvas";
-import type { Level } from "@/game/cpu";
+import type { Knobs, Level } from "@/game/cpu";
 import type { PublicFighter } from "@/game/protocol";
 import { useCpuMatch } from "@/game/useCpuMatch";
 import { useLeaveGuard } from "@/components/useLeaveGuard";
@@ -161,20 +161,35 @@ function FighterGrid({
   );
 }
 
+// knobs/label/onResult: the dungeon's boss fights (src/app/play/dungeon) reuse this with a boss's AI.
 export function CpuFight({
   me,
   cpu,
   level,
   onExit,
   exitLabel = "Change fighters",
+  knobs,
+  label,
+  onResult,
 }: {
   me: PublicFighter;
   cpu: PublicFighter;
   level: Level;
   onExit: () => void;
   exitLabel?: string;
+  knobs?: Partial<Knobs>;
+  label?: string;
+  onResult?: (won: boolean) => void;
 }) {
-  const { lobby, snaps, matchOver, sendInput, rematch } = useCpuMatch(me, cpu, level);
+  const { lobby, snaps, matchOver, sendInput, rematch } = useCpuMatch(me, cpu, level, knobs);
+  const result = matchOver?.matchWinner ?? null;
+  const report = useRef(onResult);
+  useEffect(() => {
+    report.current = onResult;
+  });
+  useEffect(() => {
+    if (result !== null) report.current?.(result === 0);
+  }, [result, matchOver]);
   useLeaveGuard(!matchOver, "The fight isn't over. Leave in the middle of it?");
   const [p0, p1] = lobby.players;
   const players = useMemo(() => [p0!, p1!] as [NonNullable<typeof p0>, NonNullable<typeof p1>], [p0?.id, p1?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -183,7 +198,7 @@ export function CpuFight({
     <div className="relative grid gap-4">
       <div className="flex items-center justify-between text-sm">
         <span className="flex items-center gap-1.5 font-semibold text-muted">
-          <Bot className="size-4" /> Vs computer · {level}
+          <Bot className="size-4" /> {label ?? `Vs computer · ${level}`}
         </span>
         <button data-leave onClick={onExit} className="text-muted underline-offset-2 hover:text-ink hover:underline">
           {exitLabel}
