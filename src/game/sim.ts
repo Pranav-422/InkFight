@@ -80,9 +80,9 @@ export type FighterDef = {
 };
 
 // Spans per stat (see scripts/balance.ts: one stat alone should win 50-60% against an all-70 fighter).
-export const TUNE = { SPEED_SPAN: 3, AGI_SPEED: 1, STR_EXP: 1.1363, DUR_EXP: 0.7417, IQ_EXP: 1.2562, SPD_COOLDOWN: 8, TEMPO_GAIN: 0.0045, JUMP_SPAN: 6, AIR_SPAN: 0.5, STUN_SPAN: 8, BLOCK_SPAN: 0.05, IQ_ENERGY: 0.01, DODGE_SPAN: 0.5688 };
+export const TUNE = { SPEED_SPAN: 3, AGI_SPEED: 1, STR_EXP: 1.1266, DUR_EXP: 0.8008, IQ_EXP: 1.3839, SPD_COOLDOWN: 8, TEMPO_GAIN: 0.0048, JUMP_SPAN: 6, AIR_SPAN: 0.5, STUN_SPAN: 8, BLOCK_SPAN: 0.05, IQ_ENERGY: 0.01, DODGE_SPAN: 0.4848 };
 // Class traits (see the class list in src/lib/stats.ts), tuned with scripts/balance.ts like TUNE.
-export const TRAIT = { SWORD_REACH: 20, MACE_STUN: 6, TANK_BLOCK: 0.7, TANK_PUSH: 6, TANK_GUARD_WALK: 0.4, MACE_ARMOR_LEAD: 2, MACE_BREAK: 0.625, ATTACKER_ENERGY: 1, SPECIAL_IQ: 1, BACKWALK: 0.8, MACE_POISE: 0, BLAST_MULT: 0.6, FIGHTER_TEMPO: 1.15, BLADE: 1.15, BUBBLE_PUSH: 7, BUBBLE_HITS: 2, REFLECT: 0.5, SLOT1_SCALE: 0.55, ULT_SCALE: 0.783, ECHO_MULT: 0.35, FINALE_MULT: 1, TENSION_HP: 0.3, TENSION_RISE: 1 / 240, TENSION_HIT: 0.1, TENSION_ENERGY: 0.8 };
+export const TRAIT = { SWORD_REACH: 20, MACE_STUN: 6, TANK_BLOCK: 0.7, TANK_PUSH: 6, TANK_GUARD_WALK: 0.4, MACE_ARMOR_LEAD: 2, MACE_BREAK: 0.625, ATTACKER_ENERGY: 1, SPECIAL_IQ: 1, BACKWALK: 0.8, MACE_POISE: 0, BLAST_MULT: 0.6, FIGHTER_TEMPO: 1.15, BLADE: 1.15, BUBBLE_PUSH: 7, BUBBLE_HITS: 2, REFLECT: 0.5, SLOT1_SCALE: 0.55, ULT_SCALE: 0.728, ECHO_MULT: 0.35, FINALE_MULT: 1, TENSION_HP: 0.3, TENSION_RISE: 1 / 240, TENSION_HIT: 0.1, TENSION_ENERGY: 0.8 };
 // Admin buff (set by the server, see buffOn in src/lib/auth.ts): deals more, takes less.
 const BUFF = { dealt: 1.3, taken: 0.75 };
 
@@ -677,7 +677,7 @@ const PROJECTILE: Partial<Record<SpecialKind, { speed: number; r: number; mult: 
   arrow: { speed: 15, r: 10, mult: 2.6, at: 10 },
   orb: { speed: 6, r: 26, mult: 2.9, at: 10 },
   wave: { speed: 9, r: 24, mult: 2.4, at: 14, low: true },
-  pull: { speed: 7, r: 14, mult: 0.8, at: 12 }, // Iron Reel: light damage, the drag is the point
+  pull: { speed: 7, r: 14, mult: 3.0, at: 12 }, // Iron Reel: the drag and the steal are rarely worth a hit: at 0.8 it needed more than the tuner's maximum factor
 };
 
 // How hard a fighter's special hits: technique, so IQ drives it (SPECIAL_IQ blends in STR for the physical ones).

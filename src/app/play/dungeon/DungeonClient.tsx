@@ -80,7 +80,7 @@ export function DungeonClient({ userId, cleared: initialCleared, mine }: { userI
         <div className="pop-in flex items-center gap-3 rounded-2xl bg-gold/20 px-4 py-3 text-sm">
           <Trophy className="size-5 shrink-0 text-gold" />
           <p>
-            <span className="font-semibold">{news.boss.title} is down.</span> You copied <span className="font-semibold">{news.boss.reward.name}</span>: {news.boss.reward.description}
+            <span className="font-semibold">{news.boss.title} is down.</span> You copied <span className="font-semibold">{news.boss.reward.name}</span>: {news.boss.reward.description} Pick it in <Link href="/build" className="font-semibold underline">the builder</Link> or when you scan a fighter.
           </p>
         </div>
       )}

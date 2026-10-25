@@ -5,11 +5,12 @@
 //   npx tsx scripts/dungeon.ts [matches per floor, default 100]
 //   npx tsx scripts/dungeon.ts --tune [N]   bisect each floor's stat budget onto the target; prints the budgets
 //       to copy into src/game/dungeon.ts (the stat proportions stay the bosses' own)
-// Also checks that a boss fight is deterministic (same seed, same result), which a resumed match relies on.
+// Also checks that a boss fight is deterministic (same seed, same result), which a resumed match relies on. The boss
+// plays with its passive (and floor 10 with its second form), so re-tune after any change to either.
 
 import assert from "node:assert/strict";
 import { cpuThink, newBrain } from "../src/game/cpu";
-import { BOSSES, bossFighter } from "../src/game/dungeon";
+import { BOSSES, bossFighter, bossKnobs, bossRun } from "../src/game/dungeon";
 import { CLASS_ITEM, CLASS_SPECIAL, CLASS_STYLE } from "../src/game/moves";
 import { createMatch, deriveDef, EMPTY_INPUT, step, TICK_HZ, type FighterStats } from "../src/game/sim";
 import { CLASSES, ruleStats } from "../src/lib/stats";
@@ -34,9 +35,11 @@ function clear(floor: number, cls: string, s: number) {
   seed = s;
   const b = BOSSES[floor - 1];
   const ia = { ...EMPTY_INPUT }, ib = { ...EMPTY_INPUT };
-  const m = createMatch(player(cls), bossFighter(floor), [ia, ib]);
+  const run = bossRun(floor);
+  const m = createMatch(player(cls), bossFighter(floor), [ia, ib], { boss: run.spec }); // the passive and the second form are part of the boss
   const me = newBrain("normal"), boss = newBrain("hard", b.cpu);
   for (let t = 0; m.phase !== "matchEnd" && t < TICK_HZ * 360; t++) {
+    boss.knobs = bossKnobs(run, m.boss?.phase);
     cpuThink(m, 0, me, ia);
     cpuThink(m, 1, boss, ib);
     step(m, [ia, ib]);
