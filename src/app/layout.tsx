@@ -4,6 +4,7 @@ import { Bricolage_Grotesque, Inter } from "next/font/google";
 import Link from "next/link";
 import { BackButton } from "@/components/BackButton";
 import { InstallButton } from "@/components/InstallButton";
+import { SoundToggle } from "@/components/SoundSwitch";
 import { getSession, isAdmin } from "@/lib/auth";
 import { logout } from "./(auth)/actions";
 import "./globals.css";
@@ -50,6 +51,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             </Link>
             <div className="ml-auto flex items-center text-sm sm:gap-1">
               <InstallButton />
+              <SoundToggle />
               {(session ? NAV_IN : NAV_OUT).map((n) => (
                 <Link key={n.href} href={n.href} className={`${linkCls} ${n.desktopOnly ? "hidden md:block" : ""}`}>
                   {n.short ? (
