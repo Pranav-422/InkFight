@@ -1,7 +1,7 @@
 "use client";
 
 import type { Character } from "@prisma/client";
-import { Camera, Check, Copy, Loader2, Swords, Trophy } from "lucide-react";
+import { Camera, Check, Copy, Loader2, Share2, Trophy } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -143,34 +143,37 @@ function Room({ code, fighterId, userId, onChangeFighter }: { code: string; figh
 
   const me = lobby.players[lobby.you]!;
   return (
-    <div className="grid gap-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="grid grid-cols-1 gap-5">
+      <div className="flex items-end justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-muted">Room</p>
           <h1 className="font-display text-4xl font-extrabold tracking-wider">{lobby.code}</h1>
         </div>
-        <button onClick={onChangeFighter} className="text-sm text-muted underline-offset-2 hover:text-ink hover:underline">
-          Change my fighter
+        <button onClick={onChangeFighter} className="shrink-0 rounded-full bg-card px-3 py-1.5 text-sm font-semibold ring-1 ring-line hover:ring-ink">
+          Change fighter
         </button>
       </div>
 
       {lobby.notice && <p className="pop-in rounded-xl bg-gold/20 px-4 py-3 text-sm font-medium">{lobby.notice}</p>}
 
-      <div className="grid items-center gap-4 sm:grid-cols-[1fr_auto_1fr]">
-        {p0 ? <SeatCard p={p0} you={lobby.you === 0} /> : <InvitePanel code={lobby.code} />}
-        <Swords className="mx-auto size-8 text-muted" />
-        {p1 ? <SeatCard p={p1} you={lobby.you === 1} /> : <InvitePanel code={lobby.code} />}
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4">
+        <SeatCard p={p0} you={lobby.you === 0} />
+        <span className="rotate-[-8deg] rounded-lg border-2 border-ink bg-gold px-2 py-0.5 font-display text-xl font-extrabold sm:text-2xl">VS</span>
+        <SeatCard p={p1} you={lobby.you === 1} />
       </div>
 
-      <div className="flex flex-col items-center gap-2">
+      {!both && <InvitePanel code={lobby.code} />}
+
+      {/* Phones: the ready button stays in reach above the tab bar. */}
+      <div className="sticky bottom-24 z-10 flex flex-col items-center gap-2 md:bottom-4">
         <button
           onClick={() => send({ t: "ready", ready: !me.ready })}
           disabled={!both}
-          className={`w-full max-w-xs rounded-xl px-6 py-3.5 font-display text-lg font-extrabold transition disabled:cursor-not-allowed disabled:opacity-40 ${
-            me.ready ? "bg-ink text-white" : "bg-hit text-white hover:brightness-110"
+          className={`press sticker w-full max-w-sm rounded-xl px-6 py-3.5 font-display text-lg font-extrabold transition disabled:cursor-not-allowed disabled:border-ink/30 disabled:bg-card disabled:text-muted disabled:shadow-none ${
+            me.ready ? "bg-ink text-white" : "bg-hit text-white"
           }`}
         >
-          {!both ? "Waiting for a challenger…" : me.ready ? "Ready! (tap to cancel)" : "I'm ready"}
+          {!both ? "Waiting for your friend…" : me.ready ? "Ready! (tap to cancel)" : "I'm ready"}
         </button>
         {both && <p className="text-xs text-muted">The fight starts when both players are ready.</p>}
       </div>
@@ -179,24 +182,31 @@ function Room({ code, fighterId, userId, onChangeFighter }: { code: string; figh
 }
 
 function SeatCard({ p, you }: { p: LobbyPlayer | null; you: boolean }) {
-  if (!p) return <div className="h-48 rounded-2xl border-2 border-dashed border-ink/15" />;
-  return (
-    <div className={`rounded-2xl bg-card p-4 ring-1 ${p.ready ? "ring-2 ring-hit" : "ring-line"}`}>
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-widest text-muted">{you ? "You" : "Opponent"}</span>
-        {p.ready && <span className="rounded-full bg-hit px-2 py-0.5 text-xs font-semibold text-white">Ready</span>}
+  if (!p) {
+    return (
+      <div className="flex aspect-[4/5] flex-col items-center justify-center rounded-2xl border-2 border-dashed border-ink/25 text-center sm:aspect-auto sm:h-full sm:min-h-64">
+        <span className="font-display text-5xl font-extrabold text-ink/20">?</span>
+        <span className="mt-1 text-xs font-semibold text-muted">Waiting…</span>
       </div>
-      <div className="mx-auto mt-2 h-40 w-32">
+    );
+  }
+  return (
+    <div className={`min-w-0 rounded-2xl bg-card p-3 sm:p-4 ${p.ready ? "ring-2 ring-hit" : "ring-1 ring-line"}`}>
+      <div className="flex items-center justify-between gap-1">
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-muted">{you ? "You" : "Opponent"}</span>
+        {p.ready && <span className="rounded-full bg-hit px-2 py-0.5 text-[11px] font-semibold text-white">Ready</span>}
+      </div>
+      <div className="mx-auto mt-1 h-28 w-24 sm:mt-2 sm:h-40 sm:w-32">
         <FighterAvatar fighter={p} />
       </div>
-      <p className="mt-2 truncate font-display text-xl font-extrabold">{p.name}</p>
+      <p className="mt-1 truncate font-display text-lg font-extrabold sm:mt-2 sm:text-xl">{p.name}</p>
       <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
         <ClassBadge cls={p.class} />
-        <span className="tabular-nums">
-          {p.atk} ATK · {p.def} DUR · {p.spd} SPD
+        <span className="hidden tabular-nums sm:inline">
+          {p.atk} STR · {p.def} DUR · {p.spd} SPD
         </span>
       </div>
-      <p className="mt-2 text-xs">
+      <p className="mt-2 hidden text-xs sm:block">
         <span className="font-semibold text-hit">Special:</span> {p.specialMove} · <span className="font-semibold text-hit">Ult:</span> {ultTitle(p.ultMove, p.ultKind, p.class)}
       </p>
     </div>
@@ -207,9 +217,13 @@ function InvitePanel({ code }: { code: string }) {
   const [lan, setLan] = useState<string[]>([]);
   const [origin, setOrigin] = useState("");
   const [copied, setCopied] = useState(false);
+  const [canShare, setCanShare] = useState(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setOrigin(location.origin), 0);
+    const t = setTimeout(() => {
+      setOrigin(location.origin);
+      setCanShare(typeof navigator.share === "function");
+    }, 0);
     fetch("/api/server-info")
       .then((r) => r.json())
       .then((d) => setLan(d.lan ?? []))
@@ -225,26 +239,31 @@ function InvitePanel({ code }: { code: string }) {
     return `${u.origin}/play/${code}`;
   }, [origin, lan, code]);
 
+  const copy = () =>
+    navigator.clipboard?.writeText(link).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
   return (
-    <div className="rounded-2xl border-2 border-dashed border-ink/20 p-5 text-center">
-      <p className="font-display text-xl font-extrabold">Waiting for a challenger…</p>
-      <p className="mt-1 text-sm text-muted">Send your friend this link (or the room code):</p>
-      <div className="mt-3 flex items-center gap-2 rounded-xl bg-card p-2 ring-1 ring-line">
+    <div className="rounded-2xl bg-card p-4 ring-1 ring-line">
+      <p className="font-display text-lg font-extrabold">Invite your friend</p>
+      <p className="text-sm text-muted">Send the link, or tell them the code <b className="font-display tracking-wider text-ink">{code}</b>.</p>
+      <div className="mt-3 flex items-center gap-2 rounded-xl bg-paper p-2 ring-1 ring-line">
         <code className="min-w-0 flex-1 truncate text-left text-sm">{link || "…"}</code>
-        <button
-          onClick={() => {
-            navigator.clipboard?.writeText(link).then(() => {
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1500);
-            });
-          }}
-          className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-ink px-3 py-1.5 text-xs font-semibold text-white"
-        >
+        <button onClick={copy} className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-ink px-3 py-1.5 text-xs font-semibold text-white">
           {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
-      <p className="mt-2 text-xs text-muted">Your friend logs in, opens the link and picks a fighter. Keep this tab open: your browser runs the fight.</p>
+      {canShare && (
+        <button
+          onClick={() => navigator.share({ title: "InkFight", text: "Fight me on InkFight! Bring a drawing.", url: link }).catch(() => {})}
+          className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-guard px-4 py-2.5 font-semibold text-white"
+        >
+          <Share2 className="size-4" /> Share link
+        </button>
+      )}
+      <p className="mt-2 text-xs text-muted">Keep this tab open: your browser runs the fight.</p>
     </div>
   );
 }

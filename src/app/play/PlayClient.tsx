@@ -1,77 +1,44 @@
 "use client";
 
-import { Bot } from "lucide-react";
+import { Bot, Castle, ChevronRight, Clapperboard } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { newRoomCode, ROOM_CODE } from "@/game/protocol";
+import { RoomStart } from "@/components/RoomStart";
 
 export function PlayClient() {
-  const router = useRouter();
-  const [code, setCode] = useState("");
-  const valid = ROOM_CODE.test(code.trim().toUpperCase());
-
   return (
-    <div className="mx-auto grid max-w-3xl gap-6 sm:grid-cols-2">
-      <div className="sm:col-span-2">
-        <h1 className="font-display text-4xl font-extrabold tracking-tight">Fight a friend</h1>
-        <p className="mt-1 text-muted">
-          Each of you plays on your own device, with your own drawing. The fighter&apos;s power comes from how you drew it.
-        </p>
+    <div className="mx-auto grid max-w-3xl gap-6">
+      <div>
+        <h1 className="font-display text-4xl font-extrabold tracking-tight">Pick a fight</h1>
+        <p className="mt-1 text-muted">Your drawing&apos;s power comes from how you drew it.</p>
       </div>
 
-      <section className="rounded-2xl bg-card p-5 ring-1 ring-line">
-        <h2 className="font-display text-xl font-extrabold">Start a room</h2>
-        <p className="mt-1 text-sm text-muted">You&apos;ll get a link to send your friend.</p>
-        <button
-          onClick={() => router.push(`/play/${newRoomCode()}`)}
-          className="mt-4 w-full rounded-xl bg-hit px-5 py-3 font-semibold text-white hover:brightness-110"
-        >
-          Create room
-        </button>
+      <section className="sticker rounded-3xl bg-card p-5">
+        <p className="text-xs font-bold uppercase tracking-widest text-hit">Online · 1 vs 1</p>
+        <h2 className="mt-1 font-display text-2xl font-extrabold">Fight a friend</h2>
+        <p className="mt-1 mb-4 text-sm text-muted">Each of you on your own device, with your own drawing. Start a room and send the link.</p>
+        <RoomStart />
       </section>
 
-      <section className="rounded-2xl bg-card p-5 ring-1 ring-line">
-        <h2 className="font-display text-xl font-extrabold">Join a room</h2>
-        <p className="mt-1 text-sm text-muted">Got a code from a friend? Type it in.</p>
-        <form
-          className="mt-4 flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (valid) router.push(`/play/${code.trim().toUpperCase()}`);
-          }}
-        >
-          <input
-            value={code}
-            onChange={(e) => setCode(e.target.value.toUpperCase())}
-            placeholder="ABCDE"
-            maxLength={8}
-            className="min-w-0 flex-1 rounded-xl bg-paper px-4 py-3 font-display text-lg font-extrabold tracking-widest ring-1 ring-line outline-none focus:ring-2 focus:ring-ink"
-          />
-          <button disabled={!valid} className="rounded-xl bg-ink px-5 py-3 font-semibold text-white disabled:opacity-40">
-            Join
-          </button>
-        </form>
+      <section className="grid gap-3 sm:grid-cols-2">
+        <Link href="/play/cpu" className="press rounded-2xl bg-card p-5 ring-1 ring-line hover:ring-ink">
+          <Bot className="size-6" />
+          <p className="mt-3 flex items-center justify-between font-display text-xl font-extrabold">
+            Vs computer <ChevronRight className="size-5 text-muted" />
+          </p>
+          <p className="text-sm text-muted">Practice against any drawing in the gallery. Easy, normal or hard.</p>
+        </Link>
+        <Link href="/play/dungeon" className="press rounded-2xl bg-ink p-5 text-white">
+          <Castle className="size-6" />
+          <p className="mt-3 flex items-center justify-between font-display text-xl font-extrabold">
+            The Dungeon <ChevronRight className="size-5 text-white/60" />
+          </p>
+          <p className="text-sm text-white/70">Ten bosses, each with a trick. Beat them to unlock new specials.</p>
+        </Link>
       </section>
-      <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-ink p-5 text-white sm:col-span-2">
-        <div>
-          <h2 className="flex items-center gap-2 font-display text-xl font-extrabold">
-            <Bot className="size-5" /> No friend around?
-          </h2>
-          <p className="mt-1 text-sm text-white/70">Fight the computer. It can play as any drawing in the gallery.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/demo" className="rounded-xl bg-white/10 px-5 py-3 font-semibold text-white hover:bg-white/20">
-            Sample fight
-          </Link>
-          <Link href="/play/cpu" className="rounded-xl bg-hit px-5 py-3 font-semibold text-white hover:brightness-110">
-            Vs computer
-          </Link>
-          <Link href="/play/dungeon" className="rounded-xl bg-white px-5 py-3 font-semibold text-ink hover:brightness-95">
-            The Dungeon
-          </Link>
-        </div>
-      </section>
+
+      <Link href="/demo" className="flex items-center justify-center gap-2 text-sm font-semibold text-muted hover:text-ink">
+        <Clapperboard className="size-4" /> Watch a sample fight
+      </Link>
     </div>
   );
 }

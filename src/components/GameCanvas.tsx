@@ -82,6 +82,12 @@ export function GameCanvas({ snaps, players, you, onInput, onExit, children }: P
     onInputRef.current = onInput;
   }, [onInput]);
 
+  // Hides the phone tab bar (globals.css) while the arena is up.
+  useEffect(() => {
+    document.body.dataset.fight = "1";
+    return () => void delete document.body.dataset.fight;
+  }, []);
+
   // One entry point for keyboard, on-screen console and gamepad. `source` keeps
   // a held direction from being released by a different device.
   const holders = useRef(new Map<Control, Set<string>>());

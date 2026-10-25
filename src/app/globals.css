@@ -38,3 +38,21 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .pop-in { animation: none !important; }
 }
+
+/* Sticker look for the main actions: ink border with a hard offset shadow that presses in on tap.
+   In the components layer so utilities (disabled:shadow-none, border colours) still win. */
+@layer components {
+  .sticker {
+    border: 2px solid var(--ink);
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+  .press { transition: transform 90ms ease-out, box-shadow 90ms ease-out; }
+  .press:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+}
+
+/* The phone tab bar steps aside while a fight runs. */
+body[data-fight] .tabbar { display: none; }
+body[data-fight] main { padding-bottom: 2rem; }
+
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

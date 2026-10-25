@@ -69,8 +69,31 @@ export function CpuClient({
     );
   }
 
+  const fightBar = (
+    <>
+      {!cpu && <p className="min-w-0 flex-1 text-sm text-muted md:hidden">Pick who the computer plays</p>}
+      {me && cpu && (
+        <p className="flex min-w-0 flex-1 items-center gap-2 text-sm font-semibold md:flex-none">
+          <span className="truncate">{me.name}</span> <Swords className="size-4 shrink-0 text-muted" /> <span className="truncate">{cpu.name}</span>
+        </p>
+      )}
+      <button
+        disabled={!me || !cpu}
+        onClick={() => {
+          try {
+            if (me) localStorage.setItem(key, me.id);
+          } catch {}
+          setFighting(true);
+        }}
+        className="press sticker ml-auto shrink-0 rounded-xl bg-hit px-6 py-3 font-display text-lg font-extrabold text-white disabled:opacity-40"
+      >
+        Fight!
+      </button>
+    </>
+  );
+
   return (
-    <div className="grid gap-8">
+    <div className="grid grid-cols-1 gap-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-muted">
@@ -79,25 +102,7 @@ export function CpuClient({
           <h1 className="font-display text-3xl font-extrabold">Pick your fight</h1>
           <p className="text-sm text-muted">Choose your fighter, then any drawing from the gallery for the computer to play.</p>
         </div>
-        <div className="flex items-center gap-3">
-          {me && cpu && (
-            <p className="hidden items-center gap-2 text-sm font-semibold sm:flex">
-              {me.name} <Swords className="size-4 text-muted" /> {cpu.name}
-            </p>
-          )}
-          <button
-            disabled={!me || !cpu}
-            onClick={() => {
-              try {
-                if (me) localStorage.setItem(key, me.id);
-              } catch {}
-              setFighting(true);
-            }}
-            className="rounded-xl bg-hit px-6 py-3 font-display text-lg font-extrabold text-white hover:brightness-110 disabled:opacity-40"
-          >
-            Fight!
-          </button>
-        </div>
+        <div className="hidden items-center gap-3 md:flex">{fightBar}</div>
       </div>
 
       <section>
@@ -106,13 +111,8 @@ export function CpuClient({
       </section>
 
       <section>
-        <h2 className="font-display text-xl font-extrabold">2. Computer plays as…</h2>
-        <FighterGrid fighters={gallery} selected={cpuId} onPick={setCpuId} showOwner />
-      </section>
-
-      <section>
-        <h2 className="font-display text-xl font-extrabold">3. Difficulty</h2>
-        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <h2 className="font-display text-xl font-extrabold">2. Difficulty</h2>
+        <div className="mt-3 grid grid-cols-3 gap-2">
           {LEVELS.map((l) => (
             <button
               key={l.id}
@@ -125,6 +125,12 @@ export function CpuClient({
           ))}
         </div>
       </section>
+      <section>
+        <h2 className="font-display text-xl font-extrabold">3. Computer plays as…</h2>
+        <FighterGrid fighters={gallery} selected={cpuId} onPick={setCpuId} showOwner />
+      </section>
+      {/* Phones: the matchup and the button stay in reach above the tab bar. */}
+      <div className="sticky bottom-24 z-10 flex items-center gap-3 rounded-2xl bg-paper/95 p-3 ring-1 ring-line backdrop-blur md:hidden">{fightBar}</div>
     </div>
   );
 }

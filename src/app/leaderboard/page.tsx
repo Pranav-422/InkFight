@@ -25,10 +25,14 @@ export default async function LeaderboardPage() {
         </div>
       ) : (
         <>
-          <ol className="mt-6 grid gap-4 sm:grid-cols-3">
+          {/* A podium: first place in the middle and raised, on every screen size. */}
+          <ol className="mt-6 grid grid-cols-3 items-end gap-2 sm:gap-4">
             {top.map((e, i) => (
-              <li key={e.id}>
-                <Link href={`/character/${e.id}`} className="relative block rounded-2xl bg-card p-3 ring-1 ring-line transition hover:ring-ink">
+              <li key={e.id} className={i === 0 ? "order-2" : i === 1 ? "order-1" : "order-3"}>
+                <Link
+                  href={`/character/${e.id}`}
+                  className={`relative block rounded-2xl bg-card p-2 transition sm:p-3 ${i === 0 ? "sticker pb-4 sm:pb-6" : "ring-1 ring-line hover:ring-ink"}`}
+                >
                   <span
                     className={`absolute -left-2 -top-2 z-10 flex size-9 items-center justify-center rounded-full font-display text-lg font-extrabold text-ink ${PODIUM[i]}`}
                   >
@@ -37,9 +41,11 @@ export default async function LeaderboardPage() {
                   <div className="aspect-square w-full rounded-xl bg-white ring-1 ring-line">
                     <FighterAvatar fighter={e} />
                   </div>
-                  <p className="mt-3 truncate font-display text-xl font-extrabold">{e.name}</p>
-                  <div className="mt-1 flex items-center justify-between text-sm">
-                    <ClassBadge cls={e.class} />
+                  <p className="mt-2 truncate font-display text-sm font-extrabold sm:mt-3 sm:text-xl">{e.name}</p>
+                  <div className="mt-1 flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between">
+                    <span className="hidden sm:inline-flex">
+                      <ClassBadge cls={e.class} />
+                    </span>
                     <WinLoss e={e} />
                   </div>
                 </Link>
@@ -56,9 +62,11 @@ export default async function LeaderboardPage() {
                     {/* eslint-disable-next-line @next/next/no-img-element -- user uploads */}
                     <img src={e.imageUrl} alt="" className="size-10 rounded-lg bg-white object-contain ring-1 ring-line" />
                     <span className="min-w-0 flex-1 truncate font-semibold">
-                      {e.name} <span className="font-normal text-muted">@{e.ownerHandle}</span>
+                      {e.name} <span className="hidden font-normal text-muted sm:inline">@{e.ownerHandle}</span>
                     </span>
-                    <ClassBadge cls={e.class} />
+                    <span className="hidden sm:inline-flex">
+                      <ClassBadge cls={e.class} />
+                    </span>
                     <WinLoss e={e} />
                   </Link>
                 </li>
@@ -73,7 +81,7 @@ export default async function LeaderboardPage() {
 
 function WinLoss({ e }: { e: LeaderboardEntry }) {
   return (
-    <span className="w-24 text-right text-sm tabular-nums">
+    <span className="shrink-0 text-sm tabular-nums sm:w-24 sm:text-right">
       <span className="font-semibold">{e.wins}W</span> <span className="text-muted">– {e.losses}L</span>
     </span>
   );
