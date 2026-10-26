@@ -24,7 +24,7 @@ const C = {
   gold: "#f2b705",
 };
 
-type Particle = { x: number; y: number; vx: number; vy: number; life: number; max: number; text?: string; color: string; size: number };
+type Particle = { x: number; y: number; vx: number; vy: number; life: number; max: number; text?: string; color: string; size: number; g?: number }; // g: gravity (default 0.25; steam rises)
 type Ring = { x: number; y: number; r: number; grow: number; life: number; max: number; color: string; width: number };
 type Stain = { x: number; y: number; r: number; life: number; color: string };
 type F = Snapshot["fighters"][number];
@@ -129,6 +129,7 @@ export class Renderer {
   private quiet = false;
   private swing: [string, string] = ["", ""]; // the swing each fighter's whiff sound was last played for
   private cursor = -1; // the local player's cursor in the ceremony, to tick when it moves
+  private heat = 0; // 0..1: how hot the arena's air looks right now (sweat and steam on the fighters)
 
   // Sound for the effect being shown (silent while catching up on events from before this renderer existed).
   private sfx(name: Sfx, power?: number) {
@@ -403,7 +404,8 @@ export class Renderer {
       this.shake *= 0.85;
     }
     if (cur.arena && this.arenaView) {
-      this.arenaView.back(ctx, cur, now, this.view);
+      this.arenaView.back(ctx, cur, now, this.view, getReduceFlashes());
+      this.heat = this.arenaView.heat(cur);
       this.dimOverlay();
       this.arenaView.mid(ctx, cur, now);
     } else this.background();
@@ -894,6 +896,12 @@ export class Renderer {
     if (f.tension > 0.3 && f.action !== "ko" && Math.random() < f.tension * 0.3) {
       this.particles.push({ x: f.x + dx + (Math.random() - 0.5) * 50, y: f.y + lift - Math.random() * BODY.h * 0.6, vx: (Math.random() - 0.5) * 0.8, vy: -1.4 - Math.random(), life: 0, max: 26, color: Math.random() < 0.5 ? C.hit : C.gold, size: 3 + Math.random() * 3 });
     }
+    // The heatwave: sweat running off the head and steam off the shoulders (fewer with "Reduce flashes").
+    if (this.heat > 0.15 && f.action !== "ko") {
+      const k = this.heat * (getReduceFlashes() ? 0.35 : 1);
+      if (Math.random() < 0.09 * k) this.particles.push({ x: f.x + dx + (Math.random() - 0.5) * 26, y: f.y + lift - BODY.h * (0.9 + Math.random() * 0.1), vx: (Math.random() - 0.5) * 1.4, vy: -1 - Math.random(), life: 0, max: 26, color: "#bfe6ff", size: 3.5 });
+      if (Math.random() < 0.11 * k) this.particles.push({ x: f.x + dx + (Math.random() - 0.5) * 44, y: f.y + lift - BODY.h * (0.45 + Math.random() * 0.45), vx: (Math.random() - 0.3) * 0.5, vy: -0.6 - Math.random() * 0.5, life: 0, max: 50, color: "#fff3e6", size: 9 + Math.random() * 8, g: -0.012 });
+    }
     if (f.status && f.action !== "ko") this.statusFx(f.status.kind, f.x + dx - f.facing * 38, f.y + lift - 150, now);
     if (passive && f.action !== "ko") this.bossFx(f, passive, f.x + dx, f.y + lift, toWorld(pose.joints.handF));
     if (f.marks > 0 && f.action !== "ko") this.marksFx(f, f.x + dx, f.y + lift, now);
@@ -1315,7 +1323,7 @@ export class Renderer {
       p.life++;
       p.x += p.vx;
       p.y += p.vy;
-      if (!p.text) p.vy += 0.25;
+      if (!p.text) p.vy += p.g ?? 0.25;
       ctx.globalAlpha = Math.max(0, 1 - p.life / p.max);
       ctx.fillStyle = p.color;
       if (p.text) {

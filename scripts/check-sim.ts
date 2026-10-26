@@ -4,6 +4,7 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { heatAt } from "../src/game/arenaRender";
 import { ARENA_STORY_IDS, ARENA_STORY_LENGTH, ARENA_TUNE, arenaBoost, arenaTick, arenaWorld, CONSTELLATIONS, lavaY, platformsAt, ROCK_DEFS, sceneAt, STAIRS_UP_TICK } from "../src/game/arena";
 import { CLASS_ULT, SLOT1_COST, SPECIAL_KINDS, STYLE_INFO, ULT_COST } from "../src/game/moves";
 import { poseFor } from "../src/game/poses";
@@ -1295,6 +1296,23 @@ function arena(tick: number, x0 = 300, x1 = 660, hazards = false, story: "none" 
     step(b, [{ ...ib, ...EMPTY_INPUT }, { ...EMPTY_INPUT }]);
   }
   assert.deepEqual(JSON.parse(JSON.stringify(snapshot(b).arena)), JSON.parse(JSON.stringify(snapshot(m).arena)), "a resumed arena fight diverged");
+}
+
+// The weather changes slowly (the sheet: about 8-10 s, not 2 s), and the heatwave builds, holds in scene 2 and settles to a lower level.
+{
+  const F = ARENA_TUNE.weather.fade;
+  assert.ok(F >= 8 * TICK_HZ && F <= 10 * TICK_HZ, `the weather fade is ${F / TICK_HZ} s`);
+  const sc = ARENA_TUNE.scenes;
+  assert.equal(heatAt(0), 0);
+  assert.equal(heatAt(sc[1] - 1), 0, "no heat before scene 2");
+  let prev = 0;
+  for (let t = sc[1]; t <= sc[1] + F; t += 30) {
+    assert.ok(heatAt(t) >= prev - 1e-9, "the heat builds without dipping");
+    prev = heatAt(t);
+  }
+  assert.ok(heatAt(sc[1] + 20) < 0.05 && heatAt(sc[1] + F) > 0.99, "the heatwave comes in over the fade, not at once");
+  assert.ok(heatAt(sc[2] - 1) > 0.99, "it holds through scene 2");
+  assert.ok(heatAt(sc[2] + F) < 0.5 && heatAt(sc[2] + F) > 0.4 && heatAt(sc[4] + 5000) === heatAt(sc[2] + F), "then it settles to a lower level and stays there");
 }
 
 // The opening ceremony: before any fighting, each fighter locks a constellation (left / right move the cursor one place per press, punch locks,

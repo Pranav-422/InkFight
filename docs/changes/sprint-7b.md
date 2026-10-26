@@ -119,6 +119,40 @@ Phone (390 px canvas, device scale 3; only the player's own pop-up, larger):
 ![](sprint-7b/b-settle-phone.png)
 ![](sprint-7b/b-fight-phone.png)
 
+### C. Weather change in slow motion, and a heatwave you can see
+
+- **The sky, light and ash build up over 9 s** (`ARENA_TUNE.weather.fade`, 540 ticks; it was a 2 s cut-fade). The five baked backdrops are crossfaded with a smooth curve, and the things that used
+  to switch on at a scene's first tick follow the same curve: the embers and the ash (a continuous "mood" number 0..4 drives their rate and the share that is ash), the molten edge of the floating
+  rocks, the heat. The fade is measured on the **world clock**, so scene 5's sky keeps coming in while the guided pauses hold the match clock. The next scene is baked only after the current one has
+  fully come in, so the one fading out is never evicted mid-fade (three backdrops at most are kept, as before).
+- **The heatwave** (`heatAt(world)`: 0 in scene 1, builds over the fade into scene 2, full through scene 2, then settles to 45% for the rest of the fight):
+  - a **stronger shimmer**: 12 wavy lines of bent light (up to ~9 px swing) and eight soft plumes of hot air drifting over the floor, instead of six faint lines;
+  - an **orange haze** over the far air, thickest at the floor, and a pool of warm light round the volcano's foot;
+  - **warped background lines**: the band from the volcano's foot to the floor (y 300-470) is drawn in 5 px slices, each pushed sideways by a travelling wave (up to 3.4 px), so the spires, the lava river
+    and the cliffs wobble like air over hot stone;
+  - **sweat and steam on the fighters**: drops run off the head, pale puffs rise off the shoulders (`render.ts`, through the existing particle list, which now takes a per-particle gravity so steam rises).
+  "Reduce flashes" scales all of it down (shimmer x0.3, warp x0.15, haze half, sweat and steam x0.35).
+- `src/game/arenaRender.ts` (`backdrop`, `haze`, `mood`, `heatAt`), `src/game/render.ts`, `src/game/arena.ts` (`ARENA_TUNE.weather`). Nothing in the sim changed.
+
+**Tests:** `check-sim` asserts the fade is 8-10 s and the heat curve (zero before scene 2, builds without a dip over the fade, 1.0 through scene 2, settles at 0.45 and stays). The look is from the screenshots.
+
+Desktop (the fade from scene 1 to 2 is the second picture; the heatwave itself the third):
+
+![Scene 1, Arrival: a clean twilight](sprint-7b/c-scene1-arrival.png)
+![Scene 1 to 2 halfway, 4.5 s in: the sky is half way to orange, the haze rising](sprint-7b/c-fade-1to2.png)
+![Scene 2, Heatwave: haze, bent light, plumes, steam and sweat on the fighters](sprint-7b/c-scene2-heatwave.png)
+![Scene 3, Ground Fracture](sprint-7b/c-scene3-fracture.png)
+![Scene 3 to 4 halfway](sprint-7b/c-fade-3to4.png)
+![Scene 4, Volcanic Warning](sprint-7b/c-scene4-warning.png)
+
+Phone:
+
+![](sprint-7b/c-scene1-arrival-phone.png)
+![](sprint-7b/c-fade-1to2-phone.png)
+![](sprint-7b/c-scene2-heatwave-phone.png)
+![](sprint-7b/c-scene3-fracture-phone.png)
+![](sprint-7b/c-scene4-warning-phone.png)
+
 ## 2. Decisions (everything the sheet left open, with the values chosen)
 
 All numbers are in `ARENA_TUNE` (`src/game/arena.ts`).
@@ -143,6 +177,11 @@ B4. **The ceremony is 1.5 s of title card + at most 13.75 s of beats = 15.25 s**
 B5. **Skills apply to the whole fight** ("all match" for the Hare), not only scene 5; they stack with the scene 5 boost. Phoenix means crack and lava damage only (not meteors or heat).
 B6. **The HUD hides during the opening** (no health bars or clock yet), and the pop-ups sit at the screen's corners so the fighters (who start at 28% / 72% of the width) stay visible between them.
 B7. **Wording of the skills in the pop-up is generated from `ARENA_TUNE.stars`** (`starInfo`), so retuning a number retunes the text.
+
+C1. **The weather fade is on the world clock** (not the match clock), so it keeps running through a guided pause: scene 5's eruption sky comes in while "Get up there!" holds the fight.
+C2. **9 s**, the middle of the sheet's "8-10 s". One curve (smoothstep) for the backdrops and everything that follows the mood.
+C3. **The heat doesn't end at scene 3.** It settles to 45% (a hot arena stays hot); the sweat and steam stay. Only the *heatwave* (the peak) belongs to scene 2.
+C4. **The warp redraws a band of the backdrop in slices** instead of distorting the whole screen: no blur, no offscreen buffers, about 35 `drawImage` calls a frame while it is on.
 
 
 ## 3. Gate output
@@ -328,6 +367,183 @@ balance diff vs main: empty (identical)
 (`npx tsx scripts/arena.ts` with the default 300 fights per pair; the climb, layout, CPU and determinism sections are in the output.)
 
 ### Part B
+
+```
+$ npx tsc --noEmit
+exit 0
+
+$ npm run lint
+
+> inkfight@0.1.0 lint
+> eslint
+
+exit 0
+
+$ npx tsx scripts/check-sim.ts
+check-sim: all good
+exit 0
+
+$ npx tsx scripts/arena.ts
+weakest fighter (AGI 40, SPD 40): jump apex 106.3 px, 34 ticks in the air, 102 px sideways at walking speed
+
+scene 1-4: the floor (tick 0, 0 s, lava y 540)
+200 |||                                                                                          |||
+220 |||                                                                                          |||
+240 |||                                                                                          |||
+260 |||                                                                                          |||
+280 |||                                                                                          |||
+300 |||                                                                                          |||
+320 |||                                                                                          |||
+340 |||                                                                                          |||
+360 |||                                                                                          |||
+380 |||                                                                                          |||
+400 |||                                                                                          |||
+420 |||                                                                                          |||
+440 |||                                                                                          |||
+460 |||                                                                                          |||
+480 |||##########################################################################################|||
+500 |||                                                                                          |||
+520 |||                                                                                          |||
+
+scene 4, 5 s before the stairs: dust where they will rise (tick 8760, 146 s, lava y 540)
+200 |||                                                                                          |||
+220 |||                                                                                          |||
+240 |||                                                                                          |||
+260 |||                                                                                          |||
+280 |||                                                                                          |||
+300 |||                                                                                          |||
+320 |||                                                                                          |||
+340 |||                                                                                          |||
+360 |||                                                                                          |||
+380 |||                                                                                          |||
+400 |||                                                                                          |||
+420 |||                                                                                          |||
+440 |||                                                                                          |||
+460 |||                                                                                          |||
+480 |||######::::::::#############################################################::::::::#######|||
+500 |||          1                                                                    2          |||
+520 |||                                                                                          |||
+
+scene 5, step 1 rising (tick 9030, 151 s, lava y 539)
+200 |||                                                                                          |||
+220 |||                                                                                          |||
+240 |||                                                                                          |||
+260 |||                                                                                          |||
+280 |||                                                                                          |||
+300 |||                                                                                          |||
+320 |||                                                                                          |||
+340 |||                                                                                          |||
+360 |||                                                                                          |||
+380 |||                                                                                          |||
+400 |||                                                                                          |||
+420 |||                                                                                          |||
+440 |||      ========                                                             ========       |||
+460 |||          1                                                                    2          |||
+480 |||################:::::::############################################:::::::################|||
+500 |||                   3                                                  4                   |||
+520 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+
+scene 5, steps 1 up, 2 and the final platform warn (tick 9200, 153 s, lava y 535)
+200 |||                                                                                          |||
+220 |||                                                                                          |||
+240 |||                                                                                          |||
+260 |||                                                                                          |||
+280 |||                                                                                          |||
+300 |||                                                                                          |||
+320 |||                                                                                          |||
+340 |||                =======                                            =======                |||
+360 |||                   3                                                  4                   |||
+380 |||                                                                                          |||
+400 |||      ========                                                             ========       |||
+420 |||          1                                                                    2          |||
+440 |||                                                                                          |||
+460 |||                                                                                          |||
+480 |||########################::::::::::::::::::::::::::::::::::::::::::########################|||
+500 |||                                             5                                            |||
+520 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+
+scene 5, everything up (tick 9420, 157 s, lava y 530)
+200 |||                                                                                          |||
+220 |||                                                                                          |||
+240 |||                                                                                          |||
+260 |||                                                                                          |||
+280 |||                        ==========================================                        |||
+300 |||                                             5                                            |||
+320 |||                                                                                          |||
+340 |||                =======                                            =======                |||
+360 |||                   3                                                  4                   |||
+380 |||                                                                                          |||
+400 |||      ========                                                             ========       |||
+420 |||          1                                                                    2          |||
+440 |||                                                                                          |||
+460 |||                                                                                          |||
+480 |||##########################################################################################|||
+500 |||                                                                                          |||
+520 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+
+5:00, lava at its highest (tick 18000, 300 s, lava y 315)
+200 |||                                                                                          |||
+220 |||                                                                                          |||
+240 |||                                                                                          |||
+260 |||                                                                                          |||
+280 |||                        ==========================================                        |||
+300 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~5~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+320 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+340 |||~~~~~~~~~~~~~~~~=======~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~=======~~~~~~~~~~~~~~~~|||
+360 |||~~~~~~~~~~~~~~~~~~~3~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~4~~~~~~~~~~~~~~~~~~~|||
+380 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+400 |||~~~~~~========~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~========~~~~~~~|||
+420 |||~~~~~~~~~~1~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~2~~~~~~~~~~|||
+440 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+460 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+480 |||##########################################################################################|||
+500 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+520 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+
+layout asserts
+  rises <= 69.1 (staircase: 66, 66, 133, 133), gaps <= 70.0, final platform 420 px wide (380 needed), 200 px up. ok
+
+the climb pause with the real sim (nobody fights; both fighters are computer-driven):
+  AGI 40 / SPD 40: 65:8.2s 100:8.1s 150:10.7s 230:7.6s 300:9.9s 480:9.3s 650:9.8s 740:7.5s 810:10.7s 895:8.2s
+  AGI 100 / SPD 100: 65:7.8s 100:7.8s 150:7.9s 230:7.7s 300:7.7s 480:7.7s 650:7.7s 740:7.7s 810:7.9s 895:7.8s
+  AGI 70 / SPD 40: 65:7.9s 100:7.8s 150:7.5s 230:7.5s 300:7.5s 480:7.5s 650:7.5s 740:7.7s 810:7.5s 895:7.9s
+
+CPU vs CPU, normal level: 220 arena fights over 15 class pairs, both seats
+  22 s. ended by KO 204, by the clock 16 (draws 0); average 320 s of play (the clock holds during hit-stop)
+  fighters in scene 5: 426/440; still fighting 10 s after the stairs stood: 422; of those on the final platform at some point: 100.0% (both fighters of a fight: 100.0% of 211)
+  opening ceremony: 8.6 s on average, 9.6 s at the most (the sheet: first 15 s); the computer picked comet 20%, hare 20%, phoenix 22%, serpent 18%, tortoise 21%; two fighters on one constellation: 0
+  fighters lifted onto the final platform by a pause timeout: 0
+  hazards dealt 15.3% of all damage (219894 of 1434448)
+
+CPU vs CPU, hard level: 300 fights per class pair (±6%)
+  261 s. Sword-Mace 54%, Sword-Tank 48%, Sword-Attacker 50%, Sword-Fighter 54%, Mace-Tank 41%, Mace-Attacker 55%, Mace-Fighter 44%, Tank-Attacker 52%, Tank-Fighter 54%, Attacker-Fighter 47%
+  fair: every pair within 41-55% (target 35-65%)
+
+determinism: the first 6 fights replay identically
+
+ok: all arena checks passed (scenes: ARRIVAL > HEATWAVE > GROUND FRACTURE > VOLCANIC WARNING > ELEVATED FINAL ARENA)
+exit 0
+
+$ npx tsx scripts/balance.ts 200
+win rate of row vs column (hard CPU, default kits, 200 matches each) · avg round length
+         Sword     | Mace      | Tank      | Attacker  | Fighter  
+Sword     51% 23s |  55% 23s |  59% 29s |  39% 18s |  51% 25s
+Mace      49% 22s |  55% 23s |  56% 28s |  44% 19s |  51% 24s
+Tank      40% 29s |  44% 29s |  51% 40s |  56% 26s |  58% 30s
+Attacker  58% 19s |  54% 19s |  45% 26s |  51% 16s |  43% 20s
+Fighter   56% 24s |  55% 24s |  39% 30s |  59% 20s |  41% 25s
+pairs (400 matches each, ±2.5%): Sword-Mace 53%, Sword-Tank 60%, Sword-Attacker 41%, Sword-Fighter 48%, Mace-Tank 56%, Mace-Attacker 45%, Mace-Fighter 48%, Tank-Attacker 56%, Tank-Fighter 60%, Attacker-Fighter 42%
+fair: every pair within 41-60%
+
+stat line vs all-70 (200 kits, 2 matches each): one stat at 100, the other four ~62
+STR 53%  ·  DUR 52%  ·  SPD 55%  ·  AGI 50%  ·  IQ 50%
+ok: every stat line within 45-62%
+exit 0
+
+balance diff vs main: empty (identical)
+```
+
+### Part C
 
 ```
 $ npx tsc --noEmit

@@ -63,6 +63,8 @@ export const ARENA_TUNE = {
   // "Get up there!" pause waits for both fighters to reach the final platform before it lifts whoever is still below.
   // `hold`: ticks both fighters linger once they are in place, so the arrival reads.
   cue: { climb: 25 * S, hold: 30 },
+  // Weather: the sky, light and ash change over `fade` ticks (9 s) when a scene begins, not in a cut (the drawing reads it: arenaRender.ts).
+  weather: { fade: 9 * S },
   // The opening ceremony, before any fighting (about 15 s at the longest): the arena's title card (`intro`), the stars waking
   // (`open`), each fighter locking a constellation (`pick`, then `lock` ticks to read the stamp once both have), and the two
   // chosen ones settling in the sky (`settle`). A fighter who hasn't locked when `pick` runs out gets the one under the cursor.

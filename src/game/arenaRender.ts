@@ -23,12 +23,20 @@ const DULL = 0.5; // how brightly the two chosen constellations glow while the f
 const SLOT_COLOR = ["#e5482d", "#2f5be0"];
 const ease = (p: number) => p * p * (3 - 2 * p);
 
+// How hot the air looks, 0..1 (a function of the world clock): nothing in scene 1; the heatwave builds as scene 2's sky comes in (over the
+// weather fade), holds through scene 2, then settles to a lower level for the rest of the fight (scenes 3-5 have their own fire).
+export function heatAt(world: number): number {
+  const sc = ARENA_TUNE.scenes, F = ARENA_TUNE.weather.fade;
+  if (world < sc[1]) return 0;
+  if (world < sc[2]) return ease(Math.min(1, (world - sc[1]) / F));
+  return 0.45 + 0.55 * (1 - ease(Math.min(1, (world - sc[2]) / F)));
+}
+
 // The backdrop covers more than the 960 x 540 arena so the camera can zoom out and look up (a fighter on the final platform
 // jumps above the old top edge).
 export const WORLD = { x0: -170, x1: ARENA.w + 170, y0: -440, y1: ARENA.h + 170 };
 
 const INK = "#0f0d12";
-const FADE = 2 * TICK_HZ; // ticks to crossfade between scenes
 
 type Look = {
   sky: [string, string, string]; // top → horizon
@@ -494,24 +502,72 @@ export class ArenaView {
   // ---------------------------------------------------------------- live layers
 
   // What the player sees behind everything: the baked scene (crossfaded at a change), floating rocks on chains.
-  back(ctx: CanvasRenderingContext2D, s: StageState, now: number, cam: { cx: number }) {
+  back(ctx: CanvasRenderingContext2D, s: StageState, now: number, cam: { cx: number }, reduce = false) {
     const tick = arenaTick(s);
     const scene = sceneAt(tick);
-    const into = tick - ARENA_TUNE.scenes[scene];
-    const draw = (i: number, alpha: number) => {
-      ctx.globalAlpha = alpha;
-      ctx.drawImage(this.bake(i), WORLD.x0, WORLD.y0, WORLD.x1 - WORLD.x0, WORLD.y1 - WORLD.y0);
-      ctx.globalAlpha = 1;
-    };
-    if (scene > 0 && into < FADE) {
-      draw(scene - 1, 1);
-      draw(scene, into / FADE);
-    } else draw(scene, 1);
+    // The weather changes slowly: the new scene's sky comes in over ARENA_TUNE.weather.fade ticks of the world clock (which runs in a pause too).
+    const F = ARENA_TUNE.weather.fade;
+    const world = arenaWorld(s);
+    const into = world - ARENA_TUNE.scenes[scene];
+    const heat = heatAt(world);
+    const warp = heat * (reduce ? 0.5 : 3.4); // the heat haze bends the far background sideways, up to this many px
+    if (scene > 0 && into < F) {
+      this.backdrop(ctx, scene - 1, 1, warp, now);
+      this.backdrop(ctx, scene, ease(into / F), warp, now);
+    } else this.backdrop(ctx, scene, 1, warp, now);
+    this.haze(ctx, heat, reduce);
     this.constellations(ctx, s, now);
-    // Bake the next scene while the current one is on screen, so the change itself costs nothing.
-    if (scene < LOOKS.length - 1 && !this.baked.has(scene + 1) && into > 90) this.bake(scene + 1);
+    // Bake the next scene once this one has fully come in (so the change itself costs nothing, and the scene fading out isn't dropped).
+    if (scene < LOOKS.length - 1 && !this.baked.has(scene + 1) && into > F + 60) this.bake(scene + 1);
     this.lastScene = scene;
-    this.floating(ctx, now, cam.cx, scene);
+    this.floating(ctx, now, cam.cx, scene, this.mood(s));
+  }
+
+  // The weather as a number: scene - 1 + how far into the next sky we are (0..4); scene 1 is 0.
+  private mood(s: StageState): number {
+    const scene = sceneAt(arenaTick(s));
+    if (scene === 0) return 0;
+    return scene - 1 + ease(Math.min(1, (arenaWorld(s) - ARENA_TUNE.scenes[scene]) / ARENA_TUNE.weather.fade));
+  }
+
+  // How hot the air looks right now (0..1), for the fighters' sweat and steam.
+  heat(s: StageState): number {
+    return heatAt(arenaWorld(s));
+  }
+
+  // One baked backdrop at an alpha. With heat, the band from the volcano's foot to the floor is drawn in thin slices, each shifted a little
+  // sideways by a wave that rises with time: the far background wobbles like air over hot stone.
+  private backdrop(ctx: CanvasRenderingContext2D, i: number, alpha: number, warp: number, now: number) {
+    const img = this.bake(i);
+    const W = WORLD.x1 - WORLD.x0, H = WORLD.y1 - WORLD.y0;
+    ctx.globalAlpha = alpha;
+    if (warp < 0.15) ctx.drawImage(img, WORLD.x0, WORLD.y0, W, H);
+    else {
+      const r = img.width / W, band = [300, 470], step = 5;
+      ctx.drawImage(img, 0, 0, img.width, (band[0] - WORLD.y0) * r, WORLD.x0, WORLD.y0, W, band[0] - WORLD.y0);
+      for (let y = band[0]; y < band[1]; y += step) {
+        const dx = warp * Math.sin(y * 0.052 + now / 340) * (0.4 + 0.6 * Math.sin(y * 0.013 + now / 1300));
+        ctx.drawImage(img, 0, (y - WORLD.y0) * r, img.width, step * r, WORLD.x0 + dx, y, W, step + 0.6);
+      }
+      ctx.drawImage(img, 0, (band[1] - WORLD.y0) * r, img.width, img.height - (band[1] - WORLD.y0) * r, WORLD.x0, band[1], W, WORLD.y1 - band[1]);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // An orange haze over the far air, thickest near the floor, and a pool of warm light round the foot of the volcano.
+  private haze(ctx: CanvasRenderingContext2D, heat: number, reduce: boolean) {
+    if (heat < 0.02) return;
+    const a = heat * (reduce ? 0.12 : 0.26);
+    const g = ctx.createLinearGradient(0, 220, 0, 480);
+    g.addColorStop(0, "rgba(255,150,60,0)");
+    g.addColorStop(1, `rgba(255,150,60,${a})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(WORLD.x0, 220, WORLD.x1 - WORLD.x0, 260);
+    const r = ctx.createRadialGradient(520, 410, 20, 520, 410, 380);
+    r.addColorStop(0, `rgba(255,196,110,${a * 0.9})`);
+    r.addColorStop(1, "rgba(255,150,60,0)");
+    ctx.fillStyle = r;
+    ctx.fillRect(WORLD.x0, 90, WORLD.x1 - WORLD.x0, 390);
   }
 
   // The constellations. While they are being chosen all five hang in a row (the ones a fighter's cursor rests on larger, with a ring in
@@ -584,13 +640,15 @@ export class ArenaView {
   }
 
   // Floating rocks hanging on chains, drifting a little, with parallax against the camera.
-  private floating(ctx: CanvasRenderingContext2D, now: number, camX: number, scene: number) {
+  private floating(ctx: CanvasRenderingContext2D, now: number, camX: number, scene: number, mood: number) {
     const rocks = [
       { x: 168, y: 150, w: 74, h: 112, ph: 0.3, par: 0.07 },
       { x: 806, y: 196, w: 52, h: 76, ph: 1.7, par: 0.05 },
       { x: 392, y: 118, w: 40, h: 56, ph: 2.9, par: 0.03 },
     ];
     const L = LOOKS[scene];
+    // The molten edge builds with the weather instead of switching on at a scene.
+    const glow = LOOKS[Math.floor(mood)].glow + (LOOKS[Math.min(4, Math.floor(mood) + 1)].glow - LOOKS[Math.floor(mood)].glow) * (mood - Math.floor(mood));
     for (const r of rocks) {
       const sway = Math.sin(now / 1700 + r.ph) * 5, bob = Math.sin(now / 1200 + r.ph * 2) * 6;
       const x = r.x + sway + (ARENA.w / 2 - camX) * r.par, y = r.y + bob;
@@ -623,8 +681,8 @@ export class ArenaView {
       ctx.lineTo(x - r.w * 0.4, y + r.h * 0.05);
       ctx.closePath();
       ctx.fill();
-      if (L.glow > 0.5) {
-        ctx.strokeStyle = `rgba(255,120,40,${L.glow * 0.5})`;
+      if (glow > 0.3) {
+        ctx.strokeStyle = `rgba(255,120,40,${glow * 0.5})`;
         ctx.lineWidth = 2.5;
         ctx.beginPath();
         ctx.moveTo(x + r.w * 0.38, y + r.h * 0.1);
@@ -987,10 +1045,9 @@ export class ArenaView {
   }
 
   // Over the fighters: meteors with their markers, embers and ash, heat shimmer.
-  front(ctx: CanvasRenderingContext2D, s: { arena?: ArenaState; timer: number }, now: number, reduce: boolean) {
+  front(ctx: CanvasRenderingContext2D, s: StageState, now: number, reduce: boolean) {
     const a = s.arena!;
     const tick = arenaTick(s);
-    const scene = sceneAt(tick);
     const T = ARENA_TUNE.meteor;
     for (const m of a.meteors) {
       const left = m.hit - tick;
@@ -1048,30 +1105,48 @@ export class ArenaView {
         ctx.fill();
       }
     }
-    // Heat shimmer (scene 2 and on): a few thin wavy lines rising off the floor. No blur, no full-screen distortion.
-    if (scene >= 1 && !reduce) {
-      ctx.strokeStyle = `rgba(255,224,170,${scene === 1 ? 0.13 : 0.08})`;
-      ctx.lineWidth = 2;
-      for (let k = 0; k < 6; k++) {
-        const yy = ARENA.ground - 30 - k * 22, ph = now / 500 + k;
+    // Heat shimmer: wavy lines of bent light rising off the floor and tall faint plumes of hot air, strongest in the heatwave (scene 2),
+    // lower for the rest of the fight. "Reduce flashes" turns it down to a whisper. No blur, no full-screen distortion.
+    const heat = heatAt(arenaWorld(s));
+    if (heat > 0.02) {
+      const k = reduce ? 0.3 : 1;
+      ctx.lineWidth = 2.5;
+      for (let n = 0; n < 12; n++) {
+        const yy = ARENA.ground - 24 - n * 18, ph = now / 400 + n * 1.3;
+        ctx.strokeStyle = `rgba(255,232,188,${(0.06 + 0.22 * heat * (1 - n / 15)) * k})`;
         ctx.beginPath();
-        for (let x = 40; x <= ARENA.w - 40; x += 20) {
-          const yv = yy + Math.sin(x * 0.03 + ph) * 4;
-          if (x === 40) ctx.moveTo(x, yv);
+        const amp = (3 + 6 * heat) * (reduce ? 0.4 : 1);
+        for (let x = 30; x <= ARENA.w - 30; x += 18) {
+          const yv = yy + Math.sin(x * 0.028 + ph) * amp + Math.sin(x * 0.011 - ph * 0.6) * amp * 0.6;
+          if (x === 30) ctx.moveTo(x, yv);
           else ctx.lineTo(x, yv);
         }
         ctx.stroke();
       }
+      // Plumes of hot air: soft tall ellipses of pale light drifting side to side (one radial gradient, stretched).
+      const plume = ctx.createRadialGradient(0, 0, 0, 0, 0, 50);
+      plume.addColorStop(0, `rgba(255,222,165,${0.16 * heat * k})`);
+      plume.addColorStop(1, "rgba(255,222,165,0)");
+      ctx.fillStyle = plume;
+      for (let n = 0; n < 8; n++) {
+        ctx.save();
+        ctx.translate(70 + n * 118 + Math.sin(now / 900 + n * 2) * 18, ARENA.ground - 100 - 18 * Math.sin(now / 1100 + n));
+        ctx.scale(0.8 + 0.25 * Math.sin(now / 700 + n), 2.2);
+        ctx.fillRect(-50, -50, 100, 100);
+        ctx.restore();
+      }
     }
-    this.sparks(ctx, scene, arenaWorld(s), reduce);
+    this.sparks(ctx, this.mood(s), arenaWorld(s), reduce);
   }
 
   // Embers drifting up and ash falling, capped.
-  private sparks(ctx: CanvasRenderingContext2D, scene: number, world: number, reduce: boolean) {
+  private sparks(ctx: CanvasRenderingContext2D, mood: number, world: number, reduce: boolean) {
     const cap = reduce ? 14 : 36;
-    const rate = [0.04, 0.08, 0.16, 0.3, 0.45][scene] * (reduce ? 0.5 : 1);
+    // The embers and the ash build up with the weather (mood 0..4), not at a scene's first tick.
+    const rates = [0.04, 0.08, 0.16, 0.3, 0.45], lo = Math.floor(mood);
+    const rate = (rates[lo] + (rates[Math.min(4, lo + 1)] - rates[lo]) * (mood - lo)) * (reduce ? 0.5 : 1);
     if (this.embers.length < cap && Math.random() < rate) {
-      const ash = scene >= 3 && Math.random() < 0.45;
+      const ash = Math.random() < Math.max(0, Math.min(1, (mood - 2.2) / 1.4)) * 0.45;
       this.embers.push(
         ash
           ? { x: Math.random() * ARENA.w, y: -20, vx: (Math.random() - 0.3) * 0.5, vy: 0.5 + Math.random() * 0.8, life: 0, max: 520, size: 1.5 + Math.random() * 1.8, ash: true }
