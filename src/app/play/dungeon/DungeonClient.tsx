@@ -109,11 +109,11 @@ export function DungeonClient({ userId, cleared: initialCleared, mine }: { userI
           return (
             <li key={b.floor} className={`grid gap-4 rounded-2xl p-4 ring-1 sm:grid-cols-[96px_1fr_auto] sm:items-center ${open ? "bg-card ring-2 ring-hit" : "bg-card ring-line"} ${!done && !open ? "opacity-60" : ""}`}>
               <div className="relative size-24 overflow-hidden rounded-xl bg-white ring-1 ring-line">
-                {done || open ? <FighterAvatar fighter={{ imageUrl: `/boss-art/${b.floor}`, class: b.cls, item: b.item, style: b.style }} showcase={open} /> : <Lock className="absolute inset-0 m-auto size-8 text-muted" />}
+                {done || open ? <FighterAvatar fighter={{ imageUrl: `/boss-art/${b.floor}`, class: b.cls, item: b.item, style: b.style, kit: b.kit }} showcase={open} /> : <Lock className="absolute inset-0 m-auto size-8 text-muted" />}
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted">
-                  Floor {b.floor} {b.floor === FLOORS && <Crown className="inline size-3.5 text-gold" />}
+                  Floor {b.floor} · {b.tier} {b.floor === FLOORS && <Crown className="inline size-3.5 text-gold" />}
                 </p>
                 <h2 className="font-display text-xl font-extrabold">
                   {b.title} <span className="text-sm font-semibold text-muted">{b.epithet}</span>

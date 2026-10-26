@@ -35,7 +35,6 @@ export type Boss = {
   skill?: SideSkill; // null: the class's own
   kit: BossKit; // its own punch (J) and kick (K) chains over its class's and style's
   persona: PersonaId; // how the computer plays it
-  tint: string; // ink colour of the boss's stickman
   budget: number; // stat points (players have 350), tuned by scripts/dungeon.ts --tune onto the clear-rate curve
   cap: number; // highest allowed stat
   stats: Stats;
@@ -79,7 +78,6 @@ export const BOSSES: Boss[] = [
     moves: { special: "Forbidden Thai Cannon", ult: "Bad Guy Destroyer" },
     kit: { punch: ["jab", "elbow"], kick: ["kneeStomp", "roundhouse", "shinCannon"] },
     persona: "brawler",
-    tint: "#222222",
     budget: 330,
     cap: 100,
     stats: { atk: 92, def: 80, spd: 58, agi: 52, iq: 44 },
@@ -112,7 +110,6 @@ export const BOSSES: Boss[] = [
     skill: "poise",
     kit: { punch: ["hook", "palm", "heartPunch"], kick: ["frontKick", "lowKick"] },
     persona: "grappler",
-    tint: "#2b1d18",
     budget: 325,
     cap: 100,
     stats: { atk: 92, def: 82, spd: 66, agi: 58, iq: 52 },
@@ -145,7 +142,6 @@ export const BOSSES: Boss[] = [
     moves: { special: "Antelope Strike", ult: "Infinity Hooks" },
     kit: { punch: ["flickerJab", "corkscrew", "gazelleHook", "dempsey"], kick: ["lowKick"] },
     persona: "boxer",
-    tint: "#17171a",
     budget: 330,
     cap: 100,
     stats: { atk: 78, def: 64, spd: 94, agi: 88, iq: 60 },
@@ -177,7 +173,6 @@ export const BOSSES: Boss[] = [
     moves: { special: "Pale Counter", ult: "Oni Ink Smash" },
     kit: { punch: ["seiken", "palm"], kick: ["lowKick", "roundhouse", "kaitenGeri"] },
     persona: "counterer",
-    tint: "#14101a",
     budget: 335,
     cap: 100,
     stats: { atk: 88, def: 96, spd: 62, agi: 70, iq: 84 },
@@ -210,7 +205,6 @@ export const BOSSES: Boss[] = [
     moves: { special: "Static Dash", ult: "Thunder Bolt: Sixfold" },
     kit: { punch: ["thunderclap"], kick: ["thunderclap"] },
     persona: "sheathed",
-    tint: "#3b2f00",
     budget: 335,
     cap: 115,
     stats: { atk: 98, def: 54, spd: 112, agi: 98, iq: 50 },
@@ -242,7 +236,6 @@ export const BOSSES: Boss[] = [
     moves: { special: "Triple Blade", ult: "Lion's Ink Song" },
     kit: { punch: ["iai", "risingSlash", "oniCut"] },
     persona: "swordsman",
-    tint: "#0f1f17",
     budget: 335,
     cap: 115,
     stats: { atk: 98, def: 90, spd: 78, agi: 72, iq: 72 },
@@ -275,7 +268,6 @@ export const BOSSES: Boss[] = [
     moves: { special: "Rubber Rapid", ult: "Cartoon Red Fist" },
     kit: { punch: ["pistol", "pistol", "bazooka"], kick: ["whip"] },
     persona: "poker",
-    tint: "#1a1a1a",
     budget: 335,
     cap: 115,
     stats: { atk: 92, def: 86, spd: 92, agi: 82, iq: 62 },
@@ -307,7 +299,6 @@ export const BOSSES: Boss[] = [
     moves: { special: "Blue Pull", ult: "Void Grape" },
     kit: {},
     persona: "zoner",
-    tint: "#1b2733",
     budget: 330,
     cap: 115,
     stats: { atk: 58, def: 84, spd: 100, agi: 105, iq: 115 },
@@ -339,7 +330,6 @@ export const BOSSES: Boss[] = [
     moves: { special: "K-Wave", ult: "Golden Serpent Fist" },
     kit: {},
     persona: "charger",
-    tint: "#1a1a1a",
     budget: 335,
     cap: 115,
     stats: { atk: 100, def: 92, spd: 96, agi: 90, iq: 94 },
@@ -373,7 +363,6 @@ export const BOSSES: Boss[] = [
     skill: "bubble",
     kit: { punch: ["mudaJab", "mudaJab", "mudaJab", "mudaJab", "hook"], kick: ["frontKick", "lowKick"] },
     persona: "timekeeper",
-    tint: "#2a1b3d",
     budget: 335,
     cap: 115,
     stats: { atk: 106, def: 96, spd: 98, agi: 86, iq: 100 },
