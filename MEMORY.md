@@ -223,3 +223,22 @@ To fight yourself, use one normal window + one incognito window (the split-scree
 - **Modes:** `/play/cpu` Mode step (`?arena=inferno`), `RoomStart` switch (kept per room code in `roomMode.ts`), `Lobby.mode`, `useGameRoom(code, fighter, user, mode)`. Online arena fights are reported to `/api/battles` (`RECORD_ARENA` in the route; `docs/tasks/arena-1.md` said unrecorded, the task message said recorded: the message won).
 - **Not done:** constellations / plausibility (hook `FighterDef.lavaResist`, unused), the depth axis, a real-phone / real-sound check, a relayed arena fight, a human-played climb.
 
+
+## Sprint 7b: Arena 1, pass 2 (branch `sprint-7b-arena`, docs `docs/changes/sprint-7b.md`, task sheet `docs/tasks/arena-1b.md`)
+
+- **What (parts A-G, one commit each):** guided pauses (sim phase `"cue"`, `Match.cue`), the opening ceremony (5 constellations with skills in `ARENA_TUNE.stars`, picked in the fight itself, in every snapshot as `ArenaState.pick`), the weather
+  crossfade over 9 s and a visible heatwave, lava that leaks from the cracks, scene 5's story (climb, marks, the stars answer with a seeded 10-50% plausibility buff, the ring with solid walls), the ending (the winner boots the loser
+  into the lava, the loser's star falls, the sky clears, then the result), and the on-canvas interface in the style of `docs/design/arena-1/ui-reference.png`.
+- **Where:** `src/game/arena.ts` (`STORY` beats, `arenaBeat` / `arenaCueTick` / `arenaCueInput`, `arenaBoost` / `arenaDamageFactor` / `arenaEnergyMul`, `ringBounds` / `arenaRingClamp`, `arenaEndBegin` / `arenaEndStep`, all numbers in
+  `ARENA_TUNE`), `sim.ts` (hooks), `arenaNav.ts` + `cpu.ts` (the computer climbs, picks, walks to its mark), `arenaRender.ts` (sky, ring, reveal, ending's star), `arenaStars.ts`, `arenaUi.ts` (the kit: slanted plates, tags, bars),
+  `arenaHud.ts` (HUD, ceremony bar, pop-up, banners), `render.ts` (spin / rim / lava clip of the loser, effects).
+- **Rules worth remembering:** two clocks: `arenaTick(m)` is the match clock (frozen in a pause, the 5:00 and every scene run on it), `arenaWorld(m)` = it + `a.pause` (platforms, lava, the weather fade run on it, so the stairs rise while
+  the fight is held). `createMatch(..., { arena, seed })`: the seed goes into `ArenaState` and is mixed into every arena roll (callers pick it with `Math.random`; without one every roll repeats). Damage the stars / buff / matchup change goes
+  through `arenaDamageFactor` in `applyHit`, not by editing `FighterDef`. A fighter at or above the platform can't leave the ring (`arenaRingClamp`, `arenaCanDrop`). The ending is scripted after the fighters move (`arenaEndStep`) and
+  deals nothing; floor ending lava is `ARENA.ground + 52` (the lake under the slab), the ring's is `lavaY`. A normal fight is untouched: `check-sim` hashes three of them, `balance.ts 200` matches main, and
+  `scripts/shots-7b/compare-normal.mjs` shows byte-identical frames.
+- **Balance:** `scripts/arena.ts` (default 300 fights per class pair, about 6 min; `--quick` is seconds; `--tune N` re-fits `ARENA_TUNE.matchup`, a few minutes at 100): pairs 45-58%, hazards 8-9% of damage (the sheet's 10% floor was pass 1's
+  own: a solid ring has no hazard that reaches a fighter, so the floor is 5%), the computer climbs 100%, nobody lifted by a timeout.
+- **Tools:** `scripts/shots-7b/` (`run.mjs` + `entry.ts` draw real Renderer frames of a computer-played fight at named moments, desktop and phone; `compare-normal.mjs`).
+- **Not verified:** a real phone, the sound by ear, a relayed arena fight, a human climbing / choosing / watching the ending, motion at 60 fps (still frames only), "exactly" like the reference photo (layout, type and colours are matched, the
+  painted art is not).

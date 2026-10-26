@@ -13,12 +13,14 @@ const kit = (cls: string) => ({ ...ruleStats(cls, { ...neutral, dominant_colors:
 
 // A moment to draw: every field given must hold. phase / cue: the sim's; phaseT: ticks into the phase; tick: the match clock;
 // world: the world clock; scene: 1-5; settle: frames to draw first (the camera and the fades ease in real time).
+// glow / meteor: a crack is glowing / a meteor marker is down (the HUD's warnings).
+// hp: set the two fighters' health to these fractions of full just before the frame (the bars' pale trail then shows what was lost).
 // locked: constellations locked so far (the ceremony). ko: let the fight end (otherwise nobody dies); from: only once the world clock has
 // reached that tick; inRing: only once the fight is back on in the ring; loser: which fighter is left with a sliver of health when the fight may end (so the other one wins). end + dt: the arena's ending has
 // reached that moment ("kickAt", "hitAt", "splashAt" or "until"), plus dt ticks.
 // calm: no special, hit or knockout in progress (the camera is at rest). nearCrack: a fighter within that many px of a leaking crack's edge.
-export type Spec = { name: string; phase?: string; cue?: string; phaseT?: number; tick?: number; world?: number; scene?: number; settle?: number; ko?: boolean; from?: number; inRing?: boolean; loser?: 0 | 1; end?: "kickAt" | "hitAt" | "splashAt" | "until"; dt?: number; locked?: number; calm?: boolean; nearCrack?: number };
-export type Opts = { seed?: number; a?: string; b?: string; protect?: boolean; skipTo?: number };
+export type Spec = { name: string; phase?: string; cue?: string; phaseT?: number; tick?: number; world?: number; scene?: number; settle?: number; hp?: [number, number]; glow?: boolean; meteor?: boolean; ko?: boolean; from?: number; inRing?: boolean; loser?: 0 | 1; end?: "kickAt" | "hitAt" | "splashAt" | "until"; dt?: number; locked?: number; calm?: boolean; nearCrack?: number };
+export type Opts = { seed?: number; a?: string; b?: string; protect?: boolean; skipTo?: number; names?: [string, string] };
 
 declare global {
   interface Window {
@@ -34,6 +36,8 @@ const holds = (m: Match, s: Spec) =>
   (s.tick === undefined || arenaTick(m) >= s.tick) &&
   (s.world === undefined || arenaWorld(m) >= s.world) &&
   (s.scene === undefined || (m.arena?.scene ?? -1) + 1 >= s.scene) &&
+  (!s.glow || (m.arena?.cracks ?? []).some((c) => arenaTick(m) < c.born + c.glow)) &&
+  (!s.meteor || (m.arena?.meteors.length ?? 0) > 0) &&
   (s.end === undefined || (m.arena?.end?.planned === true && m.phaseT >= m.arena.end[s.end] + (s.dt ?? 0))) &&
   (s.locked === undefined || (m.arena?.pick.filter(Boolean).length ?? 0) >= s.locked) &&
   (s.nearCrack === undefined || (m.arena?.cracks ?? []).some((c) => arenaTick(m) >= c.born + c.glow && m.fighters.some((f) => f.grounded && f.y >= 479 && Math.abs(f.x - c.x) - c.w / 2 < s.nearCrack!))) &&
@@ -54,7 +58,7 @@ window.capture = (specs, opts = {}) => {
   const m = createMatch(kit(opts.a ?? "Sword"), kit(opts.b ?? "Fighter"), [ia, ib], { arena: "inferno" });
   window.trace = m;
   const brains = [newBrain("normal"), newBrain("normal")];
-  const hud = { names: ["Sir Scribbles", "Margin Fist"] as [string, string], specialNames: ["Slash", "Wave"] as [string, string], you: 0 as 0 | 1 };
+  const hud = { names: (opts.names ?? ["Sir Scribbles", "Margin Fist"]) as [string, string], specialNames: ["Slash", "Wave"] as [string, string], you: 0 as 0 | 1 };
   const out: Record<string, string> = {};
   const pending = [...specs];
   let prev = snapshot(m);
@@ -67,11 +71,15 @@ window.capture = (specs, opts = {}) => {
     const mortal = pending.find((s) => s.ko && arenaWorld(m) >= (s.from ?? 0) && (!s.inRing || (m.arena!.ring > 0 && m.phase === "fight")));
     if (opts.protect !== false && !mortal) for (const f of m.fighters) f.hp = Math.max(f.hp, m.defs[f.slot].maxHp * 0.4);
     else if (mortal?.loser !== undefined && m.phase === "fight") m.fighters[mortal.loser].hp = Math.min(m.fighters[mortal.loser].hp, 40);
-    const cur = snapshot(m);
+    let cur = snapshot(m);
     r.ingest(cur, hud);
     const hit = pending.filter((s) => holds(m, s));
     if (hit.length) {
       for (const s of hit) {
+        if (s.hp) {
+          for (const f of m.fighters) f.hp = s.hp[f.slot] * m.defs[f.slot].maxHp;
+          cur = snapshot(m);
+        }
         for (let k = 0; k < (s.settle ?? 45); k++) {
           now += 16;
           r.draw(prev, cur, 1, hud, now);

@@ -6,9 +6,11 @@
 //
 // render.ts calls back() before the fighters, mid() right after the page and floor, front() over everything and hud() last.
 
-import { ARENA_TUNE, arenaTick, arenaWorld, buffScale, CONSTELLATIONS, lavaY, platformsAt, ringBounds, ROCK_DEFS, SCENE_NAMES, sceneAt, starInfo, type ArenaGameEvent, type ArenaState, type Platform } from "./arena";
+import { ARENA_TUNE, arenaTick, arenaWorld, buffScale, CONSTELLATIONS, lavaY, platformsAt, ringBounds, ROCK_DEFS, sceneAt, starInfo, type ArenaGameEvent, type ArenaState, type Platform } from "./arena";
+import { ArenaHud, type HudArgs } from "./arenaHud";
+import { P_COLOR, plate, slab, tag, UI } from "./arenaUi";
 import { drawStar, starColor } from "./arenaStars";
-import type { Cue, Slot } from "./sim";
+import type { Cue, Slot, Snapshot } from "./sim";
 import { ARENA, BODY, TICK_HZ } from "./space";
 
 // What the stage drawing reads from a snapshot.
@@ -16,15 +18,13 @@ type StageState = { arena?: ArenaState; timer: number; phase: string; phaseT: nu
 
 // Where the constellations hang: in a row across the sky while they are being chosen, then one over each fighter's side.
 const STAR_SIZE = 140;
-export const ROW = (i: number) => ({ x: 130 + 175 * i, y: 18 });
+export const ROW = (i: number) => ({ x: 130 + 175 * i, y: 38 });
 const HOME = [{ x: 262, y: 140 }, { x: 698, y: 140 }];
 const HOME_RING = [{ x: 170, y: 40 }, { x: 790, y: 40 }]; // in the ring (scene 5) they hang higher and wider, clear of the fighters' heads
 const FINAL_ROCK = ROCK_DEFS[ROCK_DEFS.length - 1];
 // Which end of the sky a fighter's star hangs over in the ring: the side that fighter stands on (fixed when they took their marks).
 const ringSide = (s: StageState, slot: Slot): 0 | 1 => (s.arena && s.arena.side[slot] === 1 ? 1 : 0);
-const PANEL = { w: 240, h: 232 }; // a ceremony pop-up
 const DULL = 0.5; // how brightly the two chosen constellations glow while the fight goes on
-const SLOT_COLOR = ["#e5482d", "#2f5be0"];
 const ease = (p: number) => p * p * (3 - 2 * p);
 
 // How hot the air looks, 0..1 (a function of the world clock): nothing in scene 1; the heatwave builds as scene 2's sky comes in (over the
@@ -89,8 +89,10 @@ export class ArenaView {
   private dust: { x: number; born: number }[] = [];
   private lastScene = -1;
   private rand = rng(99);
-  // How hard to shake: set by the renderer from the sim's tremors. "Reduce flashes" scales it down.
-  constructor(private fontDisplay: string, private fontBody: string) {}
+  private ui: ArenaHud;
+  constructor(private fontDisplay: string, private fontBody: string) {
+    this.ui = new ArenaHud(fontDisplay, fontBody);
+  }
 
   // Canvas pixels per world unit: the baked layers are drawn at that resolution (capped, so memory stays modest on a phone).
   setScale(k: number) {
@@ -532,6 +534,7 @@ export class ArenaView {
     if (scene < LOOKS.length - 1 && !this.baked.has(scene + 1) && into > F + 60) this.bake(scene + 1);
     this.lastScene = scene;
     this.floating(ctx, now, cam.cx, scene, this.mood(s) * (1 - calm));
+    this.drawSkyMarks(ctx, now);
   }
 
   // The weather as a number: scene - 1 + how far into the next sky we are (0..4); scene 1 is 0.
@@ -601,6 +604,7 @@ export class ArenaView {
     const wake = stage === "open" ? Math.min(1, s.phaseT / 90) : 1;
     const settle = stage === "settle" ? ease(Math.min(1, s.phaseT / C.settle)) : stage ? 0 : 1;
     this.endStar(ctx, s, now);
+    this.skyMarks = [];
     CONSTELLATIONS.forEach((id, i) => {
       const owner = (a.pick[0] === id ? 0 : a.pick[1] === id ? 1 : -1) as Slot | -1;
       const row = ROW(i);
@@ -642,32 +646,35 @@ export class ArenaView {
       else if (!stage && owner < 0) return;
       drawStar(ctx, id, x, y, size, alpha * twinkle);
       if (stage !== "pick") return;
-      // Who is looking at / has locked this one: a ring in their colour and a tag.
-      const rings: { color: string; tag: string }[] = [];
-      for (const sl of focus) rings.push({ color: SLOT_COLOR[sl], tag: `P${sl + 1}` });
-      if (owner >= 0) rings.push({ color: "#f2b705", tag: `P${owner + 1} ✓` });
-      rings.forEach((r, k) => {
-        const pulse = 0.5 + 0.5 * Math.sin(now / 160 + k);
-        ctx.save();
-        ctx.strokeStyle = r.color;
-        ctx.globalAlpha = 0.55 + 0.45 * pulse;
-        ctx.lineWidth = 3;
-        ctx.setLineDash(owner >= 0 ? [] : [8, 6]);
-        ctx.beginPath();
-        ctx.arc(x, y, size * 0.56 + k * 7, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.globalAlpha = 1;
-        ctx.font = `800 14px ${this.fontDisplay}`;
-        ctx.textAlign = "center";
-        const w = ctx.measureText(r.tag).width + 14;
-        ctx.fillStyle = r.color;
-        ctx.fillRect(x - w / 2, y + size * 0.56 + 4 + k * 20, w, 19);
-        ctx.fillStyle = owner >= 0 ? INK : "#fff";
-        ctx.fillText(r.tag, x, y + size * 0.56 + 18 + k * 20);
-        ctx.restore();
-      });
+      // Who is looking at / has locked this one: a ring in their colour and a tag (drawn after the hanging rocks, so nothing covers them).
+      for (const sl of focus) this.skyMarks.push({ x, y, size, slot: sl, locked: false });
+      if (owner >= 0) this.skyMarks.push({ x, y, size, slot: owner as Slot, locked: true });
     });
+  }
+
+  // The rings and tags over the constellations being looked at or locked in the opening ceremony.
+  private skyMarks: { x: number; y: number; size: number; slot: Slot; locked: boolean }[] = [];
+  private drawSkyMarks(ctx: CanvasRenderingContext2D, now: number) {
+    const stack = new Map<string, number>();
+    for (const m of this.skyMarks) {
+      const key = `${Math.round(m.x)},${Math.round(m.y)}`;
+      const k = stack.get(key) ?? 0;
+      stack.set(key, k + 1);
+      const color = m.locked ? UI.gold : P_COLOR[m.slot];
+      const pulse = 0.5 + 0.5 * Math.sin(now / 160 + k);
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = 0.55 + 0.45 * pulse;
+      ctx.lineWidth = 3;
+      ctx.setLineDash(m.locked ? [] : [8, 6]);
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, m.size * 0.56 + k * 7, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+      const tw = m.locked ? 46 : 32, th = 18;
+      tag(ctx, m.slot, m.x - tw / 2, m.y + m.size * 0.56 + 4 + k * (th + 3), tw, th, this.fontDisplay, m.locked ? `P${m.slot + 1} ✓` : undefined, m.locked ? UI.gold : undefined, m.locked ? UI.ink : undefined);
+    }
+    this.skyMarks = [];
   }
 
   // How much the sky has cleared (0..1) in the ending: it starts when the boot lands (or half a second in, in a draw) and takes 5 s. Everything
@@ -719,67 +726,95 @@ export class ArenaView {
     const top = FINAL_ROCK.top, { lo, hi } = ringBounds();
     const xl = lo - BODY.w / 2, xr = hi + BODY.w / 2; // the faces of the walls
     const H = 156 * up, shake = a.ring < ARENA_TUNE.ring.rise ? Math.sin(now / 22) * 1.4 : 0;
+    // The ring wears the two fighters' colours, split down the middle like the select screen: the post and the ropes on each side are the colour of
+    // whoever stands there (not always P1 on the left).
+    const cl = P_COLOR[a.side[0] === 0 ? 0 : 1], cr = P_COLOR[a.side[0] === 0 ? 1 : 0];
     ctx.save();
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
-    // The ropes.
-    const ropes: [number, string][] = [[34, "#e5482d"], [76, "#fff9ed"], [118, "#2f5be0"]];
-    for (const [h, col] of ropes) {
+    // The apron: a black strip along the edge of the platform between the posts, with the HUD's gold line on top.
+    if (up > 0.15) {
+      plate(ctx, slab(xl - 14, top - 2, xr - xl + 28, 8, [3, 3, 0, 0]), UI.black);
+      ctx.fillStyle = UI.gold;
+      ctx.fillRect(xl - 12, top - 3, xr - xl + 24, 2.5);
+    }
+    // The ropes: the two outer ones split between the colours (meeting at a gold knot), the middle one white.
+    const ropes: [number, boolean][] = [[34, true], [76, false], [118, true]];
+    for (const [h, split] of ropes) {
       const y = top - (h / 156) * H;
       if (up < 0.15) continue;
       const sag = 7 * up + Math.sin(now / 700 + h) * 1.2;
-      for (const [lw, c] of [[9.5, INK], [5.5, col]] as const) {
-        ctx.strokeStyle = c;
-        ctx.lineWidth = lw;
-        ctx.beginPath();
-        ctx.moveTo(xl, y);
-        ctx.quadraticCurveTo((xl + xr) / 2, y + sag * 2, xr, y);
-        ctx.stroke();
-      }
-      ctx.strokeStyle = "rgba(255,255,255,.55)";
+      ctx.strokeStyle = UI.black;
+      ctx.lineWidth = 9.5;
+      ctx.beginPath();
+      ctx.moveTo(xl, y);
+      ctx.quadraticCurveTo((xl + xr) / 2, y + sag * 2, xr, y);
+      ctx.stroke();
+      if (split) {
+        const g = ctx.createLinearGradient(xl, 0, xr, 0);
+        g.addColorStop(0, cl);
+        g.addColorStop(0.47, cl);
+        g.addColorStop(0.5, "#fff9ed");
+        g.addColorStop(0.53, cr);
+        g.addColorStop(1, cr);
+        ctx.strokeStyle = g;
+      } else ctx.strokeStyle = "#fff9ed";
+      ctx.lineWidth = 5.5;
+      ctx.beginPath();
+      ctx.moveTo(xl, y);
+      ctx.quadraticCurveTo((xl + xr) / 2, y + sag * 2, xr, y);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(255,255,255,.5)";
       ctx.lineWidth = 1.4;
       ctx.beginPath();
       ctx.moveTo(xl + 6, y - 1.8);
       ctx.quadraticCurveTo((xl + xr) / 2, y + sag * 2 - 1.8, xr - 6, y - 1.8);
       ctx.stroke();
+      if (split) {
+        const kx = (xl + xr) / 2, ky = y + sag;
+        plate(ctx, [[kx, ky - 7], [kx + 6, ky], [kx, ky + 7], [kx - 6, ky]], UI.gold, UI.ink, 2);
+      }
     }
-    // The posts: stone, banded, with gold pads where the ropes tie on and a gold cap.
+    // The posts: black plates with a white edge, hazard stripes low down, a pad in the side's colour where each rope ties on and a gold slanted cap.
     for (const side of [0, 1]) {
       const x0 = (side === 0 ? xl - 17 : xr + 1) + shake;
-      ctx.fillStyle = "#322d3a";
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 4;
+      const col = side === 0 ? cl : cr;
+      ctx.fillStyle = UI.black;
       ctx.fillRect(x0, top - H, 16, H + 3);
-      ctx.strokeRect(x0, top - H, 16, H + 3);
-      ctx.fillStyle = "rgba(255,255,255,.08)";
-      ctx.fillRect(x0 + 2, top - H + 2, 4, H - 2);
-      ctx.strokeStyle = "rgba(15,13,18,.55)";
-      ctx.lineWidth = 2;
-      for (let cy = top - 14; cy > top - H; cy -= 26) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x0, top - H, 16, H + 3);
+      ctx.clip();
+      ctx.fillStyle = UI.gold;
+      for (let cy = top + 2; cy > top - Math.min(H, 52); cy -= 18) {
         ctx.beginPath();
         ctx.moveTo(x0, cy);
-        ctx.lineTo(x0 + 16, cy);
-        ctx.stroke();
+        ctx.lineTo(x0 + 16, cy - 10);
+        ctx.lineTo(x0 + 16, cy - 18);
+        ctx.lineTo(x0, cy - 8);
+        ctx.closePath();
+        ctx.fill();
       }
+      ctx.restore();
+      ctx.strokeStyle = "rgba(255,255,255,.85)";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x0 + 0.75, top - H + 0.75, 14.5, H + 1.5);
       for (const [h] of ropes) {
         const y = top - (h / 156) * H;
         if (up < 0.15) continue;
-        ctx.fillStyle = "#f2b705";
-        ctx.strokeStyle = INK;
+        ctx.fillStyle = col;
+        ctx.strokeStyle = UI.black;
         ctx.lineWidth = 2.5;
         ctx.fillRect(x0 - 3, y - 6, 22, 12);
         ctx.strokeRect(x0 - 3, y - 6, 22, 12);
       }
-      ctx.fillStyle = "#f2b705";
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 3.5;
-      ctx.fillRect(x0 - 4, top - H - 9, 24, 10);
-      ctx.strokeRect(x0 - 4, top - H - 9, 24, 10);
+      plate(ctx, slab(x0 - 5, top - H - 10, 26, 10, [3, 0, 3, 0]), UI.gold, UI.black, 3);
       if (up > 0.9) {
-        // A glowing orb on each post, pulsing.
+        // A glowing orb on each post in its side's colour, pulsing.
         const g = ctx.createRadialGradient(x0 + 8, top - H - 20, 1, x0 + 8, top - H - 20, 16);
-        g.addColorStop(0, `rgba(255,236,150,${0.8 + 0.2 * Math.sin(now / 260 + side)})`);
-        g.addColorStop(1, "rgba(255,180,60,0)");
+        g.addColorStop(0, `rgba(255,246,214,${0.8 + 0.2 * Math.sin(now / 260 + side)})`);
+        g.addColorStop(0.35, `${col}cc`);
+        g.addColorStop(1, `${col}00`);
         ctx.fillStyle = g;
         ctx.fillRect(x0 - 8, top - H - 36, 32, 32);
       }
@@ -899,20 +934,24 @@ export class ArenaView {
         ctx.save();
         ctx.globalAlpha = alpha;
         ctx.textAlign = "center";
-        ctx.lineJoin = "round";
-        ctx.lineWidth = 9;
-        ctx.strokeStyle = INK;
-        ctx.fillStyle = "#f2b705";
+        // The roll on a gold plate with heavy black type, a hard shadow under it (the Versus badge's), and who blessed them on a black tab over it.
         const grow = 0.8 + 0.4 * Math.min(1, p / 0.1);
-        ctx.font = `800 ${Math.round(46 * grow)}px ${this.fontDisplay}`;
-        ctx.strokeText(`+${a.buff[o]}%`, f.x, y);
-        ctx.fillText(`+${a.buff[o]}%`, f.x, y);
+        const size = Math.round(46 * grow);
+        ctx.font = `800 ${size}px ${this.fontDisplay}`;
+        const text = `+${a.buff[o]}%`;
+        const w = ctx.measureText(text).width + 40, h = size * 1.12;
+        plate(ctx, slab(f.x - w / 2, y - size * 0.86, w, h, [h * 0.22, 0, h * 0.22, 0]), UI.gold, UI.ink, 4, 5);
+        ctx.fillStyle = UI.ink;
+        ctx.fillText(text, f.x + 2, y);
         if (pick) {
+          const label = `${starInfo(pick).name.toUpperCase()} BLESSES P${o + 1}`;
           ctx.font = `800 17px ${this.fontDisplay}`;
-          ctx.lineWidth = 6;
-          ctx.fillStyle = "#fff9ed";
-          ctx.strokeText(`${starInfo(pick).name.toUpperCase()} BLESSES P${o + 1}`, f.x, y - 46 * grow);
-          ctx.fillText(`${starInfo(pick).name.toUpperCase()} BLESSES P${o + 1}`, f.x, y - 46 * grow);
+          const lw = ctx.measureText(label).width + 30, lh = 26;
+          plate(ctx, slab(f.x - lw / 2, y - size * 0.86 - lh - 6, lw, lh, [6, 0, 6, 0]), UI.black, "rgba(255,255,255,.9)", 1.5, 3);
+          ctx.fillStyle = "#fff";
+          ctx.fillText(label, f.x + 1, y - size * 0.86 - 13);
+          ctx.fillStyle = P_COLOR[o];
+          ctx.fillRect(f.x - lw / 2 + 2, y - size * 0.86 - 5, lw - 6, 3);
         }
         ctx.restore();
       }
@@ -1624,234 +1663,14 @@ export class ArenaView {
     return { z, x: ARENA.w / 2, y };
   }
 
-  // HUD pieces in screen space (960 x 540 units): the clock, the scene name, hazard warnings.
-  hud(ctx: CanvasRenderingContext2D, s: StageState, now: number, z: number, info: { names: [string, string]; you: Slot }) {
-    const a = s.arena!;
-    const tick = arenaTick(s);
-    const scene = sceneAt(tick);
-    const secs = Math.max(0, Math.ceil(s.timer / TICK_HZ));
-    // The opening ceremony has no clock or health bars yet (Renderer.hud skips them): a title card instead.
-    const opening = s.cue?.id === "open" || s.cue?.id === "pick";
-    if (s.cue?.id === "reveal") {
-      // (no clock, no bars: the sky is the point)
-    } else if (opening) {
-      const pop = Math.min(1, s.phaseT / 20);
-      ctx.save();
-      ctx.globalAlpha = pop;
-      ctx.textAlign = "center";
-      ctx.lineJoin = "round";
-      ctx.lineWidth = 7;
-      ctx.strokeStyle = INK;
-      ctx.fillStyle = "#f2b705";
-      ctx.font = `800 ${Math.round(13 * Math.min(z, 1.5))}px ${this.fontDisplay}`;
-      ctx.strokeText("ARENA 1", ARENA.w / 2, 26);
-      ctx.fillText("ARENA 1", ARENA.w / 2, 26);
-      ctx.fillStyle = "#fff9ed";
-      ctx.font = `800 ${Math.round(28 * Math.min(z, 1.5))}px ${this.fontDisplay}`;
-      ctx.strokeText("INFERNO CRATER", ARENA.w / 2, 58 + 6 * (z - 1));
-      ctx.fillText("INFERNO CRATER", ARENA.w / 2, 58 + 6 * (z - 1));
-      ctx.restore();
-    } else {
-      ctx.textAlign = "center";
-      ctx.font = `800 ${Math.round(36 * Math.min(z, 1.5))}px ${this.fontDisplay}`;
-      ctx.fillStyle = secs <= 10 ? "#e5482d" : INK;
-      ctx.fillText(`${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`, ARENA.w / 2, 62);
-      ctx.font = `700 ${Math.round(11 * z)}px ${this.fontBody}`;
-      ctx.fillStyle = "#6b6a66";
-      ctx.fillText(`${scene + 1}/5 · ${SCENE_NAMES[scene]}`, ARENA.w / 2, 82 + 8 * (z - 1));
-    }
-    if (s.cue) this.cueBanner(ctx, s.cue, now, z, opening ? (z > 1.25 ? 168 : 224) : s.cue.id === "reveal" ? 62 : s.cue.id === "marks" ? 148 : undefined);
-    if (s.cue?.id === "pick") this.pickUi(ctx, s, z, info);
-    if (s.phase !== "fight") return;
-
-    // A stamped tag when the scene changes (small, in the corner of the action, never blocking).
-    const into = tick - ARENA_TUNE.scenes[scene];
-    if (into < 3 * TICK_HZ) {
-      const pop = Math.min(1, into / 8), fade = Math.min(1, (3 * TICK_HZ - into) / 30);
-      ctx.save();
-      ctx.translate(ARENA.w / 2, 140);
-      ctx.rotate(-0.04);
-      ctx.scale(0.8 + 0.2 * pop, 0.8 + 0.2 * pop);
-      ctx.globalAlpha = fade;
-      ctx.font = `800 ${Math.round(18 * Math.min(z, 1.3))}px ${this.fontDisplay}`;
-      const label = `${scene + 1} · ${SCENE_NAMES[scene]}`;
-      const w = ctx.measureText(label).width + 28;
-      ctx.fillStyle = "#fff9ed";
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 3.5;
-      ctx.fillRect(-w / 2, -16, w, 32);
-      ctx.strokeRect(-w / 2, -16, w, 32);
-      ctx.fillStyle = "#e5482d";
-      ctx.fillText(label, 0, 6);
-      ctx.restore();
-    }
-
-    // Warnings: one or two short red tags under the clock for what is about to hurt.
-    const warns: string[] = [];
-    if (a.cracks.some((c) => tick < c.born + c.glow)) warns.push("GROUND CRACKING");
-    if (a.meteors.length) warns.push("METEOR INCOMING");
-    if (platformsAt(arenaWorld(s)).some((p) => p.state === "warn")) warns.push("THE GROUND SHAKES");
-    if (scene === 4 && lavaY(arenaWorld(s)) < ARENA.ground + 20) warns.push("LAVA ON THE FLOOR");
-    warns.slice(0, 2).forEach((w, k) => {
-      const pulse = 0.75 + 0.25 * Math.sin(now / 120);
-      ctx.font = `800 ${Math.round(12 * z)}px ${this.fontDisplay}`;
-      const tw = ctx.measureText(w).width + 18;
-      const y = 118 + 8 * (z - 1) + k * (20 + 4 * (z - 1)); // under the HUD plates
-      ctx.fillStyle = `rgba(229,72,45,${pulse})`;
-      ctx.fillRect(ARENA.w / 2 - tw / 2, y - 13, tw, 18);
-      ctx.fillStyle = "#fff";
-      ctx.fillText(w, ARENA.w / 2, y);
-    });
-  }
-  // The ceremony's pop-ups: one per fighter, black and grey like the select screen they are modelled on, with the five constellations
-  // to choose from (the cursor in the fighter's colour) and the focused one's skill on a yellow plate. They slide in from the sides.
-  // On a phone only the player's own is drawn, larger (the canvas is tiny there).
-  private pickUi(ctx: CanvasRenderingContext2D, s: StageState, z: number, info: { names: [string, string]; you: Slot }) {
-    const a = s.arena!;
-    const compact = z > 1.25;
-    const k = compact ? 1.25 : 1;
-    const w = PANEL.w * k;
-    const pop = ease(Math.min(1, s.phaseT / 14));
-    for (const slot of compact ? [info.you] : ([0, 1] as Slot[])) {
-      const side = slot === 0 ? -1 : 1;
-      const x = compact ? (ARENA.w - w) / 2 : slot === 0 ? 10 : ARENA.w - 10 - w;
-      const y = compact ? 205 : 252;
-      ctx.save();
-      ctx.globalAlpha = pop;
-      this.panel(ctx, a, slot, x + (compact ? 0 : side * (1 - pop) * (w + 40)), y + (compact ? (1 - pop) * 80 : 0), k, info.names[slot], slot === info.you);
-      ctx.restore();
-    }
+  // The interface over the picture, in screen space (960 x 540 units): src/game/arenaHud.ts.
+  hud(ctx: CanvasRenderingContext2D, s: Snapshot, now: number, z: number, info: HudArgs) {
+    this.ui.draw(ctx, s, now, z, info);
   }
 
-  private panel(ctx: CanvasRenderingContext2D, a: ArenaState, slot: Slot, x: number, y: number, k: number, name: string, mine: boolean) {
-    const { w: W, h: H } = PANEL;
-    const color = SLOT_COLOR[slot];
-    const locked = a.pick[slot] !== null;
-    const poly = (pts: [number, number][]) => {
-      ctx.beginPath();
-      pts.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
-      ctx.closePath();
-    };
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(k, k);
-    ctx.lineJoin = "round";
-    // The body: black, the top-right corner cut.
-    ctx.fillStyle = "rgba(0,0,0,.45)";
-    poly([[6, 6], [W - 14, 6], [W + 6, 26], [W + 6, H + 6], [6, H + 6]]);
-    ctx.fill();
-    ctx.fillStyle = "#0f0d12";
-    poly([[0, 0], [W - 20, 0], [W, 20], [W, H], [0, H]]);
-    ctx.fill();
-    // The header: the player's tag and name.
-    ctx.fillStyle = color;
-    ctx.fillRect(5, 3, 28, 26);
-    ctx.fillStyle = "#fff";
-    ctx.font = `800 13px ${this.fontDisplay}`;
-    ctx.textAlign = "center";
-    ctx.fillText(`P${slot + 1}`, 19, 21);
-    ctx.textAlign = "left";
-    ctx.font = `800 14px ${this.fontDisplay}`;
-    ctx.fillText(name, 40, 21, locked ? 92 : 150);
-    if (locked) {
-      ctx.fillStyle = "#f2b705";
-      ctx.textAlign = "right";
-      ctx.font = `800 12px ${this.fontDisplay}`;
-      ctx.fillText("LOCKED ✓", W - 24, 21);
-    }
-    ctx.fillStyle = "#f2b705";
-    ctx.fillRect(0, 32, W - 4, 3);
-    // The five rows.
-    CONSTELLATIONS.forEach((id, i) => {
-      const ry = 40 + i * 28;
-      const by = a.pick.indexOf(id);
-      const chosen = by === slot, taken = by >= 0 && by !== slot;
-      const focus = !locked && a.cur[slot] === i;
-      ctx.fillStyle = chosen ? "#f2b705" : focus ? "#3b3b45" : taken ? "#17171b" : "#26262c";
-      ctx.fillRect(7, ry, W - 14, 25);
-      if (focus) {
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2.5;
-        ctx.strokeRect(8, ry + 1, W - 16, 23);
-        ctx.fillStyle = color;
-        ctx.fillRect(7, ry, 6, 25);
-      }
-      ctx.fillStyle = "#0f0d12";
-      ctx.fillRect(16, ry + 2, 34, 21);
-      ctx.globalAlpha = taken || (locked && !chosen) ? 0.4 : 1;
-      drawStar(ctx, id, 33, ry + 12.5, 28, 1);
-      ctx.font = `800 14px ${this.fontDisplay}`;
-      ctx.textAlign = "left";
-      ctx.fillStyle = chosen ? "#0f0d12" : "#fff";
-      ctx.fillText(starInfo(id).name.toUpperCase(), 58, ry + 17.5);
-      ctx.globalAlpha = 1;
-      ctx.textAlign = "right";
-      ctx.font = `800 11px ${this.fontDisplay}`;
-      if (taken) {
-        ctx.fillStyle = SLOT_COLOR[by];
-        ctx.fillText(`P${by + 1}`, W - 16, ry + 17);
-      } else if (focus && mine) {
-        ctx.fillStyle = color;
-        ctx.fillText("◀  ▶", W - 16, ry + 17);
-      } else if (chosen) {
-        ctx.fillStyle = "#0f0d12";
-        ctx.fillText("LOCKED", W - 16, ry + 17);
-      }
-    });
-    // The yellow plate: what the focused constellation grants.
-    const shown = locked ? a.pick[slot]! : CONSTELLATIONS[a.cur[slot]];
-    const info = starInfo(shown);
-    ctx.fillStyle = "#f2b705";
-    poly([[0, 186], [W, 186], [W, H], [12, H]]);
-    ctx.fill();
-    ctx.fillStyle = "#0f0d12";
-    ctx.textAlign = "left";
-    ctx.font = `800 16px ${this.fontDisplay}`;
-    ctx.fillText(info.name.toUpperCase(), 14, 205);
-    let fs = 11.5;
-    ctx.font = `700 ${fs}px ${this.fontBody}`;
-    while (ctx.measureText(info.skill).width > W - 28 && fs > 8) ctx.font = `700 ${(fs -= 0.5)}px ${this.fontBody}`;
-    ctx.fillText(info.skill, 14, 222);
-    ctx.fillStyle = starColor(shown);
-    ctx.fillRect(0, 186, 5, H - 186);
-    // How to choose (on the player's own panel).
-    if (mine && !locked) {
-      ctx.fillStyle = "#0f0d12";
-      ctx.fillRect(0, H + 6, W, 20);
-      ctx.fillStyle = "#fff9ed";
-      ctx.textAlign = "center";
-      ctx.font = `700 10.5px ${this.fontBody}`;
-      ctx.fillText("◀ ▶  CHOOSE    PUNCH  LOCKS IT", W / 2, H + 19.5);
-    }
-    ctx.restore();
-  }
-
-  // The headline of a guided pause, under the HUD: what to do, and who has done it (P1 ✓ / P2 ...).
-  private cueBanner(ctx: CanvasRenderingContext2D, cue: Cue, now: number, z: number, y = 168 + 10 * (z - 1)) {
-    const size = Math.round(30 * Math.min(z, 1.35));
-    ctx.save();
-    ctx.translate(ARENA.w / 2, y);
-    ctx.rotate(-0.025);
-    ctx.font = `800 ${size}px ${this.fontDisplay}`;
-    ctx.textAlign = "center";
-    const w = ctx.measureText(cue.text).width + 56;
-    const h = size + 18;
-    ctx.fillStyle = "rgba(0,0,0,.35)";
-    ctx.fillRect(-w / 2 + 6, -h / 2 + 6, w, h);
-    ctx.fillStyle = "#0f0d12";
-    ctx.fillRect(-w / 2, -h / 2, w, h);
-    ctx.fillStyle = "#f2b705";
-    ctx.fillRect(-w / 2, h / 2 - 5, w, 5);
-    ctx.fillStyle = "#fff9ed";
-    ctx.fillText(cue.text, 0, size * 0.34);
-    if (cue.target) {
-      ctx.font = `800 ${Math.round(13 * Math.min(z, 1.3))}px ${this.fontDisplay}`;
-      cue.done.forEach((d, slot) => {
-        ctx.fillStyle = d ? "#f2b705" : slot === 0 ? "#ff7a5c" : "#7c9bff";
-        ctx.fillText(`P${slot + 1} ${d ? "✓" : "…"}`, (slot === 0 ? -1 : 1) * (w / 2 - 34), h / 2 + 18);
-      });
-    }
-    ctx.restore();
+  // The big word of a phase, on a plate.
+  big(ctx: CanvasRenderingContext2D, text: string, y: number, size: number) {
+    this.ui.big(ctx, text, text === "FIGHT!" ? "gold" : /^(K\.O\.|TIME|DRAW)/.test(text) ? "red" : "black", y, size);
   }
 
 }

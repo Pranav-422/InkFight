@@ -3,7 +3,7 @@
 // impact FX (smears, rings, ink splats, hit-stop shake) and the HUD.
 
 import { normClass } from "../lib/stats";
-import { ARENA_TUNE, starInfo } from "./arena";
+import { ARENA_TUNE } from "./arena";
 import { starColor } from "./arenaStars";
 import { ArenaView, ROW } from "./arenaRender";
 import { getReduceFlashes } from "./flashes";
@@ -1446,9 +1446,9 @@ export class Renderer {
 
   private hud(s: Snapshot, hud: HudInfo, now: number) {
     const { ctx } = this;
-    // The opening ceremony shows no health bars or clock yet: its title, the constellations and the pop-ups (src/game/arenaRender.ts).
-    if (s.arena && this.arenaView && (s.cue?.id === "open" || s.cue?.id === "pick" || s.cue?.id === "reveal")) {
-      this.arenaView.hud(ctx, s, now, Math.min(1.9, Math.max(1, 560 / this.canvas.clientWidth)), { names: hud.names, you: hud.you });
+    // An arena fight has its own interface (src/game/arenaHud.ts): a black band across the top, gold plates, the pop-up of the opening ceremony.
+    if (s.arena && this.arenaView) {
+      this.arenaView.hud(ctx, s, now, Math.min(1.9, Math.max(1, 560 / this.canvas.clientWidth)), { names: hud.names, you: hud.you, admin: hud.buffs, buffs: this.buffs });
       return;
     }
     const barW = 360;
@@ -1456,15 +1456,15 @@ export class Renderer {
     // On a phone the arena is drawn at ~0.4x; enlarge HUD text so it stays readable.
     const z = Math.min(1.9, Math.max(1, 560 / this.canvas.clientWidth));
     // KO slow-mo cinema bars are ink-dark: lay paper plates under the HUD so names and timer stay readable.
-    if (s.slow > 0 || s.arena) {
-      ctx.fillStyle = s.arena && s.slow <= 0 ? "rgba(255,249,237,.82)" : C.paper; // an arena's backdrop is busy and dark: always a plate under the HUD
+    if (s.slow > 0) {
+      ctx.fillStyle = C.paper;
       for (const x of [pad - 12, ARENA.w - pad - barW - 12]) {
         ctx.beginPath();
         ctx.roundRect(x, 10, barW + 24, 98 + 8 * (z - 1), 12);
         ctx.fill();
       }
       ctx.beginPath();
-      ctx.roundRect(ARENA.w / 2 - (s.arena ? 100 : 50), 10, s.arena ? 200 : 100, 82 + 8 * (z - 1), 12);
+      ctx.roundRect(ARENA.w / 2 - 50, 10, 100, 82 + 8 * (z - 1), 12);
       ctx.fill();
     }
 
@@ -1485,27 +1485,9 @@ export class Renderer {
         ctx.fillStyle = C.gold;
         ctx.fillText("BUFF", left ? x + w : x + barW - w, 40);
       }
-      // The stars' blessing, once it is shown: a gold chip with the roll ("+32%") beside the name.
-      if (this.buffs[slot] > 0) {
-        ctx.font = `800 ${Math.round(22 * z)}px ${this.fontDisplay}`;
-        const nameW = Math.min(barW - 70, ctx.measureText(name).width) + 8 + (hud.buffs?.[slot] ? Math.round(44 * z * 0.8) : 0);
-        const label = `+${this.buffs[slot]}%`;
-        ctx.font = `800 ${Math.round(13 * z)}px ${this.fontDisplay}`;
-        const tw = ctx.measureText(label).width + 12, th = Math.round(18 * z);
-        const cx = left ? x + nameW : x + barW - nameW - tw;
-        ctx.fillStyle = C.gold;
-        ctx.fillRect(cx, 40 - th + 4, tw, th);
-        ctx.strokeStyle = C.ink;
-        ctx.lineWidth = 2;
-        ctx.strokeRect(cx, 40 - th + 4, tw, th);
-        ctx.fillStyle = C.ink;
-        ctx.textAlign = "center";
-        ctx.fillText(label, cx + tw / 2, 40 - 1);
-        ctx.textAlign = left ? "left" : "right";
-      }
 
-      // Round wins as dots next to the name (an arena fight is one round: no dots)
-      for (let i = 0; i < (s.arena ? 0 : WINS_NEEDED); i++) {
+      // Round wins as dots next to the name
+      for (let i = 0; i < WINS_NEEDED; i++) {
         const cx = left ? x + barW - 10 - i * 18 : x + 10 + i * 18;
         ctx.beginPath();
         ctx.arc(cx, 33, 6, 0, Math.PI * 2);
@@ -1519,11 +1501,7 @@ export class Renderer {
       if (z < 1.2) {
         ctx.font = `600 12px ${this.fontBody}`;
         ctx.fillStyle = C.muted;
-        // The arena's pool is 18x a normal fight's, so a percentage reads better than 3600 / 3600.
-        const hpText = s.arena ? `${Math.max(0, Math.ceil(hpPct * 100))}%` : `${Math.ceil(f.hp)} / ${s.maxHp[slot]}`;
-        const weak = s.arena?.weak[slot] ?? 0;
-        const star = s.arena?.pick[slot];
-        ctx.fillText(`${hpText}  ·  ${s.styles[slot]}${star ? `  ·  ★ ${starInfo(star).name}` : ""}${weak > 0.01 ? `  ·  SCORCHED -${Math.round(weak * 100)}% DMG` : ""}`, left ? x : x + barW, 98);
+        ctx.fillText(`${Math.ceil(f.hp)} / ${s.maxHp[slot]}  ·  ${s.styles[slot]}`, left ? x : x + barW, 98);
       }
 
       // Side skill: a short bar in the free space beside the energy meter (blue when ready).
@@ -1554,10 +1532,6 @@ export class Renderer {
       }
     }
 
-    if (s.arena && this.arenaView) {
-      this.arenaView.hud(ctx, s, now, z, { names: hud.names, you: hud.you });
-      return;
-    }
     // Round timer
     const secs = Math.ceil(s.timer / TICK_HZ);
     ctx.textAlign = "center";
@@ -1598,7 +1572,7 @@ export class Renderer {
       color = C.hit;
     }
     if (this.banner) {
-      this.big(this.banner.text, this.banner.color, 190, 38);
+      this.big(this.banner.text, this.banner.color, this.onStage ? 236 : 190, 38); // (an arena's banner sits lower: the clock's notch and the stamps are above)
       if (--this.banner.life <= 0) this.banner = null;
     }
     if (text) this.big(text, color, ARENA.h / 2 - 20, 72);
@@ -1606,6 +1580,10 @@ export class Renderer {
 
   private big(text: string, color: string, y: number, size: number) {
     const { ctx } = this;
+    if (this.onStage && this.arenaView) {
+      this.arenaView.big(ctx, text, y, size); // an arena's words are drawn on plates, in its own colours
+      return;
+    }
     ctx.save();
     ctx.textAlign = "center";
     ctx.font = `800 ${size}px ${this.fontDisplay}`;

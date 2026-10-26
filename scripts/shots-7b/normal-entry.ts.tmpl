@@ -1,0 +1,44 @@
+// Draws real Renderer frames of a normal (non-arena) fight at fixed moments, for a pixel comparison between two checkouts of the repo (a change to the
+// arena's interface must not move one pixel of a normal fight). __ROOT__ is replaced by compare-normal.mjs with the checkout's folder. A development
+// tool, not part of the game (a template, not a .ts file, so the project's type check leaves it alone).
+import { cpuThink, newBrain } from "__ROOT__/src/game/cpu";
+import { CLASS_ITEM, CLASS_SPECIAL, CLASS_STYLE } from "__ROOT__/src/game/moves";
+import { Renderer } from "__ROOT__/src/game/render";
+import { createMatch, EMPTY_INPUT, snapshot, step } from "__ROOT__/src/game/sim";
+import { ruleStats } from "__ROOT__/src/lib/stats";
+
+const neutral = { size: "medium", pose: "neutral", dominant_colors: [] } as const;
+const kit = (cls: string) => ({ ...ruleStats(cls, { ...neutral, dominant_colors: [] }), class: cls, item: CLASS_ITEM[cls], style: CLASS_STYLE[cls], specialKind: CLASS_SPECIAL[cls] });
+
+declare global { interface Window { capture: (ticks: number[]) => Record<string, string> } }
+
+window.capture = (ticks) => {
+  let seed = 11;
+  Math.random = () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const canvas = document.getElementById("c") as HTMLCanvasElement;
+  const r = new Renderer(canvas);
+  r.resize();
+  const ia = { ...EMPTY_INPUT }, ib = { ...EMPTY_INPUT };
+  const m = createMatch(kit("Mace"), kit("Attacker"), [ia, ib]);
+  const brains = [newBrain("normal"), newBrain("normal")];
+  const hud = { names: ["Sir Scribbles", "Margin Fist"] as [string, string], specialNames: ["Slash", "Wave"] as [string, string], you: 0 as 0 | 1 };
+  const out: Record<string, string> = {};
+  let prev = snapshot(m), now = 1000;
+  for (let t = 1; t <= Math.max(...ticks); t++) {
+    cpuThink(m, 0, brains[0], ia);
+    cpuThink(m, 1, brains[1], ib);
+    step(m, [ia, ib]);
+    const cur = snapshot(m);
+    r.ingest(cur, hud);
+    now += 16;
+    r.draw(prev, cur, 1, hud, now);
+    if (ticks.includes(t)) out["t" + t] = canvas.toDataURL("image/png");
+    prev = cur;
+  }
+  return out;
+};

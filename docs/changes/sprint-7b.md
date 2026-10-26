@@ -57,16 +57,18 @@ jumper (AGI 40 / SPD 40), a strong one (AGI 100) and a mixed one: all finish in 
 Phone (390 px canvas, device scale 3):
 
 ![](sprint-7b/a-climb-start-phone.png)
+![](sprint-7b/a-climb-stairs-phone.png)
 ![](sprint-7b/a-climb-ring-up-phone.png)
+![](sprint-7b/a-fight-resumes-phone.png)
 
 ### B. Opening ceremony and constellations (the first 15 s, no fighting)
 
 An arena fight now opens with three guided pauses (the story's first beats, `open` → `pick` → `settle`; the intro title card before them is 1.5 s):
 
 1. **`open`, "THE STARS WAKE" (2 s):** all five constellations light up in the sky; the camera looks up (zoom 0.85) with the sky above and the fighters below; no health bars
-   or clock yet, a title card ("ARENA 1 / INFERNO CRATER") instead.
-2. **`pick`, "CHOOSE YOUR CONSTELLATION" (9 s at the most):** each fighter gets a black-and-grey pop-up (P1 left, P2 right) listing the five, the cursor in their colour, the
-   focused one's skill on a yellow plate. **Left / right move the cursor one place per press** (a held key doesn't repeat), **punch locks it**: keys, the on-screen D-pad and
+   or clock yet, a title bar ("ARENA 1 / INFERNO CRATER") instead.
+2. **`pick`, "SELECT YOUR CONSTELLATION" (9 s at the most):** the five on a roster strip between the fighters, each fighter's cursor in their colour, and a gold plate in each lower corner
+   with the focused one's name and skill (the layout is the select screen's: see G). **Left / right move the cursor one place per press** (a held key doesn't repeat), **punch locks it**: keys, the on-screen D-pad and
    PUNCH button, or a gamepad. A constellation someone has locked can't be locked again and the cursor skips it. If both lock on the same tick P1 gets it and P2's press is
    consumed (it must not lock the next one by surprise). When both are locked the pause lingers 0.75 s so the stamp reads; a fighter who hasn't locked when the 9 s run out gets the one
    under the cursor. **The computer picks at random** (`Math.random` in its brain, like the rest of its play): it thinks 0.75-3.5 s, scrolls one place every 8 ticks and punches.
@@ -93,7 +95,7 @@ behind `m.arena`.
 - `src/game/sim.ts`: the intro leads into the ceremony for an arena fight (`ARENA_TUNE.ceremony.intro`), `arenaCueInput` is called before the fighters update, the hooks.
 - `src/game/arenaStars.ts` (new): the five constellations drawn procedurally (stars joined by lines, each its own colour), baked once to a small canvas and stamped with an alpha.
 - `src/game/arenaRender.ts`, `render.ts`: the sky (all five in a row, rings and tags for who looks at / locked which, the glide at the settle, the dull pair afterwards), the sky
-  dimmed while the stars are the point, the ceremony camera, the pop-ups (a compact one for a phone: only the player's own, larger), the title card, `★ Serpent` beside each name,
+  dimmed while the stars are the point, the ceremony camera, the pop-up and the title bar (G), `★ Serpent` beside each name,
   `chime` (a lock), `shimmer` (the stars waking) and a tick when the local player's cursor moves (`src/game/sound.ts`).
 - `src/game/arenaNav.ts`: `pickNav`.
 
@@ -115,6 +117,7 @@ Phone (390 px canvas, device scale 3; only the player's own pop-up, larger):
 
 ![](sprint-7b/b-open-phone.png)
 ![](sprint-7b/b-pick-choosing-phone.png)
+![](sprint-7b/b-pick-one-locked-phone.png)
 ![](sprint-7b/b-pick-both-locked-phone.png)
 ![](sprint-7b/b-settle-phone.png)
 ![](sprint-7b/b-fight-phone.png)
@@ -151,6 +154,7 @@ Phone:
 ![](sprint-7b/c-fade-1to2-phone.png)
 ![](sprint-7b/c-scene2-heatwave-phone.png)
 ![](sprint-7b/c-scene3-fracture-phone.png)
+![](sprint-7b/c-fade-3to4-phone.png)
 ![](sprint-7b/c-scene4-warning-phone.png)
 
 ### D. Scene 3: the cracks leak lava
@@ -302,6 +306,51 @@ Phone, the ring:
 
 (Still frames: the "Slash!" word is the last blow's floating text, which the screenshot tool, drawing one frame in four while it plays the fight, leaves up for longer than a real 60 fps game does.)
 
+### G. The interface in the reference's style
+
+Everything the arena draws over the picture now follows `docs/design/arena-1/ui-reference.png` (a fighting game's select screen), in the colours of the Versus panel the owner approved (gold `#f2b705`, P1 red `#e5482d`, P2 blue
+`#2f5be0`, black plates with a thin white outline, cut on the slant, a faint brush texture; heavy uppercase type, small caps over big type). The pieces live in `src/game/arenaUi.ts`, the arena's interface in
+`src/game/arenaHud.ts`. A normal fight is untouched: its HUD code is main's, and frames of a normal fight at six moments (ticks 60 to 1500) are **byte-identical to main's** (`scripts/shots-7b/compare-normal.mjs`).
+
+- **The HUD** is one black band across the top, washed red from the left and blue from the right, with a gold edge, and the clock hanging from a notch in it like the select screen's title (small caps for the scene,
+  `1/5 · ARRIVAL`, over the clock in big type; the last 10 s flash red). Each side has a skewed P1 / P2 tag, **a gold name plate with heavy black type** (the select screen's "GUNNER" plates), a gold chip with the star's
+  roll once it is known (`+42%`), a "YOU" chip, the constellation in its own colour, a slanted **health bar** (yellow, orange under half, a red pulse under a quarter, a pale trail behind it for what was just lost, quarter
+  notches, the number at the inner end), the energy bar (a notch at half; it pulses at full, with SPECIAL READY / ULTIMATE READY beside it, no longer on top of the health caption), the side-skill bar, and the fighting
+  style and the scorch on a small line under them. The combo counter hangs under the band.
+- **The opening ceremony** has the select screen's title bar: a black band with the title in a notch ("SELECT YOUR / CONSTELLATION", "ARENA 1 / INFERNO CRATER" while the stars wake), the controls hinted on the left like
+  BACK / SELECT, the arena on the right.
+- **The constellation pop-up** is the select screen's layout: **one roster strip of the five constellations between the two fighters**, each fighter's cursor in their colour with a skewed P1 / P2 tag over the tile (a gold
+  frame and a "P1 ✓" tag once locked, the tile lifts), and **a gold name plate in each lower corner** with the focused constellation's name in heavy type, what it grants under it, a stripe in its colour down the slanted
+  edge, a black tab over it with who is choosing and a LOCKED ✓ stamp. The two plates slide in from the sides. On a phone only the player's own plate is drawn, bigger, under the strip. The cursors and tags hanging in the sky
+  are drawn after the hanging rocks now, so nothing covers them.
+- **The ring** wears the two fighters' colours, split down the middle: the two outer ropes are the left fighter's colour on the left half and the right fighter's on the right (meeting at a gold knot), the middle rope is
+  white, the rope pads and the glowing orb on each post are the side's colour, the posts are black with a white edge and hazard stripes at the foot, with a gold slanted cap, and a black apron with a gold line runs along the
+  platform's edge. Which colour is on which side follows who is standing where (not always P1 on the left).
+- **Words and banners:** the big word of a phase is on a slanted plate ("FIGHT!" gold with black type, "K.O.!" / "TIME!" / "DRAW!" red, "ARENA 1" / "READY…" black); the headline of a guided pause is a black plate with a gold
+  foot line and P1 / P2 tags (gold with a tick once in place); the roll in the reveal is a gold plate with the blessing on a black tab over it; the scene-change stamp is a gold plate, and the warnings (GROUND CRACKING,
+  METEOR INCOMING, ...) are red slanted tags that hang under the clock's notch.
+- **On a phone** the same band is drawn at the size the 390 px canvas needs, without its small print (the style line, the constellation's name), "YOU" for the player, the scene as `1/5`.
+
+Compare the reference and the pop-up (the same layout, the same type, the same colours; the painted art is the one thing a canvas can't borrow):
+
+![The reference, and the pop-up built from it](sprint-7b/g-reference-vs-ours.png)
+
+![The ARENA 1 plate](sprint-7b/g-intro.png)
+![FIGHT!, and the scene stamp](sprint-7b/g-fight-start.png)
+![Health low: the red pulse, the pale trail, ULTIMATE READY](sprint-7b/g-hud-lowhp.png)
+![A warning under the clock](sprint-7b/g-warn-crack.png)
+![METEOR INCOMING](sprint-7b/g-warn-meteor.png)
+
+Phone:
+
+![](sprint-7b/g-intro-phone.png)
+![](sprint-7b/g-fight-start-phone.png)
+![](sprint-7b/g-hud-lowhp-phone.png)
+![](sprint-7b/g-warn-crack-phone.png)
+![](sprint-7b/g-warn-meteor-phone.png)
+
+(The ceremony's pop-up is in section B, the ring and the roll in E, the ending in F: those screenshots were all taken again after this part, so they show this interface.)
+
 ## 2. Decisions (everything the sheet left open, with the values chosen)
 
 All numbers are in `ARENA_TUNE` (`src/game/arena.ts`).
@@ -324,7 +373,7 @@ B2. **Two fighters never share a constellation** ("only the two chosen constella
 B3. **A fighter who doesn't choose gets the one under the cursor** after 9 s: nobody holds the match, and the CPU or an AFK player isn't a problem.
 B4. **The ceremony is 1.5 s of title card + at most 13.75 s of beats = 15.25 s**; with two players locking quickly it is about 8 s.
 B5. **Skills apply to the whole fight** ("all match" for the Hare), not only scene 5; they stack with the scene 5 boost. Phoenix means crack and lava damage only (not meteors or heat).
-B6. **The HUD hides during the opening** (no health bars or clock yet), and the pop-ups sit at the screen's corners so the fighters (who start at 28% / 72% of the width) stay visible between them.
+B6. **The HUD hides during the opening** (no health bars or clock yet), and the pop-up leaves the fighters (who start at 28% / 72% of the width) visible: the roster strip sits between them, the name plates in the lower corners (G3).
 B7. **Wording of the skills in the pop-up is generated from `ARENA_TUNE.stars`** (`starInfo`), so retuning a number retunes the text.
 
 C1. **The weather fade is on the world clock** (not the match clock), so it keeps running through a guided pause: scene 5's eruption sky comes in while "Get up there!" holds the fight.
@@ -361,6 +410,16 @@ F6. **The clock decides the same way a knockout does**, with one visible differe
 F7. **The ending is part of the match, so it isn't skippable.** It takes 7.6 s on average and 9.1 s at the most with the computer (the test allows 4-12 s); the sheet's own list (kick, star, calm sky, then the panel) takes that long, and the result panel isn't delayed past it.
 F8. **Relay and resume:** the ending is ordinary snapshot state (`ArenaState.end` plus the fighters' positions it sets each tick), so a guest on the relay (a snapshot every 4th tick) interpolates it, and a resumed match
     plays out the same ending (asserted).
+
+G1. **The arena draws its own HUD** (one branch at the top of `Renderer.hud()`), instead of restyling the shared one: the normal HUD's code is main's text, verbatim, and a fight outside the arena is
+    byte-identical on screen (checked by pixel comparison, not by reading the diff). The arena-only branches that had crept into it in pass 1 (the percent, the chips, the paper plate) are gone from it.
+G2. **Our gold, not the reference's lemon.** The reference's plates are a brighter yellow than the theme's `#f2b705`; the Versus panel the owner approved uses ours, so the canvas does too.
+G3. **The strip is shared and the plates are per player,** as in the reference (both cursors live on one roster strip, each fighter has their own name plate). That is a different layout from pass 1's two vertical lists, and it is
+    more natural for a left / right choice. The plates sit in the lower corners, narrow enough that the fighters (who stand at 28% and 72% of the width) are not covered.
+G4. **The health bar is yellow, not ink.** Ink on a black band can't be seen; yellow is the select screen's accent. Orange under half and a red pulse under a quarter replace the old ink / gold / red.
+G5. **The ring's colours follow who stands on each side,** not the slot: the one who took the left mark is on the left (see E8), and the post and the ropes beside them are their colour.
+G6. **The constellations' row hangs 20 px lower** (`ROW`), clear of the title's notch, and the sky cursors are drawn after the hanging rocks so a rock can't cover a P1 / P2 tag (it did in part B's screenshots).
+G7. **The phone layout is the desktop layout drawn bigger,** not a second design: the band is scaled by the same factor the old HUD used (up to 1.9), and loses what can't be read at that size.
 
 
 ## 3. Gate output
@@ -1435,15 +1494,310 @@ exit 0
 balance diff vs main: empty (identical)
 ```
 
+### Part G, and the whole gate (adds check-stats, check-stick, the dungeon curve and `next build`)
+
+The interface changes nothing in the sim, so the results below are the same as part F's; the full gate is run here once, on the final tree.
+
+```
+$ npx tsc --noEmit
+exit 0
+
+$ npm run lint
+
+> inkfight@0.1.0 lint
+> eslint
+
+exit 0
+
+$ npx tsx scripts/check-sim.ts
+check-sim: all good
+exit 0
+
+$ npx tsx scripts/check-stats.ts
+check-stats: all good {
+  bare: {
+    fill: 0.1364685908319185,
+    aspect: 0.3064516129032258,
+    stance: 0.23870967741935484,
+    armSpread: 0.3032258064516129,
+    colors: [ 'black' ],
+    item: 'nothing',
+    penWidth: 5.653679653679653
+  },
+  shield: 'shield',
+  thickW: 10.338589981447123,
+  thinW: 3.2944120100083403
+}
+check-gemini: all good Ink-ame-hameha
+exit 0
+
+$ npx tsx scripts/check-stick.ts
+check-stick: all good
+exit 0
+
+$ npx tsx scripts/dungeon.ts
+floor  boss                    clear   target   (100 matches each, normal CPU as the player, 5 classes)
+    1  Smudge                    80%     85%
+    2  Cinder Knuckle            74%     78%
+    3  Volt Nib                  64%     70%
+    4  Whiteout                  62%     62%
+    5  Prince Vellum             49%     54%
+    6  Dawnstroke                37%     46%
+    7  Ferrule                   38%     38%
+    8  Hardcover Atlas           29%     30%
+    9  Asymptote                 15%     22%
+   10  The Redline Regent        20%     15%
+curve: falls floor by floor
+exit 0
+
+$ npx tsx scripts/arena.ts
+weakest fighter (AGI 40, SPD 40): jump apex 106.3 px, 34 ticks in the air, 102 px sideways at walking speed
+
+scene 1-4: the floor (tick 0, 0 s, lava y 540)
+200 |||                                                                                          |||
+220 |||                                                                                          |||
+240 |||                                                                                          |||
+260 |||                                                                                          |||
+280 |||                                                                                          |||
+300 |||                                                                                          |||
+320 |||                                                                                          |||
+340 |||                                                                                          |||
+360 |||                                                                                          |||
+380 |||                                                                                          |||
+400 |||                                                                                          |||
+420 |||                                                                                          |||
+440 |||                                                                                          |||
+460 |||                                                                                          |||
+480 |||##########################################################################################|||
+500 |||                                                                                          |||
+520 |||                                                                                          |||
+
+scene 4, 5 s before the stairs: dust where they will rise (tick 8760, 146 s, lava y 540)
+200 |||                                                                                          |||
+220 |||                                                                                          |||
+240 |||                                                                                          |||
+260 |||                                                                                          |||
+280 |||                                                                                          |||
+300 |||                                                                                          |||
+320 |||                                                                                          |||
+340 |||                                                                                          |||
+360 |||                                                                                          |||
+380 |||                                                                                          |||
+400 |||                                                                                          |||
+420 |||                                                                                          |||
+440 |||                                                                                          |||
+460 |||                                                                                          |||
+480 |||###::::::::###################################################################::::::::####|||
+500 |||       1                                                                          2       |||
+520 |||                                                                                          |||
+
+scene 5, step 1 rising (tick 9030, 151 s, lava y 539)
+200 |||                                                                                          |||
+220 |||                                                                                          |||
+240 |||                                                                                          |||
+260 |||                                                                                          |||
+280 |||                                                                                          |||
+300 |||                                                                                          |||
+320 |||                                                                                          |||
+340 |||                                                                                          |||
+360 |||                                                                                          |||
+380 |||                                                                                          |||
+400 |||                                                                                          |||
+420 |||                                                                                          |||
+440 |||   ========                                                                   ========    |||
+460 |||       1                                                                          2       |||
+480 |||#############:::::::##################################################:::::::#############|||
+500 |||                3                                                        4                |||
+520 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+
+scene 5, steps 1 up, 2 and the final platform warn (tick 9200, 153 s, lava y 535)
+200 |||                                                                                          |||
+220 |||                                                                                          |||
+240 |||                                                                                          |||
+260 |||                                                                                          |||
+280 |||                                                                                          |||
+300 |||                                                                                          |||
+320 |||                                                                                          |||
+340 |||             =======                                                  =======             |||
+360 |||                3                                                        4                |||
+380 |||                                                                                          |||
+400 |||   ========                                                                   ========    |||
+420 |||       1                                                                          2       |||
+440 |||                                                                                          |||
+460 |||                                                                                          |||
+480 |||#####################::::::::::::::::::::::::::::::::::::::::::::::::#####################|||
+500 |||                                             5                                            |||
+520 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+
+scene 5, everything up (tick 9420, 157 s, lava y 530)
+200 |||                                                                                          |||
+220 |||                                                                                          |||
+240 |||                                                                                          |||
+260 |||                                                                                          |||
+280 |||                     ================================================                     |||
+300 |||                                             5                                            |||
+320 |||                                                                                          |||
+340 |||             =======                                                  =======             |||
+360 |||                3                                                        4                |||
+380 |||                                                                                          |||
+400 |||   ========                                                                   ========    |||
+420 |||       1                                                                          2       |||
+440 |||                                                                                          |||
+460 |||                                                                                          |||
+480 |||##########################################################################################|||
+500 |||                                                                                          |||
+520 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+
+5:00, lava at its highest (tick 18000, 300 s, lava y 315)
+200 |||                                                                                          |||
+220 |||                                                                                          |||
+240 |||                                                                                          |||
+260 |||                                                                                          |||
+280 |||                     ================================================                     |||
+300 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~5~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+320 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+340 |||~~~~~~~~~~~~~=======~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~=======~~~~~~~~~~~~~|||
+360 |||~~~~~~~~~~~~~~~~3~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~4~~~~~~~~~~~~~~~~|||
+380 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+400 |||~~~========~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~========~~~~|||
+420 |||~~~~~~~1~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~2~~~~~~~|||
+440 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+460 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+480 |||##########################################################################################|||
+500 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+520 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+
+layout asserts
+  rises <= 69.1 (staircase: 66, 66, 133, 133), gaps <= 70.0, final platform 480 px wide (380 needed), 200 px up. ok
+
+the climb pause with the real sim (nobody fights; both fighters are computer-driven):
+  AGI 40 / SPD 40: 65:8.1s 100:8.1s 150:7.5s 230:10.4s 300:10.0s 480:9.5s 650:10.0s 740:10.5s 810:7.5s 895:8.1s
+  AGI 100 / SPD 100: 65:7.8s 100:7.9s 150:7.9s 230:7.7s 300:7.7s 480:7.7s 650:7.7s 740:7.7s 810:7.9s 895:7.8s
+  AGI 70 / SPD 40: 65:7.8s 100:7.6s 150:7.7s 230:7.5s 300:7.5s 480:7.5s 650:7.5s 740:7.5s 810:7.7s 895:7.8s
+
+CPU vs CPU, normal level: 220 arena fights over 15 class pairs, both seats
+  24 s. ended by KO 179, by the clock 41 (draws 0); average 339 s of play (the clock holds during hit-stop)
+  fighters in scene 5: 438/440; still fighting 10 s after the stairs stood: 434; of those on the final platform at some point: 100.0% (both fighters of a fight: 100.0% of 217)
+  opening ceremony: 8.6 s on average, 9.4 s at the most (the sheet: first 15 s); the computer picked comet 20%, hare 19%, phoenix 21%, serpent 18%, tortoise 21%; two fighters on one constellation: 0
+  ring entry (the climb, the marks, the stars answering): 14.5 s on average, 16.9 s at the most, over 219 fights
+  plausibility buffs: 10-50%, mean 29.3%; the fighter with the bigger buff won 64% of 211 decided fights (swingy by design); fighters seen below the ring in a fight: 0
+  endings: 220 kicked into the lava (219 off the ring, 1 off the floor), 0 draws; the ending takes 7.6 s on average, 9.1 s at the most; splashes out of place or kicks missing: 0
+  fighters lifted onto the final platform by a pause timeout: 0
+  hazards dealt 8.7% of all damage (121377 of 1398049)
+
+CPU vs CPU, hard level: 300 fights per class pair (±6%)
+  309 s. Sword-Mace 53%, Sword-Tank 51%, Sword-Attacker 53%, Sword-Fighter 49%, Mace-Tank 58%, Mace-Attacker 50%, Mace-Fighter 56%, Tank-Attacker 52%, Tank-Fighter 45%, Attacker-Fighter 47%
+  fair: every pair within 45-58% (target 35-65%)
+
+determinism: the first 6 fights replay identically
+
+ok: all arena checks passed (scenes: ARRIVAL > HEATWAVE > GROUND FRACTURE > VOLCANIC WARNING > ELEVATED FINAL ARENA)
+exit 0
+
+$ npx tsx scripts/balance.ts 200
+win rate of row vs column (hard CPU, default kits, 200 matches each) · avg round length
+         Sword     | Mace      | Tank      | Attacker  | Fighter  
+Sword     51% 23s |  55% 23s |  59% 29s |  39% 18s |  51% 25s
+Mace      49% 22s |  55% 23s |  56% 28s |  44% 19s |  51% 24s
+Tank      40% 29s |  44% 29s |  51% 40s |  56% 26s |  58% 30s
+Attacker  58% 19s |  54% 19s |  45% 26s |  51% 16s |  43% 20s
+Fighter   56% 24s |  55% 24s |  39% 30s |  59% 20s |  41% 25s
+pairs (400 matches each, ±2.5%): Sword-Mace 53%, Sword-Tank 60%, Sword-Attacker 41%, Sword-Fighter 48%, Mace-Tank 56%, Mace-Attacker 45%, Mace-Fighter 48%, Tank-Attacker 56%, Tank-Fighter 60%, Attacker-Fighter 42%
+fair: every pair within 41-60%
+
+stat line vs all-70 (200 kits, 2 matches each): one stat at 100, the other four ~62
+STR 53%  ·  DUR 52%  ·  SPD 55%  ·  AGI 50%  ·  IQ 50%
+ok: every stat line within 45-62%
+exit 0
+
+balance diff vs main: empty (identical)
+$ npx next build
+▲ Next.js 16.3.8 (Turbopack)
+✓ Running next.config.ts took 209ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 35.0s
+  Running TypeScript ...
+  Finished TypeScript in 5.7s ...
+  Collecting page data using 3 workers ...
+  Generating static pages using 3 workers (0/22) ...
+  Generating static pages using 3 workers (5/22) 
+  Generating static pages using 3 workers (10/22) 
+  Generating static pages using 3 workers (16/22) 
+✓ Generating static pages using 3 workers (22/22) in 224ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ƒ /_not-found
+├ ƒ /admin
+├ ƒ /api/admin/buff
+├ ƒ /api/battles
+├ ƒ /api/battles/lookup
+├ ƒ /api/characters
+├ ƒ /api/characters/[id]
+├ ƒ /api/characters/[id]/image
+├ ƒ /api/dungeon/clear
+├ ƒ /api/leaderboard
+├ ƒ /api/rooms/[code]
+├ ƒ /api/rooms/[code]/answer
+├ ƒ /api/server-info
+├ ƒ /api/turn
+├ ƒ /api/uploads/[file]
+├ ƒ /battle/[id]
+├ ƒ /battle/[id]/opengraph-image
+├ ƒ /boss-art/[floor]
+├ ƒ /build
+├ ƒ /card
+├ ƒ /character/[id]
+├ ƒ /create
+├ ƒ /demo
+├ ƒ /forgot
+├ ƒ /gallery
+├ ƒ /home
+├ ƒ /leaderboard
+├ ƒ /login
+├ ○ /manifest.webmanifest
+├ ƒ /play
+├ ƒ /play/[code]
+├ ƒ /play/cpu
+├ ƒ /play/dungeon
+├ ƒ /player/[id]
+├ ƒ /pwa-icon/[size]
+├ ƒ /security
+├ ƒ /share
+└ ƒ /signup
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+exit 0
+```
+
 ## 4. What I could NOT verify
 
-- A real phone, a second real device over the relay, a gamepad, the sound by ear, 60 fps on a mid phone. The screenshots are real Renderer frames of
-  computer-played fights in headless Chromium (desktop 960 x 540 and a 390 px phone canvas), not the app on a device.
-- A human climbing under a pause (the computer does it from every start; a person has to find the stairs: the headline, the marks and the arrows say where).
+- A real phone, a second real device over the relay, a gamepad, the sound by ear (the new sounds: `chime`, `shimmer`, `aura`, `splash`, `shoot`, and the grind, rumble and crack of pass 1 now played in new places), and 60 fps on a mid
+  phone. The screenshots are real Renderer frames of computer-played fights in headless Chromium (desktop 960 x 540 and a 390 px phone canvas), not the app on a device. The heaviest new drawing is the HUD's brush texture
+  and washes (a few gradients a frame), the heat warp and the loser's pale rim (a canvas shadow, only while they fly and sink).
+- Motion by eye. The screenshots are still frames; the timing of the slide-ins, the ropes rising, the star's streak, the loser's spin and the sky clearing was checked by reading the clock functions and the tests, not by
+  watching 60 fps.
+- A human playing it: climbing under a pause (the computer does it from every start; a person has to find the stairs: the headline, the marks and the arrows say where), choosing a constellation (the keys or the D-pad
+  move the cursor, as before; the strip is drawn to be read, not tapped) and watching the ending (7-9 s: nobody has told me whether that is too long, F7).
+- A relayed fight through the ceremony and the ending. Every new piece of state is in the snapshot and a resumed match carries on identically (tests), and `relay.ts` and `rooms.ts` are untouched, but I did not run one.
+- "Exactly" like the reference photo. The layout, the shapes, the type and the colours of the select screen are matched, in the Versus panel's gold (G2); the painted character art and the texture of the original are not
+  something a canvas can borrow. If a detail matters more than the layout (a particular yellow, an icon), say which.
+- "Reduce flashes" on the new effects (the boot's flash and shake, the heat warp, the stars' flare). They are scaled by it in the code; I did not see them on screen.
 
 ## 5. How to test it by hand
 
-1. `/play/cpu?arena=inferno` (or Fight a friend → Arena 1). At 2:30 on the clock (scene 5) the fight stops: "GET UP THERE!". Walk and jump (A / D / W, or the
-   stick) up the stairs as they rise; the punch, kick, guard and special buttons do nothing now. Stand on the final platform: your tag turns ✓; when both are up
-   the headline goes and "FIGHT!" shows. Stay on the floor for 25 s: you are lifted up.
-2. Quick look without playing 2:30: `node scripts/shots-7b/run.mjs <out dir> <specs.json> [W H DPR]` draws the frames (see the header of that file).
+1. `/play/cpu?arena=inferno` (or Fight a friend → Arena 1). **The ceremony:** the title bar drops, the stars wake, "SELECT YOUR CONSTELLATION": A / D (or ◀ ▶ on the pad) move your cursor along the strip, punch locks it,
+   the other fighter's cursor and their lock show on the strip and in the sky; when both have locked the others fade ("THE STARS ARE SET"), then FIGHT. Do nothing for 9 s: you get the one under the cursor.
+2. **The weather:** the sky turns over about 9 s at 0:30, 1:00 and 1:45 (the stamp names the scene); the heat shimmer is plain by 0:40; at 1:00 the cracks glow, then leak lava (stay off the glow).
+3. **2:30, the ring:** the fight stops, "GET UP THERE!": walk and jump (A / D / W, or the stick) up the stairs as they rise (the other buttons do nothing). Both up, "TAKE YOUR MARKS": walk to your pad as the ring rises.
+   "THE STARS ANSWER": a beam from each constellation and a gold "+N%" over each fighter, who grows a little. Then "FIGHT!" in a closed ring: you can't fall off. Stay on the floor for 25 s: you are lifted up.
+4. **The ending:** win (or lose) by knockout, or let the clock run out with unequal health. "K.O.!" for a second, then the winner walks over and kicks, the loser flies out of the ring (or off the floor, before 2:30) and
+   splashes into the lava, their constellation streaks across the sky, the sky clears, and the result shows. Equal health on the clock: no kick, just the sky clearing and "DRAW".
+5. **Without playing it:** `node scripts/shots-7b/run.mjs <out dir> <specs.json> [W H DPR]` draws real frames of a computer-played fight at the moments you name (phase, cue, tick, scene, `ko` + `loser`, `end` + `dt`, `hp`,
+   `glow`, `meteor`; see the header of `scripts/shots-7b/entry.ts`). `npx tsx scripts/arena.ts --quick` checks the layout and the climb in seconds; without `--quick` it is the whole gate (about 6 minutes).
+6. **A normal fight is unchanged:** `node scripts/shots-7b/compare-normal.mjs <repo root> <out dir>` once for `origin/main` (a worktree) and once for this branch, then `cmp` the PNGs: they are identical.
