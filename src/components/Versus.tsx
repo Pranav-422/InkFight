@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { ARENA_INFO, type ArenaId } from "@/game/arena";
 import type { PublicFighter } from "@/game/protocol";
 import { ClassBadge } from "./ClassBadge";
 import { FighterAvatar } from "./FighterAvatar";
@@ -16,16 +17,21 @@ const TONE = {
 
 // The face-off after matchmaking (and before a fight with the computer): both fighters on a split stage
 // with an ink slash between them and a VS burst on top.
-export function Versus({ left, right, title = "Face-off", children }: { left: VersusSide; right: VersusSide; title?: string; children?: ReactNode }) {
+export function Versus({ left, right, title = "Face-off", arena, children }: { left: VersusSide; right: VersusSide; title?: string; arena?: ArenaId; children?: ReactNode }) {
   return (
     <section className="lift relative overflow-hidden bg-card">
       <header className="flex items-center justify-between gap-2 border-b-[3px] border-ink bg-card px-3 py-2">
-        <span className="tag bg-ink text-gold">Round 1</span>
+        <span className="tag bg-ink text-gold">{arena ? ARENA_INFO[arena].short : "Round 1"}</span>
         <h2 className="-rotate-1 border-[3px] border-ink bg-gold px-3 py-1 font-comic text-2xl shadow-[3px_3px_0_var(--ink)] sm:text-3xl">{title}</h2>
-        <span className="tag bg-white">1 vs 1</span>
+        <span className="tag bg-white">{arena ? "5:00" : "1 vs 1"}</span>
       </header>
 
-      <div className="relative grid md:grid-cols-2">
+      {arena && (
+        <p className="border-b-[3px] border-ink bg-[#2b0f0a] px-3 py-1.5 text-center text-xs font-extrabold uppercase tracking-[0.2em] text-gold">
+          {ARENA_INFO[arena].name} · one fight, five minutes · the arena gets worse
+        </p>
+      )}
+      <div className="relative grid overflow-hidden md:grid-cols-2">
         <Side side={left} flip={false} />
         <Side side={right} flip />
         {/* The ink slash: across the middle on phones, down it on wider screens. */}

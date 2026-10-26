@@ -3,6 +3,7 @@
 // impact FX (smears, rings, ink splats, hit-stop shake) and the HUD.
 
 import { normClass } from "../lib/stats";
+import { ArenaView } from "./arenaRender";
 import { getReduceFlashes } from "./flashes";
 import { play, type Sfx } from "./sound";
 import { itemOf, MOVES, SKILL_INFO, STYLE_INFO, type SideSkill } from "./moves";
@@ -49,6 +50,7 @@ export class Renderer {
   private redPage = 0; // 0..1: the page bleeds red once the Redline Regent unseals its second form (eased)
   private cine = 0; // 0..1: how far into the ultimate's blackout we are (eased)
   private banner: { text: string; color: string; life: number } | null = null;
+  private arenaView: ArenaView | null = null; // an arena fight's backdrop and live hazards (src/game/arenaRender.ts)
   private lastEventId = 0;
   private fontDisplay = "sans-serif";
   private fontBody = "sans-serif";
@@ -91,6 +93,7 @@ export class Renderer {
     this.canvas.width = Math.round(w * dpr);
     this.canvas.height = Math.round(((w * ARENA.h) / ARENA.w) * dpr);
     this.page = null; // re-rendered at the new size
+    this.arenaView?.setScale(this.canvas.width / ARENA.w);
   }
 
   // The notebook page never changes: draw it once per canvas size, then blit it.
@@ -243,6 +246,8 @@ export class Renderer {
       const f = s.fighters[e.by];
       this.rings.push({ x: f.x, y: f.y - BODY.h * 0.55, r: 30, grow: 4, life: 0, max: 14, color: C.guard, width: 3 });
       this.particles.push({ x: f.x, y: f.y - BODY.h - 30, vx: 0, vy: -1, life: 0, max: 40, text: SKILL_INFO[e.kind].name.toUpperCase(), color: C.guard, size: 18 });
+    } else if (e.type === "arena") {
+      this.arenaEvent(e, s);
     } else if (e.type === "round") {
       this.sfx("round");
     } else if (e.type === "ko") {
@@ -251,6 +256,51 @@ export class Renderer {
       this.flash = 6;
       const f = s.fighters[e.loser];
       this.rings.push({ x: f.x, y: f.y - BODY.h * 0.55, r: 10, grow: 16, life: 0, max: 22, color: C.hit, width: 8 });
+    }
+  }
+
+  // The arena's cues (src/game/arena.ts): sound, dust, a floating damage number. The picture itself is drawn from the state.
+  private arenaEvent(e: Extract<GameEvent, { type: "arena" }>, s: Snapshot) {
+    const reduce = getReduceFlashes();
+    this.arenaView?.event(e, performance.now());
+    const dust = (x: number, n: number, color = C.muted) => {
+      for (let i = 0; i < n; i++) this.particles.push({ x: x + (Math.random() - 0.5) * 60, y: ARENA.ground - 6, vx: (Math.random() - 0.5) * 4, vy: -1 - Math.random() * 3, life: 0, max: 24 + Math.random() * 14, color, size: 3 + Math.random() * 4 });
+    };
+    if (e.kind === "scene") {
+      // Scene 1 is the start of the fight; the others are a rumble, and scene 5 is the eruption.
+      if (e.n === 3 || e.n === 4) this.sfx("rumble");
+      if (e.n === 5) {
+        this.sfx("eruption");
+        this.shake = Math.max(this.shake, reduce ? 4 : 10);
+      }
+      if (e.n === 2) this.sfx("hiss");
+    } else if (e.kind === "crack") {
+      this.sfx("crack");
+      dust(e.x, 8);
+    } else if (e.kind === "meteor") {
+      this.sfx("meteor");
+    } else if (e.kind === "impact") {
+      this.sfx("impact");
+      this.shake = Math.max(this.shake, reduce ? 4 : 13);
+      this.rings.push({ x: e.x, y: ARENA.ground - 6, r: 12, grow: 9, life: 0, max: 18, color: "#ff8a22", width: 6 });
+      this.rings.push({ x: e.x, y: ARENA.ground - 6, r: 4, grow: 14, life: 0, max: 14, color: C.ink, width: 3 });
+      for (let i = 0; i < 14; i++) {
+        const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.2;
+        const sp = 3 + Math.random() * 7;
+        this.particles.push({ x: e.x, y: ARENA.ground - 8, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0, max: 22 + Math.random() * 14, color: i % 3 ? "#ff8a22" : C.ink, size: 2 + Math.random() * 4 });
+      }
+    } else if (e.kind === "rumble") {
+      this.sfx("rumble");
+    } else if (e.kind === "rise") {
+      this.sfx("grind");
+      dust(e.x, 10, "#b9a47c");
+    } else if (e.kind === "burn") {
+      this.particles.push({ x: e.x, y: e.y - 18, vx: 0, vy: -1.1, life: 0, max: 34, text: `-${e.n}`, color: "#ff8a22", size: 20 });
+      if (s.fighters[e.slot ?? 0]?.hp > 0) this.sfx("hiss");
+    } else if (e.kind === "rescue") {
+      this.sfx("skill");
+      this.rings.push({ x: e.x, y: e.y - BODY.h * 0.5, r: 14, grow: 6, life: 0, max: 18, color: C.gold, width: 5 });
+      this.particles.push({ x: e.x, y: e.y - BODY.h - 20, vx: 0, vy: -1, life: 0, max: 50, text: "BACK UP!", color: C.gold, size: 22 });
     }
   }
 
@@ -295,13 +345,29 @@ export class Renderer {
       tx = sp.x + sp.facing * 80;
       ty = sp.y - BODY.h * 0.6;
     }
+    // An arena fight: keep both fighters in frame (zoomed out and looking up when one is on a platform), unless a special or the KO has the camera.
+    if (cur.arena && !this.arenaView) this.arenaView = new ArenaView(this.fontDisplay, this.fontBody);
+    if (cur.arena && this.arenaView && !this.preview && tz === 1) {
+      const w = this.arenaView.camera(fighters);
+      tz = w.z;
+      tx = w.x;
+      ty = w.y;
+    }
     const ease = 1 - Math.exp(-Math.min(0.05, Math.max(0.001, (now - this.lastNow) / 1000)) * 6);
     this.cam.z += (tz - this.cam.z) * ease;
     this.cam.x += (tx - this.cam.x) * ease;
     this.cam.y += (ty - this.cam.y) * ease;
     const z = this.cam.z, hw = ARENA.w / 2 / z, hh = ARENA.h / 2 / z;
-    const cx = Math.min(ARENA.w - hw, Math.max(hw, this.cam.x)), cy = Math.min(ARENA.h - hh, Math.max(hh, this.cam.y));
+    // The arena's backdrop reaches past the old edges (WORLD in arenaRender.ts), so a zoomed-out or raised camera needs no clamp there.
+    const cx = cur.arena ? Math.min(ARENA.w / 2 + 120, Math.max(ARENA.w / 2 - 120, this.cam.x)) : Math.min(ARENA.w - hw, Math.max(hw, this.cam.x));
+    const cy = cur.arena ? Math.min(ARENA.h - hh + 120, Math.max(-300 + hh, this.cam.y)) : Math.min(ARENA.h - hh, Math.max(hh, this.cam.y));
     this.view = { cx, cy, z };
+    if (cur.arena && this.arenaView) {
+      this.arenaView.setScale(canvas.width / ARENA.w);
+      // The ground trembles before a boulder rises and while it does, and at the eruption.
+      const t = this.arenaView.tremor(cur);
+      if (t > 0 && cur.phase === "fight") this.shake = Math.max(this.shake, t * (getReduceFlashes() ? 0.35 : 1));
+    }
 
     ctx.save();
     ctx.translate(ARENA.w / 2, ARENA.h / 2);
@@ -311,7 +377,11 @@ export class Renderer {
       ctx.translate((Math.random() - 0.5) * this.shake, (Math.random() - 0.5) * this.shake);
       this.shake *= 0.85;
     }
-    this.background();
+    if (cur.arena && this.arenaView) {
+      this.arenaView.back(ctx, cur, now, this.view);
+      this.dimOverlay();
+      this.arenaView.mid(ctx, cur, now);
+    } else this.background();
     this.drawStains();
     // The ultimate blacks out the page (fighters and effects are drawn over it).
     const ultOn = cur.fighters.some((f) => f.action === "special" && f.ult);
@@ -334,6 +404,7 @@ export class Renderer {
     this.lastNow = now;
     for (const p of projectiles) if (!p.delay) this.projectile(p.kind, p.x, p.y, p.r, p.vx, now, p.owner, fighters[p.owner].x);
     this.fx();
+    if (cur.arena && this.arenaView) this.arenaView.front(ctx, cur, now, getReduceFlashes());
     ctx.restore();
 
     if (this.flash > 0) {
@@ -565,11 +636,7 @@ export class Renderer {
     ctx.fillRect(-20, -20, ARENA.w + 40, ARENA.h + 40); // under the page when the camera shakes
     ctx.drawImage(this.pageImage(), 0, 0, ARENA.w, ARENA.h);
     this.drawDoodles();
-    if (this.dim) {
-      ctx.fillStyle = `rgba(23,23,26,${0.4 * Math.min(1, this.dim.life / 8)})`;
-      ctx.fillRect(-20, -20, ARENA.w + 40, ARENA.h + 40);
-      if (--this.dim.life <= 0) this.dim = null;
-    }
+    this.dimOverlay();
     // Ground: a slightly wobbly ink line.
     ctx.strokeStyle = C.ink;
     ctx.lineWidth = 3;
@@ -581,6 +648,15 @@ export class Renderer {
       else ctx.lineTo(x, y);
     }
     ctx.stroke();
+  }
+
+  // A special starting darkens the page for a moment.
+  private dimOverlay() {
+    const { ctx } = this;
+    if (!this.dim) return;
+    ctx.fillStyle = `rgba(23,23,26,${0.4 * Math.min(1, this.dim.life / 8)})`;
+    ctx.fillRect(-20, -20, ARENA.w + 40, ARENA.h + 40);
+    if (--this.dim.life <= 0) this.dim = null;
   }
 
   private drawDoodles() {
@@ -1240,15 +1316,15 @@ export class Renderer {
     // On a phone the arena is drawn at ~0.4x; enlarge HUD text so it stays readable.
     const z = Math.min(1.9, Math.max(1, 560 / this.canvas.clientWidth));
     // KO slow-mo cinema bars are ink-dark: lay paper plates under the HUD so names and timer stay readable.
-    if (s.slow > 0) {
-      ctx.fillStyle = C.paper;
+    if (s.slow > 0 || s.arena) {
+      ctx.fillStyle = s.arena && s.slow <= 0 ? "rgba(255,249,237,.82)" : C.paper; // an arena's backdrop is busy and dark: always a plate under the HUD
       for (const x of [pad - 12, ARENA.w - pad - barW - 12]) {
         ctx.beginPath();
         ctx.roundRect(x, 10, barW + 24, 98 + 8 * (z - 1), 12);
         ctx.fill();
       }
       ctx.beginPath();
-      ctx.roundRect(ARENA.w / 2 - 50, 10, 100, 82 + 8 * (z - 1), 12);
+      ctx.roundRect(ARENA.w / 2 - (s.arena ? 100 : 50), 10, s.arena ? 200 : 100, 82 + 8 * (z - 1), 12);
       ctx.fill();
     }
 
@@ -1270,8 +1346,8 @@ export class Renderer {
         ctx.fillText("BUFF", left ? x + w : x + barW - w, 40);
       }
 
-      // Round wins as dots next to the name
-      for (let i = 0; i < WINS_NEEDED; i++) {
+      // Round wins as dots next to the name (an arena fight is one round: no dots)
+      for (let i = 0; i < (s.arena ? 0 : WINS_NEEDED); i++) {
         const cx = left ? x + barW - 10 - i * 18 : x + 10 + i * 18;
         ctx.beginPath();
         ctx.arc(cx, 33, 6, 0, Math.PI * 2);
@@ -1285,7 +1361,10 @@ export class Renderer {
       if (z < 1.2) {
         ctx.font = `600 12px ${this.fontBody}`;
         ctx.fillStyle = C.muted;
-        ctx.fillText(`${Math.ceil(f.hp)} / ${s.maxHp[slot]}  ·  ${s.styles[slot]}`, left ? x : x + barW, 98);
+        // The arena's pool is 18x a normal fight's, so a percentage reads better than 3600 / 3600.
+        const hpText = s.arena ? `${Math.max(0, Math.ceil(hpPct * 100))}%` : `${Math.ceil(f.hp)} / ${s.maxHp[slot]}`;
+        const weak = s.arena?.weak[slot] ?? 0;
+        ctx.fillText(`${hpText}  ·  ${s.styles[slot]}${weak > 0.01 ? `  ·  SCORCHED -${Math.round(weak * 100)}% DMG` : ""}`, left ? x : x + barW, 98);
       }
 
       // Side skill: a short bar in the free space beside the energy meter (blue when ready).
@@ -1316,6 +1395,10 @@ export class Renderer {
       }
     }
 
+    if (s.arena && this.arenaView) {
+      this.arenaView.hud(ctx, s, now, z);
+      return;
+    }
     // Round timer
     const secs = Math.ceil(s.timer / TICK_HZ);
     ctx.textAlign = "center";
@@ -1346,7 +1429,7 @@ export class Renderer {
   private phaseText(s: Snapshot) {
     let text: string | null = null;
     let color = C.ink;
-    if (s.phase === "intro") text = s.phaseT < 90 ? `ROUND ${s.round}` : "READY…";
+    if (s.phase === "intro") text = s.phaseT < 90 ? (s.arena ? "ARENA 1" : `ROUND ${s.round}`) : "READY…";
     else if (s.phase === "fight" && s.phaseT < 45) {
       text = "FIGHT!";
       color = C.hit;

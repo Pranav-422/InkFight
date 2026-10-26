@@ -3,10 +3,12 @@
 //   npx tsx scripts/check-sim.ts
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { ARENA_TUNE, arenaTick, lavaY, platformsAt, ROCK_DEFS, sceneAt, STAIRS_UP_TICK } from "../src/game/arena";
 import { CLASS_ULT, SLOT1_COST, SPECIAL_KINDS, STYLE_INFO, ULT_COST } from "../src/game/moves";
 import { poseFor } from "../src/game/poses";
 import { AVERAGE_BUILD, buildFor, solveStick } from "../src/game/stickman";
-import { createMatch, deriveDef, EMPTY_INPUT, resumeMatch, snapshot, step, TICK_HZ, type BossSpec, type FighterStats, type Input, type Match } from "../src/game/sim";
+import { ARENA, createMatch, deriveDef, EMPTY_INPUT, resumeMatch, snapshot, step, TICK_HZ, type BossSpec, type FighterStats, type Input, type Match } from "../src/game/sim";
 import { CLASSES, clampStats, ruleStats } from "../src/lib/stats";
 
 const neutral = { size: "medium", pose: "neutral", dominant_colors: [] } as const;
@@ -870,6 +872,310 @@ const p2 = (): BossSpec => bossOf("curse-marks", { phase2: { stats: { ...fighter
   z.ib.special++;
   run(z, 1);
   assert.ok(!held.ultQ, "a held fighter queued an ultimate");
+}
+
+// ------------------------------------------------------------------ Arena 1 (src/game/arena.ts)
+
+// A normal match must be exactly what it was before the arena existed: the hash of every snapshot of three scripted
+// fights (a fixed button-masher) was taken on main before the arena change.
+{
+  const h = createHash("sha1");
+  for (const [a, b] of [["Sword", "Mace"], ["Tank", "Attacker"], ["Fighter", "Sword"]]) {
+    let s = 12345;
+    const rnd = () => ((s = (Math.imul(s, 1103515245) + 12345) >>> 0) / 4294967296);
+    const ia = { ...EMPTY_INPUT }, ib = { ...EMPTY_INPUT };
+    const m = createMatch(fighter(a), fighter(b), [ia, ib]);
+    for (let t = 0; t < 9000 && m.phase !== "matchEnd"; t++) {
+      for (const i of [ia, ib]) {
+        if (t % 6 === 0) {
+          i.left = rnd() < 0.3; i.right = rnd() < 0.4; i.block = rnd() < 0.2;
+          if (rnd() < 0.2) i.jump++;
+          if (rnd() < 0.3) i.attack++;
+          if (rnd() < 0.2) i.kick++;
+          if (rnd() < 0.1) i.special++;
+          if (rnd() < 0.05) i.skill++;
+        }
+      }
+      step(m, [ia, ib]);
+      h.update(JSON.stringify(snapshot(m)));
+    }
+    assert.equal(m.arena, undefined, "a normal match has no arena");
+  }
+  assert.equal(h.digest("hex"), "fe00bfdbb4caa1fdc13558383757b18f07496ef2", "arena off must leave a normal match's snapshots unchanged");
+}
+
+// An arena match already in the fight phase at `tick`, fighters at x0 / x1 on the floor, random hazards off unless asked.
+function arena(tick: number, x0 = 300, x1 = 660, hazards = false) {
+  const ia = { ...EMPTY_INPUT }, ib = { ...EMPTY_INPUT };
+  const m = createMatch(fighter("Fighter"), fighter("Fighter"), [ia, ib], { arena: "inferno" });
+  for (const d of m.defs) d.dodge = 0;
+  for (let i = 0; i < 3 * TICK_HZ; i++) step(m, [ia, ib]);
+  assert.equal(m.phase, "fight");
+  m.timer = ARENA_TUNE.matchTicks - tick;
+  if (!hazards) m.arena!.next = [1e9, 1e9];
+  m.fighters[0].x = x0;
+  m.fighters[1].x = x1;
+  return { m, ia, ib };
+}
+
+// The arena is one 5:00 round with a bigger health pool; the five scenes change at the exact ticks and announce themselves.
+{
+  const { m, ia, ib } = arena(0);
+  m.arena!.next = [1e9, 1e9];
+  assert.equal(m.timer, ARENA_TUNE.matchTicks);
+  assert.equal(m.defs[0].maxHp, 200 * ARENA_TUNE.hpMul);
+  const seen: [number, number][] = []; // [scene number, tick it was announced]
+  let last = 0;
+  for (let t = 0; t < 9100; t++) {
+    step(m, [ia, ib]);
+    if (m.freeze || m.slow) continue;
+    for (const e of m.events) if (e.id > last) { last = e.id; if (e.type === "arena" && e.kind === "scene") seen.push([e.n!, arenaTick(m) - 1]); }
+  }
+  assert.deepEqual(seen, [[1, 0], [2, 1800], [3, 3600], [4, 6300], [5, 9000]], "scenes must change at 0, 30, 60, 105 and 150 s");
+  assert.deepEqual([0, 1799, 1800, 3599, 3600, 6299, 6300, 8999, 9000, 17999].map(sceneAt), [0, 0, 1, 1, 2, 2, 3, 3, 4, 4]);
+}
+
+// Platforms are real: you land on top, you can't fall through one at any speed, you jump up through one and drop down with S + jump.
+{
+  const T = STAIRS_UP_TICK + 30;
+  const s1 = platformsAt(T).find((p) => p.id === 1)!, c = platformsAt(T).find((p) => p.kind === "final")!;
+  assert.equal(s1.state, "up");
+  const { m, ia, ib } = arena(T, s1.x + 40, 480);
+  const f = m.fighters[0];
+  f.y = 100;
+  f.vy = 0;
+  run({ m, ia, ib }, 60);
+  assert.ok(f.grounded && f.y === s1.top, `fell to ${f.y} instead of landing on the step at ${s1.top}`);
+  // Maximum fall speed: a fighter dropped at 60 px/tick (far past any real fall) still lands on the platform.
+  f.y = -300;
+  f.vy = 60;
+  run({ m, ia, ib }, 40);
+  assert.ok(f.grounded && f.y === s1.top, "tunnelled through a platform at a high fall speed");
+  // One-way: from the floor, a jump goes up through the step and lands on it.
+  f.y = ARENA.ground;
+  f.vy = 0;
+  f.grounded = true;
+  run({ m, ia, ib }, 3);
+  ia.jump++;
+  run({ m, ia, ib }, 70);
+  assert.ok(f.grounded && f.y === s1.top, "a jump from below should come up through the platform and land on it");
+  // S + jump drops through to the floor.
+  ia.block = true;
+  ia.jump++;
+  run({ m, ia, ib }, 2);
+  ia.block = false;
+  run({ m, ia, ib }, 40);
+  assert.ok(f.grounded && f.y === ARENA.ground, `S + jump should drop to the floor, stood at ${f.y}`);
+  // The final platform holds both fighters, and walking off its edge falls.
+  m.fighters[1].x = 520;
+  m.fighters[1].y = 0;
+  f.x = c.x + c.w - 10;
+  f.y = c.top;
+  f.grounded = true;
+  run({ m, ia, ib }, 30);
+  assert.equal(m.fighters[1].y, c.top, "the second fighter lands on the final platform");
+  assert.ok(f.y === c.top, "still on the platform");
+  ia.right = true;
+  run({ m, ia, ib }, 40);
+  assert.ok(f.y > c.top, "walking off the edge should fall");
+  ia.right = false;
+}
+
+// A rock that rises under a fighter carries them up: no crush, no tunnelling, no trap.
+{
+  const r = ROCK_DEFS[0];
+  const { m, ia, ib } = arena(r.rise - 5, r.x + 40, 780);
+  const f = m.fighters[0];
+  let lowest = 0;
+  run({ m, ia, ib }, 5 + r.dur + 5);
+  for (let t = 0; t < 30; t++) {
+    run({ m, ia, ib }, 1);
+    lowest = Math.max(lowest, f.y);
+  }
+  assert.ok(f.grounded && f.y === r.top, `a rising rock should carry the fighter to its top (${r.top}), got ${f.y}`);
+  assert.ok(lowest <= ARENA.ground, "the fighter must never end up below the floor");
+  // The warning comes first: dust and a rumble for at least 2 s before anything rises.
+  assert.ok(r.rise - r.warn >= 2 * TICK_HZ);
+  assert.equal(platformsAt(r.warn - 1)[0].state, "hidden");
+  assert.equal(platformsAt(r.warn)[0].state, "warn");
+  assert.equal(platformsAt(r.rise - 1)[0].state, "warn");
+  assert.equal(platformsAt(r.rise)[0].state, "rising");
+}
+
+// Telegraph first, damage second: a crack does nothing while it glows, a meteor nothing before its marker runs out.
+{
+  const T = 3700;
+  const { m, ia, ib } = arena(T, 500, 800);
+  const hp = m.fighters[0].hp;
+  m.arena!.cracks.push({ id: 9001, x: 500, w: 60, born: T, glow: ARENA_TUNE.crack.glow, end: T + ARENA_TUNE.crack.glow + ARENA_TUNE.crack.live });
+  run({ m, ia, ib }, ARENA_TUNE.crack.glow - 1);
+  assert.equal(m.fighters[0].hp, hp, "a glowing crack must not hurt");
+  assert.equal(m.arena!.envDmg[0], 0);
+  run({ m, ia, ib }, 3);
+  assert.ok(m.fighters[0].hp < hp, "a leaking crack must hurt someone standing in it");
+  assert.ok(m.arena!.weak[0] > 0, "lava contact weakens the next hits");
+  const M = arena(7000, 500, 800);
+  const mhp = M.m.fighters[0].hp;
+  M.m.arena!.meteors.push({ id: 9002, x: 500, born: 7000, hit: 7000 + ARENA_TUNE.meteor.warn });
+  run(M, ARENA_TUNE.meteor.warn - 1);
+  assert.equal(M.m.fighters[0].hp, mhp, "a meteor must not hurt before it lands");
+  run(M, 3);
+  assert.ok(M.m.fighters[0].hp < mhp, "a meteor must hurt someone standing under it");
+  assert.equal(M.m.arena!.meteors.length, 0);
+  // One blast never hurts both fighters on the same tick: the nearer one takes it.
+  const B = arena(7000, 500, 520);
+  B.m.arena!.meteors.push({ id: 9003, x: 505, born: 7000, hit: 7010 });
+  run(B, 20);
+  assert.ok(B.m.arena!.envDmg[0] > 0 && B.m.arena!.envDmg[1] === 0, "a meteor hurt both fighters at once");
+  // Its marker lasts >= 1 s and a crack glows >= 1.5 s (the numbers the sheet asks for).
+  assert.ok(ARENA_TUNE.meteor.warn >= TICK_HZ && ARENA_TUNE.crack.glow >= 1.5 * TICK_HZ);
+}
+
+// Spawned cracks and meteors keep their promises over a whole scene: never under a fighter, at most 2 cracks, a safe strip of 200 px.
+{
+  const { m, ia, ib } = arena(3590, 200, 800, true);
+  let spawned = 0;
+  for (let t = 0; t < 2800; t++) {
+    const before = new Set(m.arena!.cracks.map((c) => c.id));
+    run({ m, ia, ib }, 1);
+    for (const c of m.arena!.cracks) if (!before.has(c.id)) {
+      spawned++;
+      for (const f of m.fighters) assert.ok(Math.abs(f.x - c.x) >= 35 + c.w / 2 + ARENA_TUNE.crack.clear, "a crack spawned under or next to a fighter");
+    }
+    assert.ok(m.arena!.cracks.length <= ARENA_TUNE.crack.max, "more than 2 crack zones at once");
+    const edges = m.arena!.cracks.map((c) => [c.x - c.w / 2, c.x + c.w / 2]).sort((p, q) => p[0] - q[0]);
+    let at = ARENA.wall, best = 0;
+    for (const [l, r] of edges) { best = Math.max(best, l - at); at = Math.max(at, r); }
+    best = Math.max(best, ARENA.w - ARENA.wall - at);
+    assert.ok(best >= ARENA_TUNE.crack.safe, "no safe strip left on the floor");
+  }
+  assert.ok(spawned >= 4, `only ${spawned} cracks in scene 3`);
+}
+
+// Lava: it stays under the final platform until 5:00, someone who stays in it is put back on a platform after a short delay,
+// the damage is capped per 10 s and never knocks anyone out, and the weakness is capped and wears off.
+{
+  const c = platformsAt(STAIRS_UP_TICK + 1).find((p) => p.kind === "final")!;
+  assert.ok(lavaY(ARENA_TUNE.matchTicks) > c.top + ARENA_TUNE.lava.margin, "lava must stay below the final platform until 5:00");
+  assert.ok(lavaY(STAIRS_UP_TICK + 10 * TICK_HZ) > ARENA.ground, "lava must not reach the floor until the stairs have stood 10 s");
+  const T = 15500; // the floor is under lava (and step 1 soon); the test plays on to ~17400, inside the 18000 ticks of the match
+  const { m, ia, ib } = arena(T, 480, 700);
+  const f = m.fighters[0];
+  const pool = m.defs[0].maxHp;
+  const rescue = ARENA_TUNE.lava.rescue;
+  ARENA_TUNE.lava.rescue = 1e9; // first: no rescue, to see the cap
+  f.hp = 60;
+  const dealt: number[] = [];
+  for (let t = 0; t < 1500; t++) {
+    const before = m.arena!.envDmg[0];
+    run({ m, ia, ib }, 1);
+    dealt.push(m.arena!.envDmg[0] - before);
+  }
+  const win = 600;
+  let worst = 0, sum = 0;
+  for (let i = 0; i < dealt.length; i++) {
+    sum += dealt[i];
+    if (i >= win) sum -= dealt[i - win];
+    worst = Math.max(worst, sum);
+  }
+  assert.ok(worst <= Math.round(ARENA_TUNE.env.cap * pool), `${worst} lava damage in 10 s (cap ${ARENA_TUNE.env.cap * pool})`);
+  assert.ok(worst > 0, "standing in lava must hurt");
+  assert.equal(f.hp, 1, "the environment takes health down to 1 but never delivers a knockout");
+  assert.notEqual(f.action, "ko");
+  assert.ok(m.arena!.weak[0] <= ARENA_TUNE.weak.max + 1e-9 && m.arena!.weak[0] > 0, "weakness is capped");
+  // Rescue.
+  ARENA_TUNE.lava.rescue = rescue;
+  f.y = ARENA.ground;
+  f.x = 480;
+  run({ m, ia, ib }, rescue + 3);
+  assert.ok(f.y < ARENA.ground && m.arena!.immune[0] > 0, "someone in lava is put back on a platform after the delay");
+  assert.ok(Math.abs(f.y - c.top) < 0.5 || platformsAt(T).some((p) => Math.abs(p.top - f.y) < 0.5), "the rescue lands on a platform top");
+  assert.ok(f.y < lavaY(T) - ARENA_TUNE.lava.margin, "the rescue spot is safe from the lava");
+  // The weakness wears off once out of contact.
+  run({ m, ia, ib }, ARENA_TUNE.weak.after + Math.ceil(ARENA_TUNE.weak.max / ARENA_TUNE.weak.recover) + 5);
+  assert.equal(m.arena!.weak[0], 0, "weakness should wear off");
+  // Standing on the final platform is safe from the lava to the end.
+  const F = arena(17900, 480, 520);
+  F.m.fighters[0].y = c.top;
+  F.m.fighters[1].y = c.top;
+  run(F, 90);
+  assert.equal(F.m.arena!.envDmg[0] + F.m.arena!.envDmg[1], 0, "the final platform must stay out of the lava");
+}
+
+// Heat (scene 2) hurts both fighters the same, a little, and only in scene 2.
+{
+  const { m, ia, ib } = arena(1790);
+  run({ m, ia, ib }, 10);
+  assert.equal(m.arena!.envDmg[0] + m.arena!.envDmg[1], 0, "no heat before scene 2");
+  run({ m, ia, ib }, 3 * ARENA_TUNE.heat.every);
+  assert.ok(m.arena!.envDmg[0] > 0 && m.arena!.envDmg[0] === m.arena!.envDmg[1], "heat is the same for both");
+  const after = m.arena!.envDmg[0];
+  m.timer = ARENA_TUNE.matchTicks - 3700;
+  run({ m, ia, ib }, 3 * ARENA_TUNE.heat.every);
+  assert.equal(m.arena!.envDmg[0], after, "heat is a scene 2 thing");
+}
+
+// A knockout outranks the schedule: nothing from the arena lands after it, whichever tick it falls on.
+{
+  for (let d = 0; d <= 14; d++) {
+    const T = 7000;
+    const { m, ia, ib } = arena(T, 400, 470);
+    const v = m.fighters[1];
+    v.hp = 1;
+    v.vx = 0;
+    ia.attack++; // a jab is coming
+    m.arena!.meteors.push({ id: 9100, x: 470, born: T, hit: T + d });
+    m.arena!.cracks.push({ id: 9101, x: 470, w: 60, born: T - 500, glow: 100, end: T + 5000 });
+    let koAt = -1, hurtAfter = 0;
+    for (let t = 0; t < 60; t++) {
+      const e0 = m.arena!.envDmg[1];
+      run({ m, ia, ib }, 1);
+      if (koAt < 0 && v.action === "ko") koAt = t;
+      if (koAt >= 0 && t > koAt) hurtAfter += m.arena!.envDmg[1] - e0;
+    }
+    assert.ok(koAt >= 0, "setup: the jab should KO a 1 HP fighter");
+    assert.equal(hurtAfter, 0, `environment damage after the KO (meteor at +${d})`);
+    assert.equal(m.arena!.meteors.length + m.arena!.cracks.length, 0, "no hazard may outlive the match");
+    assert.equal(m.roundWinner, 0);
+    assert.equal(m.roundReason, "ko");
+  }
+}
+
+// The clock decides at 5:00: higher health wins, equal health is a draw (matchWinner null); one round only.
+{
+  for (const [h0, h1, winner] of [[900, 400, 0], [300, 800, 1], [500, 500, null]] as const) {
+    const { m, ia, ib } = arena(0);
+    m.fighters[0].hp = h0;
+    m.fighters[1].hp = h1;
+    m.timer = 5;
+    run({ m, ia, ib }, 10);
+    assert.equal(m.phase, "roundEnd");
+    assert.equal(m.roundReason, "time");
+    assert.equal(m.roundWinner, winner);
+    run({ m, ia, ib }, 3 * TICK_HZ);
+    assert.equal(m.phase, "matchEnd", "an arena fight is one round");
+    assert.equal(m.matchWinner, winner);
+    assert.equal(m.round, 1);
+    run({ m, ia, ib }, 10);
+    assert.equal(m.arena!.cracks.length + m.arena!.meteors.length, 0, "no hazards after the match ends");
+  }
+}
+
+// An arena snapshot survives JSON (the relay and the guest) and a resumed match carries on exactly like the original.
+{
+  const { m, ia, ib } = arena(3590, 200, 800, true);
+  run({ m, ia, ib }, 900);
+  assert.ok(m.arena!.cracks.length > 0, "setup: a crack should be live");
+  const snap = JSON.parse(JSON.stringify(snapshot(m)));
+  assert.equal(snap.arena.id, "inferno");
+  assert.ok(JSON.stringify(snap.arena).length < 600, `the arena state is ${JSON.stringify(snap.arena).length} bytes: snapshots go out 60 times a second`);
+  const b = resumeMatch(snap, fighter("Fighter"), fighter("Fighter"), [{ ...ia }, { ...ib }]);
+  for (const d of b.defs) d.dodge = 0;
+  for (let t = 0; t < 400; t++) {
+    step(m, [ia, ib]);
+    step(b, [{ ...ib, ...EMPTY_INPUT }, { ...EMPTY_INPUT }]);
+  }
+  assert.deepEqual(JSON.parse(JSON.stringify(snapshot(b).arena)), JSON.parse(JSON.stringify(snapshot(m).arena)), "a resumed arena fight diverged");
 }
 
 console.log("check-sim: all good");

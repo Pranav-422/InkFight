@@ -1,0 +1,319 @@
+// Arena 1 (Inferno Crater) checks: the staircase is built within what the weakest jumper can do (asserted from the sim's own
+// numbers and by real jumps through step()), the telegraphs and hazard limits hold, and the computer plays the mode.
+//   npx tsx scripts/arena.ts [fights per class pair, default 100]
+//   npx tsx scripts/arena.ts --tune [fights per pair]   find ARENA_TUNE.matchup (src/game/arena.ts): the arena's per-matchup damage trims
+// Prints the platform layout as ASCII at each stage, then the CPU numbers. Exits 1 on a failed assert or a missed target:
+// >= 95% of the fighters still fighting 10 s after the staircase stands reach the final platform, hazards deal 10-25% of all damage,
+// every class pair is 35-65%, every fight ends (KO or the clock), and the same seed gives the same fights.
+
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { ARENA_TUNE, arenaTick, lavaY, platformsAt, ROCK_DEFS, SCENE_NAMES, sceneAt, STAIRS_UP_TICK } from "../src/game/arena";
+import { cpuThink, newBrain } from "../src/game/cpu";
+import { nextHop } from "../src/game/arenaNav";
+import { CLASS_ITEM, CLASS_SPECIAL, CLASS_STYLE, MOVES } from "../src/game/moves";
+import { createMatch, deriveDef, EMPTY_INPUT, GRAVITY, snapshot, step, TICK_HZ, TRAIT, type FighterStats, type Match } from "../src/game/sim";
+import { ARENA, BODY } from "../src/game/space";
+import { CLASSES, ruleStats } from "../src/lib/stats";
+
+const TUNING = process.argv[2] === "--tune";
+const N = Number((TUNING ? process.argv[3] : process.argv[2]) ?? (TUNING ? 60 : 100));
+const T = ARENA_TUNE;
+let failed = false;
+const fail = (msg: string) => {
+  failed = true;
+  console.log(`FAIL: ${msg}`);
+};
+
+let seed = 20261025;
+const seedRandom = (s: number) => {
+  seed = s;
+};
+Math.random = () => {
+  seed = (seed + 0x6d2b79f5) | 0;
+  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+
+const neutral = { size: "medium", pose: "neutral", dominant_colors: [] } as const;
+const kit = (cls: string): FighterStats => ({ ...ruleStats(cls, { ...neutral, dominant_colors: [] }), class: cls, item: CLASS_ITEM[cls], style: CLASS_STYLE[cls], specialKind: CLASS_SPECIAL[cls] });
+// The weakest jumper and walker the game allows: AGI 40, SPD 40 (the other 270 points on STR, DUR, IQ, so nothing is rebalanced).
+const weak: FighterStats = { hp: 200, atk: 90, def: 90, iq: 90, spd: 40, agi: 40, class: "Fighter" };
+
+// ------------------------------------------------------------------ the weakest fighter's reach, measured in the sim
+
+function measure(stats: FighterStats) {
+  const ia = { ...EMPTY_INPUT }, ib = { ...EMPTY_INPUT };
+  const m = createMatch(stats, kit("Fighter"), [ia, ib]);
+  for (let i = 0; i < 4 * TICK_HZ; i++) step(m, [ia, ib]);
+  const f = m.fighters[0];
+  f.x = 200;
+  ia.jump++;
+  let apex = 0, ticks = 0;
+  const x0 = f.x;
+  for (let i = 0; i < 200; i++) {
+    step(m, [ia, ib]);
+    apex = Math.max(apex, ARENA.ground - f.y);
+    ticks++;
+    if (i > 2 && f.grounded) break;
+  }
+  // Air distance of a standing jump with no air control: speed * ticks is for a running one, so take the smaller of the two.
+  const def = deriveDef(stats);
+  return { apex, ticks, running: f.x - x0, standing: 0, def, air: def.speed * ticks };
+}
+const w = measure(weak);
+console.log(`weakest fighter (AGI 40, SPD 40): jump apex ${w.apex.toFixed(1)} px, ${w.ticks} ticks in the air, ${w.air.toFixed(0)} px sideways at walking speed`);
+assert.equal(GRAVITY, 0.75);
+const MAX_RISE = Math.min(75, 0.65 * w.apex);
+const MAX_GAP = Math.min(70, 0.7 * w.air);
+const MIN_STEP = 70;
+
+// ------------------------------------------------------------------ the layout (one stage at a time, as an ASCII picture)
+
+function ascii(tick: number): string {
+  const cols = 96, cw = ARENA.w / cols, y0 = 200, y1 = 540, rh = 20;
+  const rows = Array.from({ length: (y1 - y0) / rh }, () => new Array(cols).fill(" "));
+  const put = (x: number, y: number, ch: string) => {
+    const r = Math.floor((y - y0) / rh), c = Math.floor(x / cw);
+    if (r >= 0 && r < rows.length && c >= 0 && c < cols) rows[r][c] = ch;
+  };
+  for (let x = 0; x < ARENA.w; x += cw) put(x, ARENA.ground, "#");
+  for (let x = 0; x < ARENA.wall; x += cw) for (let y = y0; y < y1; y += rh) {
+    put(x, y, "|");
+    put(ARENA.w - 1 - x, y, "|");
+  }
+  for (const p of platformsAt(tick)) {
+    if (p.state === "hidden") continue;
+    for (let x = p.x; x < p.x + p.w; x += cw) put(x, p.state === "warn" ? ARENA.ground : p.top, p.state === "warn" ? ":" : "=");
+    put(p.x + p.w / 2, p.state === "warn" ? ARENA.ground + rh : p.top + rh, String(p.id));
+  }
+  const lava = lavaY(tick);
+  for (let y = lava; y < y1; y += rh) for (let x = ARENA.wall; x < ARENA.w - ARENA.wall; x += cw) if (rows[Math.floor((y - y0) / rh)]?.[Math.floor(x / cw)] === " ") put(x, y, "~");
+  return rows.map((r, i) => `${String(y0 + i * rh).padStart(3)} ${r.join("")}`).join("\n");
+}
+for (const [label, tick] of [["scene 1-4: the floor", 0], ["scene 4, 5 s before the stairs: dust where they will rise", 8760], ["scene 5, step 1 rising", 9030], ["scene 5, steps up, final platform warning", 9900], ["scene 5, everything up", STAIRS_UP_TICK + 30], ["5:00, lava at its highest", T.matchTicks]] as const) {
+  console.log(`\n${label} (tick ${tick}, ${(tick / TICK_HZ).toFixed(0)} s, lava y ${lavaY(tick).toFixed(0)})`);
+  console.log(ascii(tick));
+}
+
+// ------------------------------------------------------------------ asserts on the layout
+
+console.log("\nlayout asserts");
+const up = platformsAt(STAIRS_UP_TICK + 1);
+assert.ok(up.every((p) => p.state === "up"));
+// Mirror: every platform has a twin around the centre with the same size, height and timing.
+for (const r of ROCK_DEFS) {
+  const twin = ROCK_DEFS.find((o) => o.x === ARENA.w - (r.x + r.w) && o.w === r.w && o.top === r.top && o.warn === r.warn && o.rise === r.rise && o.dur === r.dur);
+  assert.ok(twin, `platform ${r.id} has no mirror twin`);
+}
+const fin = up.find((p) => p.kind === "final")!;
+assert.equal(fin.x + fin.w / 2, ARENA.w / 2, "the final platform is centred");
+// Rises and gaps: floor → step → step → final on each side. Each rise <= min(75, 65% of the weakest apex), each gap <= min(70,
+// 70% of the weakest fighter's air distance), each step >= 70 px wide.
+for (const side of [0, 1]) {
+  const chain = up.filter((p) => p.kind === "step" && (p.x + p.w / 2 < ARENA.w / 2) === (side === 0)).sort((a, b) => b.top - a.top);
+  let prev: { top: number; x0: number; x1: number } | null = null;
+  for (const p of [...chain, fin]) {
+    const rise: number = prev ? prev.top - p.top : ARENA.ground - p.top;
+    assert.ok(rise > 0 && rise <= MAX_RISE + 1e-9, `rise ${rise.toFixed(1)} px to platform ${p.id} (max ${MAX_RISE.toFixed(1)})`);
+    if (prev) {
+      const gap = side === 0 ? p.x - prev.x1 : prev.x0 - (p.x + p.w);
+      assert.ok(gap >= 0 && gap <= MAX_GAP, `gap ${gap} px before platform ${p.id} (max ${MAX_GAP.toFixed(1)})`);
+    }
+    if (p.kind === "step") assert.ok(p.w >= MIN_STEP, `step ${p.id} is ${p.w} px wide (min ${MIN_STEP})`);
+    prev = { top: p.top, x0: p.x, x1: p.x + p.w };
+  }
+}
+// The final platform: wide enough for twice the longest melee reach plus a body (walking, sweeps, kicks, the hit-lock at LOCK.gap), 200-240 above the floor.
+const longest = Math.max(...Object.values(MOVES).map((mv) => mv.reach)) + TRAIT.SWORD_REACH; // a sword extends the punch chain
+const fightDist = BODY.w + longest;
+assert.ok(fin.w >= 420 && fin.w >= 2 * fightDist, `final platform ${fin.w} px (needs >= 420 and >= 2 x ${fightDist})`);
+const height = ARENA.ground - fin.top;
+assert.ok(height >= 200 && height <= 240, `final platform ${height} px above the floor`);
+// Head room: no platform less than 150 px above another one's top (where they overlap in x).
+for (const p of up) for (const q of up) if (p !== q && q.top < p.top && q.x < p.x + p.w && q.x + q.w > p.x) assert.ok(p.top - q.top >= 150, `platform ${q.id} is only ${p.top - q.top} px above ${p.id}`);
+// Timings: every rise is telegraphed 2 s ahead and takes about a second; the lava keeps off the final platform and reaches the floor late.
+for (const r of ROCK_DEFS) {
+  assert.ok(r.rise - r.warn >= 2 * TICK_HZ, `platform ${r.id} warns ${(r.rise - r.warn) / TICK_HZ} s ahead`);
+  assert.ok(r.dur <= 1.5 * TICK_HZ, `platform ${r.id} takes ${r.dur / TICK_HZ} s to rise`);
+}
+const floorReach = T.scenes[4] + (T.lava.start - ARENA.ground) / T.lava.rate;
+assert.ok(floorReach >= STAIRS_UP_TICK + 10 * TICK_HZ, `lava reaches the floor at ${floorReach / TICK_HZ} s, before the stairs have stood 10 s`);
+assert.ok(lavaY(T.matchTicks) >= fin.top + T.lava.margin, `lava ends ${lavaY(T.matchTicks)} (final top ${fin.top})`);
+assert.ok(lavaY(T.matchTicks) < Infinity && lavaY(T.matchTicks) > fin.top, "lava stays below the final platform at 5:00");
+// Telegraphs and shapes of the hazards.
+assert.ok(T.crack.glow >= 1.5 * TICK_HZ, "cracks glow >= 1.5 s");
+assert.ok(T.meteor.warn >= TICK_HZ, "meteor marker >= 1 s");
+assert.ok(T.crack.max <= 2, "<= 2 crack zones at once");
+assert.ok(T.crack.width[1] <= MAX_GAP, `a crack (${T.crack.width[1]} px) can be jumped by the weakest jumper (${MAX_GAP.toFixed(0)})`);
+assert.ok(T.crack.safe >= 200, "a safe strip of >= 200 px");
+assert.ok(T.crack.max * T.crack.width[1] <= 0.6 * (ARENA.w - 2 * ARENA.wall), "at least 40% of the floor is always free of cracks");
+assert.deepEqual(T.scenes.map((t) => t / TICK_HZ), [0, 30, 60, 105, 150]);
+assert.equal(T.matchTicks / TICK_HZ, 300);
+console.log(`  rises <= ${MAX_RISE.toFixed(1)} (staircase: ${ROCK_DEFS.filter((r) => r.kind === "step").map((r) => ARENA.ground - r.top).join(", ")}), gaps <= ${MAX_GAP.toFixed(1)}, final platform ${fin.w} px wide (${2 * fightDist} needed), ${height} px up. ok`);
+
+// ------------------------------------------------------------------ real jumps: the weakest fighter climbs to the final platform from anywhere
+
+console.log("\nclimbing with the real sim (AGI 40 / SPD 40, nobody to fight):");
+function climb(stats: FighterStats, x: number, tick = STAIRS_UP_TICK + 30): number | null {
+  const ia = { ...EMPTY_INPUT }, ib = { ...EMPTY_INPUT };
+  const m = createMatch(stats, kit("Fighter"), [ia, ib], { arena: "inferno" });
+  for (let i = 0; i < 4 * TICK_HZ; i++) step(m, [ia, ib]);
+  m.timer = T.matchTicks - tick;
+  m.fighters[1].x = 480; // the opponent stands on the final platform, out of the way
+  m.fighters[1].y = fin.top;
+  m.fighters[0].x = x;
+  const brain = newBrain("normal");
+  for (let t = 0; t < 12 * TICK_HZ; t++) {
+    cpuThink(m, 0, brain, ia);
+    step(m, [ia, ib]);
+    const f = m.fighters[0];
+    if (f.grounded && Math.abs(f.y - fin.top) < 0.5 && f.x >= fin.x && f.x <= fin.x + fin.w) return t;
+  }
+  return null;
+}
+for (const [name, stats] of [["AGI 40 / SPD 40", weak], ["AGI 100 / SPD 100", { ...weak, spd: 100, agi: 100, atk: 50, def: 50, iq: 50 }], ["AGI 70 / SPD 40", { ...weak, agi: 70, atk: 80, def: 80, iq: 80 }]] as [string, FighterStats][]) {
+  const times: string[] = [];
+  for (const x of [65, 100, 150, 230, 300, 480, 650, 740, 810, 895]) {
+    const t = climb(stats, x);
+    times.push(t === null ? `${x}:NO` : `${x}:${(t / TICK_HZ).toFixed(1)}s`);
+    if (t === null) fail(`${name} starting at x=${x} never reaches the final platform`);
+  }
+  console.log(`  ${name}: ${times.join(" ")}`);
+}
+// The planner's first hop from the floor must exist for the weakest fighter on both sides.
+const hop = nextHop(deriveDef(weak), { jump: 1, air: 1 }, [{ id: 0, top: ARENA.ground, x0: 65, x1: 895 }, ...platformsAt(STAIRS_UP_TICK + 1).map((p) => ({ id: p.id, top: p.top, x0: p.x, x1: p.x + p.w }))], { id: 0, top: ARENA.ground, x0: 65, x1: 895 });
+assert.ok(hop, "no path from the floor to the final platform without the scene-5 boost");
+
+// ------------------------------------------------------------------ CPU vs CPU
+
+type Result = { winner: number | null; ticks: number; by: "ko" | "time"; env: number; dmg: number; scene5: boolean[]; ready: boolean[]; final: boolean[]; hash: string };
+function play(a: FighterStats, b: FighterStats, level: "normal" | "hard" = "normal"): Result {
+  const ia = { ...EMPTY_INPUT }, ib = { ...EMPTY_INPUT };
+  const m: Match = createMatch(a, b, [ia, ib], { arena: "inferno" });
+  const brains = [newBrain(level), newBrain(level)];
+  const h = createHash("sha1");
+  const scene5 = [false, false], ready = [false, false], final = [false, false];
+  let ticks = 0;
+  while (m.phase !== "matchEnd" && ticks < 3 * T.matchTicks) {
+    cpuThink(m, 0, brains[0], ia);
+    cpuThink(m, 1, brains[1], ib);
+    step(m, [ia, ib]);
+    ticks++;
+    if (m.phase === "fight" && sceneAt(arenaTick(m)) === 4) {
+      for (const f of m.fighters) {
+        scene5[f.slot] = true;
+        if (arenaTick(m) >= STAIRS_UP_TICK + 10 * TICK_HZ && f.action !== "ko") ready[f.slot] = true; // still fighting once the staircase has stood 10 s
+        const on = platformsAt(arenaTick(m)).find((p) => p.kind === "final" && p.state === "up" && f.grounded && Math.abs(f.y - p.top) < 0.5 && f.x >= p.x && f.x <= p.x + p.w);
+        if (on) final[f.slot] = true;
+      }
+    }
+    if (ticks % 600 === 0) h.update(JSON.stringify(snapshot(m)));
+  }
+  assert.equal(m.phase, "matchEnd", "an arena fight must end (KO or the clock)");
+  h.update(`${m.matchWinner}:${ticks}:${m.fighters.map((f) => f.hp)}`);
+  return { winner: m.matchWinner, ticks, by: m.roundReason ?? "time", env: m.arena!.envDmg[0] + m.arena!.envDmg[1], dmg: m.damage[0] + m.damage[1], scene5, ready, final, hash: h.digest("hex") };
+}
+
+const pairs: [string, string][] = [];
+for (let i = 0; i < CLASSES.length; i++) for (let j = i; j < CLASSES.length; j++) pairs.push([CLASSES[i], CLASSES[j]]);
+const firstHash: string[] = [];
+
+if (TUNING) {
+  // Matchup trims: for each pair, nudge the damage factor of the side that wins too often (a factor moves a pair's log-odds by about
+  // 18 per unit of log factor, measured), a few rounds, with the hard CPU.
+  const logit = (r: number) => Math.log(Math.max(0.02, Math.min(0.98, r)) / (1 - Math.max(0.02, Math.min(0.98, r))));
+  for (let round = 1; round <= 3; round++) {
+    seedRandom(500 + round);
+    const rates: string[] = [];
+    for (const [A, B] of pairs) {
+      if (A === B) continue;
+      let w = 0;
+      for (let g = 0; g < N; g++) {
+        const seat = g % 2;
+        const r = seat === 0 ? play(kit(A), kit(B), "hard") : play(kit(B), kit(A), "hard");
+        w += r.winner === null ? 0.5 : r.winner === seat ? 1 : 0;
+      }
+      const rate = w / N, key = `${A}-${B}`;
+      rates.push(`${key} ${(rate * 100).toFixed(0)}%`);
+      T.matchup[key] = Math.round(T.matchup[key] * Math.exp((-logit(rate) / 17.8) * 0.7) * 1000) / 1000;
+    }
+    console.log(`round ${round}: ${rates.join(", ")}`);
+  }
+  console.log(`\nmatchup: ${JSON.stringify(T.matchup)}`);
+  process.exit(0);
+}
+
+// Hazards, the climb and determinism: the normal CPU, every class pair (20 fights each, a fifth of that for a class against itself), both seats.
+{
+  const per = (A: string, B: string) => (A === B ? 4 : 20);
+  const fights = pairs.reduce((n, [A, B]) => n + per(A, B), 0);
+  console.log(`\nCPU vs CPU, normal level: ${fights} arena fights over ${pairs.length} class pairs, both seats`);
+  seedRandom(20261025);
+  const started = Date.now();
+  let ko = 0, timeout = 0, draws = 0, reached = 0, ready = 0, readyFinal = 0, envSum = 0, dmgSum = 0, ticksSum = 0, total = 0, bothReady = 0, bothFinal = 0;
+  for (const [A, B] of pairs) {
+    for (let g = 0; g < per(A, B); g++) {
+      const r = g % 2 === 0 ? play(kit(A), kit(B)) : play(kit(B), kit(A));
+      total++;
+      if (firstHash.length < 6) firstHash.push(r.hash);
+      if (r.by === "ko") ko++;
+      else timeout++;
+      if (r.winner === null) draws++;
+      envSum += r.env;
+      dmgSum += r.dmg;
+      ticksSum += r.ticks;
+      for (const s of [0, 1]) {
+        if (r.scene5[s]) reached++;
+        if (r.ready[s]) { ready++; if (r.final[s]) readyFinal++; }
+      }
+      if (r.ready[0] && r.ready[1]) { bothReady++; if (r.final[0] && r.final[1]) bothFinal++; }
+    }
+  }
+  console.log(`  ${((Date.now() - started) / 1000).toFixed(0)} s. ended by KO ${ko}, by the clock ${timeout} (draws ${draws}); average ${(ticksSum / total / TICK_HZ).toFixed(0)} s of play (the clock holds during hit-stop)`);
+  const reachRate = ready ? readyFinal / ready : 1;
+  console.log(`  fighters in scene 5: ${reached}/${total * 2}; still fighting 10 s after the stairs stood: ${ready}; of those on the final platform at some point: ${(reachRate * 100).toFixed(1)}% (both fighters of a fight: ${bothReady ? ((bothFinal / bothReady) * 100).toFixed(1) : "n/a"}% of ${bothReady})`);
+  const share = envSum / (envSum + dmgSum);
+  console.log(`  hazards dealt ${(share * 100).toFixed(1)}% of all damage (${envSum} of ${envSum + dmgSum})`);
+  if (ready === 0) fail("no fighter was still fighting 10 s after the staircase stood: the pool is too small");
+  if (reachRate < 0.95) fail(`only ${(reachRate * 100).toFixed(1)}% of the fighters in scene 5 reach the final platform (need 95%)`);
+  if (share < 0.1 || share > 0.25) fail(`hazards deal ${(share * 100).toFixed(1)}% of the damage (need 10-25%)`);
+}
+
+// Class balance in the arena: the hard CPU (the one scripts/balance.ts calibrates on), N fights per pair, half in each seat.
+{
+  console.log(`\nCPU vs CPU, hard level: ${N} fights per class pair (±${(100 / Math.sqrt(N)).toFixed(0)}%)`);
+  seedRandom(777);
+  const started = Date.now();
+  const rates: { k: string; rate: number }[] = [];
+  for (const [A, B] of pairs) {
+    if (A === B) continue;
+    let w = 0;
+    for (let g = 0; g < N; g++) {
+      const seat = g % 2;
+      const r = seat === 0 ? play(kit(A), kit(B), "hard") : play(kit(B), kit(A), "hard");
+      w += r.winner === null ? 0.5 : r.winner === seat ? 1 : 0;
+    }
+    rates.push({ k: `${A}-${B}`, rate: w / N });
+  }
+  console.log(`  ${((Date.now() - started) / 1000).toFixed(0)} s. ${rates.map((r) => `${r.k} ${(r.rate * 100).toFixed(0)}%`).join(", ")}`);
+  const out = rates.filter((r) => r.rate < 0.35 || r.rate > 0.65);
+  console.log(`  ${out.length ? "UNFAIR" : "fair"}: every pair within ${Math.round(Math.min(...rates.map((r) => r.rate)) * 100)}-${Math.round(Math.max(...rates.map((r) => r.rate)) * 100)}% (target 35-65%)`);
+  if (out.length) fail(`class pairs outside 35-65% in arena mode: ${out.map((r) => `${r.k} ${(r.rate * 100).toFixed(0)}%`).join(", ")}`);
+}
+
+// Same seed, same fights.
+seedRandom(20261025);
+const again: string[] = [];
+outer: for (const [A, B] of pairs) {
+  for (let g = 0; g < (A === B ? 4 : 20); g++) {
+    if (again.length >= firstHash.length) break outer;
+    again.push((g % 2 === 0 ? play(kit(A), kit(B)) : play(kit(B), kit(A))).hash);
+  }
+}
+assert.deepEqual(again, firstHash, "the same seed gave a different arena fight");
+console.log(`\ndeterminism: the first ${firstHash.length} fights replay identically`);
+
+console.log(failed ? "\nSOME ARENA CHECKS FAILED" : `\nok: all arena checks passed (scenes: ${SCENE_NAMES.join(" > ")})`);
+process.exit(failed ? 1 : 0);

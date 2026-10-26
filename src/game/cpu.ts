@@ -1,6 +1,7 @@
 // Computer opponent. Reads the match like a player would (with a reaction delay,
 // so it isn't frame-perfect) and drives the same Input a human would send.
 
+import { arenaNav, guardEdges, type NavMemory } from "./arenaNav";
 import { MOVES, SLOT1_COST, SPECIAL_INFO, ULT_COST, type SpecialKind } from "./moves";
 import { ARENA, BLAST_REACH, BODY, holds, moveReach, type Input, type Match, type Slot } from "./sim";
 
@@ -37,14 +38,22 @@ export type CpuBrain = {
   knobs?: Partial<Knobs>; // a dungeon boss's own knobs over its level's (src/game/dungeon.ts)
   ultUse: number; // chance that it saves up for the ultimate (scripts/balance.ts sets 1 / 0 to price the ultimate)
   saving: boolean; // rolled after every special: this meter goes to the ultimate, slot 1 stays unused
+  nav: NavMemory; // arena fights: the jump it is flying (src/game/arenaNav.ts)
 };
 
 export const newBrain = (level: Level, knobs?: Partial<Knobs>): CpuBrain => {
   const ult = knobs?.ult ?? LEVELS[level].ult;
-  return { level, tick: 0, history: [], blockUntil: 0, nextThink: 0, reactedTo: "", guardFor: "", retreatUntil: 0, stepBack: null, skillUse: knobs?.skill ?? LEVELS[level].skill, ultUse: ult, saving: Math.random() < ult, knobs };
+  return { level, tick: 0, history: [], blockUntil: 0, nextThink: 0, reactedTo: "", guardFor: "", retreatUntil: 0, stepBack: null, skillUse: knobs?.skill ?? LEVELS[level].skill, ultUse: ult, saving: Math.random() < ult, knobs, nav: {} };
 };
 
 export function cpuThink(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
+  // Arena fight: hazards and the climb take over the movement when they must; otherwise it fights as usual, but never walks off a platform.
+  if (m.arena && !holds(m) && m.phase === "fight" && m.fighters[slot].action !== "ko" && arenaNav(m, slot, m.defs[slot], brain.nav, input)) return;
+  fight(m, slot, brain, input);
+  if (m.arena && m.phase === "fight") guardEdges(m, slot, input);
+}
+
+function fight(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
   const L = brain.knobs ? { ...LEVELS[brain.level], ...brain.knobs } : LEVELS[brain.level];
   const me = m.fighters[slot];
   const op = m.fighters[1 - slot];
