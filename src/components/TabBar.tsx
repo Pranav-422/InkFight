@@ -4,7 +4,7 @@ import { Castle, Home, Plus, Swords, Trophy, type LucideIcon } from "lucide-reac
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-// Phones only (logged in): the main places one thumb away. Hidden while a fight runs (GameCanvas sets body[data-fight]).
+// Phones and tablets (logged in; the header has room for the links from lg): the main places one thumb away. Hidden while a fight runs (GameCanvas sets body[data-fight]).
 const TABS: [string, string, LucideIcon, (p: string) => boolean][] = [
   ["/home", "Home", Home, (p) => p === "/home"],
   ["/play", "Fight", Swords, (p) => p === "/play" || p.startsWith("/play/cpu") || /^\/play\/[A-Z0-9]{4,8}$/.test(p)],
@@ -16,7 +16,7 @@ const TABS: [string, string, LucideIcon, (p: string) => boolean][] = [
 export function TabBar() {
   const path = usePathname();
   return (
-    <nav className="tabbar fixed inset-x-0 bottom-0 z-30 border-t-[3px] border-ink bg-paper pb-[env(safe-area-inset-bottom)] md:hidden">
+    <nav className="tabbar fixed inset-x-0 bottom-0 z-30 border-t-[3px] border-ink bg-paper pb-[env(safe-area-inset-bottom)] lg:hidden">
       <ul className="mx-auto grid max-w-md grid-cols-5">
         {TABS.map(([href, label, Icon, on]) => {
           const active = on(path);

@@ -26,6 +26,8 @@ type Props = {
 const SNAP_MS = 1000 / TICK_HZ; // one snapshot per sim tick
 const subscribeNoop = () => () => {};
 const isTouchDevice = () => window.matchMedia("(pointer: coarse)").matches;
+// Typing in a field (a name, a settings dropdown) must not move the fighter.
+const typing = (t: EventTarget | null) => t instanceof HTMLElement && !!t.closest("input, textarea, select, [contenteditable]");
 const TAPS = new Set<Control>(["jump", "attack", "kick", "special", "skill"]); // sent as press counters
 
 // A/D or ←/→ move · W/↑/Space jump · S/↓ block (hold) · J punch · K kick · L special (half a meter) · S+L ultimate (full meter) · U side skill
@@ -126,9 +128,10 @@ export function GameCanvas({ snaps, players, you, onInput, onExit, children }: P
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.code === "KeyI" && !(e.target instanceof HTMLInputElement)) setInspect(true);
+      if (typing(e.target)) return;
+      if (e.code === "KeyI") setInspect(true);
       const k = KEYS[e.code];
-      if (!k || e.target instanceof HTMLInputElement) return;
+      if (!k) return;
       e.preventDefault();
       if (!e.repeat) press.current(k, true, `key:${e.code}`);
     };

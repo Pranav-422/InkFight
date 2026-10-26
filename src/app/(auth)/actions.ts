@@ -6,6 +6,8 @@ import { endSession, getSession, hashPassword, startSession, verifyPassword } fr
 import { db } from "@/lib/db";
 import { sendMail } from "@/lib/mail";
 import { clientIp, rateLimit } from "@/lib/rateLimit";
+import { safePath } from "@/lib/safePath";
+import { isDemoEmail } from "./demo";
 import { SECURITY_QUESTIONS } from "./questions";
 
 // Compared against when the email is unknown, so a wrong email takes as long as a wrong password.
@@ -13,11 +15,8 @@ const DUMMY_HASH = "$2b$10$6zP65Lbd5mUkZWq4/M3aveZ1AVyy6YDSAn7/lr4fkUewiR6yjwMVS
 
 export type AuthState = { error?: string; email?: string; name?: string };
 
-// Only allow same-site relative redirects after login.
-function safeNext(v: FormDataEntryValue | null) {
-  const s = typeof v === "string" ? v : "";
-  return s.startsWith("/") && !s.startsWith("//") ? s : "/home";
-}
+const safeNext = (v: FormDataEntryValue | null) => safePath(v);
+const DEMO_LOCKED = "Demo accounts are shared, so their password and security question can't be changed.";
 
 // No security question yet: ask for one on the way in (it can be skipped).
 const askSecurity = (form: FormData) => `/security?next=${encodeURIComponent(safeNext(form.get("next")))}`;
@@ -39,7 +38,7 @@ export async function login(_prev: AuthState, form: FormData): Promise<AuthState
     return { error: "That email and password don't match. Typo?", email };
   }
   await startSession({ userId: user.id, name: user.name, email: user.email });
-  redirect(user.securityQuestion ? safeNext(form.get("next")) : askSecurity(form));
+  redirect(user.securityQuestion || isDemoEmail(email) ? safeNext(form.get("next")) : askSecurity(form));
 }
 
 export async function signup(_prev: AuthState, form: FormData): Promise<AuthState> {
@@ -75,6 +74,7 @@ export type ResetState = { error?: string; email?: string; sent?: boolean };
 export async function requestReset(_prev: ResetState, form: FormData): Promise<ResetState> {
   const email = String(form.get("email") ?? "").trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "That email doesn't look right.", email };
+  if (isDemoEmail(email)) return { error: DEMO_LOCKED, email };
   if (!(await rateLimit(`reset-ip:${await clientIp()}`, 6, 15 * 60_000)) || !(await rateLimit(`reset:${email}`, 3, 15 * 60_000))) {
     return { error: "Too many codes asked for. Wait 15 minutes and try again.", email };
   }
@@ -101,6 +101,7 @@ export async function resetPassword(_prev: ResetState, form: FormData): Promise<
   const code = String(form.get("code") ?? "").replace(/\D/g, "");
   const password = String(form.get("password") ?? "");
   const back = { sent: true, email };
+  if (isDemoEmail(email)) return { ...back, error: DEMO_LOCKED };
   if (code.length !== 6) return { ...back, error: "The code has 6 digits." };
   if (password.length < 8 || password.length > 200) return { ...back, error: "Password needs at least 8 characters." };
   if (!(await rateLimit(`reset-try-ip:${await clientIp()}`, 20, 15 * 60_000))) return { ...back, error: "Too many tries. Wait 15 minutes." };
@@ -127,10 +128,18 @@ export type SecurityState = { error?: string };
 export async function setSecurity(_prev: SecurityState, form: FormData): Promise<SecurityState> {
   const s = await getSession();
   if (!s) redirect("/login");
+  if (isDemoEmail(s.email)) return { error: DEMO_LOCKED };
   const question = String(form.get("question") ?? "");
   const answer = normAnswer(String(form.get("answer") ?? ""));
   if (!SECURITY_QUESTIONS.includes(question)) return { error: "Pick one of the questions." };
   if (answer.length < 2 || answer.length > 100) return { error: "The answer needs at least 2 characters." };
+  // Changing an existing question needs the password, so a borrowed session can't swap in its own answer and reset later.
+  const user = await db.user.findUnique({ where: { id: s.userId }, select: { securityQuestion: true, passwordHash: true } });
+  if (!user) redirect("/login");
+  if (user.securityQuestion) {
+    if (!(await rateLimit(`secq-set:${s.userId}`, 5, 15 * 60_000))) return { error: "Too many tries. Wait 15 minutes." };
+    if (!(await verifyPassword(String(form.get("password") ?? ""), user.passwordHash))) return { error: "That password isn't right." };
+  }
   await db.user.update({ where: { id: s.userId }, data: { securityQuestion: question, securityAnswer: await hashPassword(answer) } });
   redirect(safeNext(form.get("next")));
 }
@@ -139,6 +148,7 @@ export type QuestionState = { error?: string; email?: string; question?: string 
 
 export async function findQuestion(_prev: QuestionState, form: FormData): Promise<QuestionState> {
   const email = String(form.get("email") ?? "").trim().toLowerCase();
+  if (isDemoEmail(email)) return { error: DEMO_LOCKED, email };
   if (!(await rateLimit(`secq-ip:${await clientIp()}`, 10, 15 * 60_000))) return { error: "Too many tries. Wait 15 minutes.", email };
   const user = await db.user.findUnique({ where: { email }, select: { securityQuestion: true } });
   if (!user?.securityQuestion) return { error: "No security question is set for that email. Use the emailed code instead.", email };
@@ -150,6 +160,7 @@ export async function answerReset(_prev: QuestionState, form: FormData): Promise
   const answer = normAnswer(String(form.get("answer") ?? ""));
   const password = String(form.get("password") ?? "");
   const back = { email, question: String(form.get("question") ?? "") };
+  if (isDemoEmail(email)) return { ...back, error: DEMO_LOCKED };
   if (password.length < 8 || password.length > 200) return { ...back, error: "Password needs at least 8 characters." };
   if (!(await rateLimit(`secq-ip:${await clientIp()}`, 10, 15 * 60_000)) || !(await rateLimit(`secq:${email}`, 5, 15 * 60_000))) {
     return { ...back, error: "Too many tries. Wait 15 minutes." };

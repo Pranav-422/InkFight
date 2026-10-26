@@ -56,7 +56,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               <InstallButton />
               <SoundToggle />
               {(session ? NAV_IN : NAV_OUT).map((n) => (
-                <Link key={n.href} href={n.href} className={`${linkCls} ${n.desktopOnly || session ? "hidden md:block" : ""}`}>
+                <Link key={n.href} href={n.href} className={`${linkCls} ${n.desktopOnly || session ? "hidden lg:block" : ""}`}>
                   {n.short ? (
                     <>
                       <span className="sm:hidden">{n.short}</span>
@@ -78,7 +78,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                     <span className="flex size-8 items-center justify-center rounded-full bg-ink font-display text-sm font-extrabold text-white">
                       {session.name.slice(0, 1)}
                     </span>
-                    <span className="hidden max-w-28 truncate font-semibold lg:inline">{session.name}</span>
+                    <span className="hidden max-w-24 truncate font-semibold 2xl:inline">{session.name}</span>
                   </Link>
                   <button title="Log out" className="rounded-full p-1.5 text-muted hover:bg-ink/5 hover:text-ink">
                     <LogOut className="size-4" />
@@ -98,7 +98,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             </div>
           </nav>
         </header>
-        <main className={`mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:py-8 ${session ? "pb-28 md:pb-8" : ""}`}>{children}</main>
+        <main className={`mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:py-8 ${session ? "pb-28 lg:pb-8" : ""}`}>{children}</main>
         {session && <TabBar />}
       </body>
     </html>

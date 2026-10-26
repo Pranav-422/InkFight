@@ -7,6 +7,9 @@ import { isArenaId } from "@/game/arena";
 // 5:00) has no winner, so it is refused below and never stored. Set false to keep arena fights off the leaderboard.
 const RECORD_ARENA = true;
 
+// The log is only shown back (share card, battle page): keep two small whole numbers per field, never the client's raw JSON.
+const pair = (v: unknown) => (Array.isArray(v) ? [0, 1].map((i) => Math.max(0, Math.min(1e6, Math.round(Number(v[i]) || 0)))) : [0, 0]);
+
 // The host's browser runs the fight and reports the result once per match.
 export async function POST(req: Request) {
   const s = await getSession();
@@ -39,7 +42,7 @@ export async function POST(req: Request) {
         characterBId: room.guestFighterId,
         winnerId: body.winnerSlot === 0 ? room.hostFighterId : room.guestFighterId,
         matchKey: `${room.code}:${matchId}`,
-        log: JSON.stringify({ mode: arena ? `arena-${arena}` : "p2p", wins: body.wins, damage: body.damage, rounds: body.rounds }),
+        log: JSON.stringify({ mode: arena ? `arena-${arena}` : "p2p", wins: pair(body.wins), damage: pair(body.damage), rounds: Math.max(0, Math.min(99, Math.round(Number(body.rounds) || 0))) }),
       },
     });
   } catch {

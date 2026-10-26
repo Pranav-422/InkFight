@@ -18,8 +18,8 @@ const kit = (cls: string) => ({ ...ruleStats(cls, { ...neutral, dominant_colors:
 // locked: constellations locked so far (the ceremony). ko: let the fight end (otherwise nobody dies); from: only once the world clock has
 // reached that tick; inRing: only once the fight is back on in the ring; loser: which fighter is left with a sliver of health when the fight may end (so the other one wins). end + dt: the arena's ending has
 // reached that moment ("kickAt", "hitAt", "splashAt" or "until"), plus dt ticks.
-// calm: no special, hit or knockout in progress (the camera is at rest). nearCrack: a fighter within that many px of a leaking crack's edge.
-export type Spec = { name: string; phase?: string; cue?: string; phaseT?: number; tick?: number; world?: number; scene?: number; settle?: number; hp?: [number, number]; glow?: boolean; meteor?: boolean; ko?: boolean; from?: number; inRing?: boolean; loser?: 0 | 1; end?: "kickAt" | "hitAt" | "splashAt" | "until"; dt?: number; locked?: number; calm?: boolean; nearCrack?: number };
+// calm: no special, hit or knockout in progress (the camera is at rest). locked: an ultimate holds its target; special: a special has just started (the camera's push-in). nearCrack: a fighter within that many px of a leaking crack's edge.
+export type Spec = { name: string; phase?: string; cue?: string; phaseT?: number; tick?: number; world?: number; scene?: number; settle?: number; hp?: [number, number]; glow?: boolean; meteor?: boolean; ko?: boolean; from?: number; inRing?: boolean; loser?: 0 | 1; end?: "kickAt" | "hitAt" | "splashAt" | "until"; dt?: number; locked?: number; calm?: boolean; nearCrack?: number; held?: boolean; special?: boolean };
 export type Opts = { seed?: number; a?: string; b?: string; protect?: boolean; skipTo?: number; names?: [string, string] };
 
 declare global {
@@ -41,6 +41,8 @@ const holds = (m: Match, s: Spec) =>
   (s.end === undefined || (m.arena?.end?.planned === true && m.phaseT >= m.arena.end[s.end] + (s.dt ?? 0))) &&
   (s.locked === undefined || (m.arena?.pick.filter(Boolean).length ?? 0) >= s.locked) &&
   (s.nearCrack === undefined || (m.arena?.cracks ?? []).some((c) => arenaTick(m) >= c.born + c.glow && m.fighters.some((f) => f.grounded && f.y >= 479 && Math.abs(f.x - c.x) - c.w / 2 < s.nearCrack!))) &&
+  (!s.held || m.fighters.some((f) => f.locked)) &&
+  (!s.special || m.fighters.some((f) => f.action === "special" && f.t > 4 && f.t < 20)) &&
   (!s.calm || (m.slow === 0 && m.freeze === 0 && m.fighters.every((f) => f.action !== "special" && f.action !== "hit" && f.action !== "ko")));
 
 window.capture = (specs, opts = {}) => {
@@ -87,7 +89,7 @@ window.capture = (specs, opts = {}) => {
         out[s.name] = canvas.toDataURL("image/png");
         pending.splice(pending.indexOf(s), 1);
       }
-    } else if (t % 4 === 0) {
+    } else if (t % 4 === 0 && arenaWorld(m) >= (opts.skipTo ?? 0)) { // skipTo: no drawing before that world tick (faster runs)
       now += 16 * 4;
       r.draw(prev, cur, 1, hud, now); // keeps particles and the camera moving while the sim runs
     }

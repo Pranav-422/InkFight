@@ -57,7 +57,7 @@ export function RoomStart({ dark = false }: { dark?: boolean }) {
           placeholder="Friend's code"
           aria-label="Room code"
           maxLength={8}
-          className={`min-w-0 flex-1 border-[3px] px-4 py-3 font-display text-lg tracking-widest outline-none placeholder:font-sans placeholder:text-base placeholder:font-semibold placeholder:tracking-normal focus:shadow-[3px_3px_0_var(--gold)] ${
+          className={`w-0 min-w-0 flex-1 border-[3px] px-4 py-3 font-display text-lg tracking-widest outline-none placeholder:font-sans placeholder:text-base placeholder:font-semibold placeholder:tracking-normal focus:shadow-[3px_3px_0_var(--gold)] ${
             dark ? "border-white/40 bg-white/10 text-white placeholder:text-white/50" : "border-ink bg-white placeholder:text-muted"
           }`}
         />

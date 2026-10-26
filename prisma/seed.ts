@@ -50,7 +50,8 @@ async function main() {
   for (const [i, acc] of DEMO_ACCOUNTS.entries()) {
     const user = await db.user.upsert({
       where: { email: acc.email },
-      update: {},
+      // Shared accounts: put the published password back and clear any security question someone set on them.
+      update: { passwordHash: await bcrypt.hash(acc.password, 10), securityQuestion: null, securityAnswer: null, resetHash: null, resetExpires: null },
       create: { email: acc.email, name: acc.name, passwordHash: await bcrypt.hash(acc.password, 10) },
     });
     const s = STARTERS[i];

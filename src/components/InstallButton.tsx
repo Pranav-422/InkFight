@@ -30,9 +30,11 @@ export function InstallButton() {
         await prompt.userChoice;
         setPrompt(null);
       }}
+      title="Install app"
+      aria-label="Install app"
       className="mr-1 inline-flex items-center gap-1 rounded-full bg-gold/30 px-3 py-1.5 font-semibold whitespace-nowrap hover:bg-gold/50"
     >
-      <Download className="size-3.5" /> <span className="hidden sm:inline">Install app</span>
+      <Download className="size-3.5" />
       <span className="sm:hidden">App</span>
     </button>
   );

@@ -28,6 +28,12 @@ export function SecurityForm({ next, current }: { next: string; current: string 
           Answer
           <input name="answer" required minLength={2} maxLength={100} autoComplete="off" placeholder="Not case sensitive" className={input} />
         </label>
+        {current && (
+          <label className="grid gap-1 text-sm font-medium">
+            Your password
+            <input name="password" type="password" required autoComplete="current-password" className={input} />
+          </label>
+        )}
         {state.error && <p className="rounded-xl bg-hit/10 px-3 py-2 text-sm text-hit">{state.error}</p>}
         <button
           disabled={pending}

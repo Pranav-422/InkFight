@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
+import { safePath } from "@/lib/safePath";
 import { logout } from "../actions";
 import { AuthForm } from "../AuthForm";
 import { DEMO_ACCOUNTS } from "../demo";
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const { next } = await searchParams;
-  const nextPath = typeof next === "string" ? next : undefined;
+  const nextPath = typeof next === "string" ? safePath(next) : undefined;
   const session = await getSession();
   // Don't silently bounce: in one browser every tab shares this login, which is
   // how "two players in two tabs" ended up as the same account.

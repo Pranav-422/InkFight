@@ -131,10 +131,12 @@ function Choice<T extends string>({ label, value, options, onChange, show }: { l
   );
 }
 
+const START: Build = { head: "round", ink: INKS[0][1], item: "sword", style: "Karate", special: "slash", variant: "", ult: "", skill: "", element: "NONE", name: "" };
+
 // cleared: Dungeon floors this player has beaten: the new special kinds and named variants they copied are in the pickers.
 export function BuildClient({ cleared }: { cleared: number }) {
   const router = useRouter();
-  const [b, setB] = useState<Build>({ head: "round", ink: INKS[0][1], item: "sword", style: "Karate", special: "slash", variant: "", ult: "", skill: "", element: "NONE", name: "" });
+  const [b, setB] = useState<Build>(START);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -155,7 +157,7 @@ export function BuildClient({ cleared }: { cleared: number }) {
     setDemo((d) => ({ kind: "special", n: d.n + 1 }));
   };
   const autoElement = suggestElement([INK_COLOR_NAMES[b.ink] ?? "black"]);
-  useLeaveGuard(!busy, "Your fighter isn't saved yet. Leave without building it?");
+  useLeaveGuard(b !== START && !busy, "Your fighter isn't saved yet. Leave without building it?"); // every pick makes a new object, so b !== START = touched
 
   // Redraw the "drawing" when the look changes; the avatar extracts it like a scan.
   useEffect(() => {

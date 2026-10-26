@@ -51,7 +51,7 @@ export class Renderer {
   private view = { cx: ARENA.w / 2, cy: ARENA.h / 2, z: 1 }; // the camera as drawn this frame (world → screen)
   private redPage = 0; // 0..1: the page bleeds red once the Redline Regent unseals its second form (eased)
   private cine = 0; // 0..1: how far into the ultimate's blackout we are (eased)
-  private banner: { text: string; color: string; life: number } | null = null;
+  private banner: { text: string; color: string; life: number; low?: boolean } | null = null;
   private arenaView: ArenaView | null = null; // an arena fight's backdrop and live hazards (src/game/arenaRender.ts)
   private lastEventId = 0;
   private fontDisplay = "sans-serif";
@@ -229,7 +229,7 @@ export class Renderer {
     } else if (e.type === "special") {
       this.sfx(e.ult ? "ultimate" : "special");
       const name = (e.ult && hud.ultNames?.[e.by]) || hud.specialNames[e.by];
-      this.banner = { text: `${name}!`, color: C.hit, life: e.ult ? 100 : 60 };
+      this.banner = { text: `${name}!`, color: C.hit, life: e.ult ? 100 : 60, low: true }; // low: over the floor, not over the fighters' heads
       // Only the ultimate gets the full blackout and speed lines; slot 1 is a quick flourish.
       this.dim = { slot: e.by, life: e.ult ? 24 : 8 };
       this.shake = Math.max(this.shake, e.ult ? 4 : 2);
@@ -418,11 +418,22 @@ export class Renderer {
     }
     // An arena fight: keep both fighters in frame (zoomed out and looking up when one is on a platform), unless a special or the KO has the camera.
     if (cur.arena && !this.arenaView) this.arenaView = new ArenaView(this.fontDisplay, this.fontBody);
-    if (cur.arena && this.arenaView && !this.preview && tz === 1) {
+    if (cur.arena && this.arenaView && !this.preview) {
       const w = this.arenaView.camera(fighters, cur.cue, cur.arena);
-      tz = w.z;
-      tx = w.x;
-      ty = w.y;
+      if (tz === 1) {
+        tz = w.z;
+        tx = w.x;
+        ty = w.y;
+      } else {
+        // A push-in here: the fighters may stand 200 px up on the ring and far apart, so frame both at their real height
+        // (heads under the HUD), never closer than fits them and never wider than the arena's own view.
+        const top = Math.min(fighters[0].y, fighters[1].y) - BODY.h - 30, bot = Math.max(fighters[0].y, fighters[1].y) + 50;
+        const hud = 130;
+        const fit = Math.min(ARENA.w / (Math.abs(fighters[0].x - fighters[1].x) + 240), ARENA.h / (bot - top + hud));
+        tz = Math.max(w.z, Math.min(tz, fit));
+        tx = (fighters[0].x + fighters[1].x) / 2;
+        ty = (top - hud / tz + bot) / 2;
+      }
     }
     const ease = 1 - Math.exp(-Math.min(0.05, Math.max(0.001, (now - this.lastNow) / 1000)) * 6);
     this.cam.z += (tz - this.cam.z) * ease;
@@ -1572,7 +1583,8 @@ export class Renderer {
       color = C.hit;
     }
     if (this.banner) {
-      this.big(this.banner.text, this.banner.color, this.onStage ? 236 : 190, 38); // (an arena's banner sits lower: the clock's notch and the stamps are above)
+      // (an arena's banner sits lower: the clock's notch and the stamps are above; a move's name sits low, above the phone's exit and settings buttons)
+      this.big(this.banner.text, this.banner.color, this.banner.low ? ARENA.h - 62 : this.onStage ? 236 : 190, 38);
       if (--this.banner.life <= 0) this.banner = null;
     }
     if (text) this.big(text, color, ARENA.h / 2 - 20, 72);
