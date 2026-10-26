@@ -200,7 +200,7 @@ export type Fighter = {
   seen: { jump: number; attack: number; kick: number; special: number; skill: number };
 };
 
-export type Projectile = { id: number; owner: Slot; kind: SpecialKind | "blast"; x: number; y: number; vx: number; r: number; dmg: number; life: number; ult?: boolean; delay?: number };
+export type Projectile = { id: number; owner: Slot; kind: SpecialKind | "blast"; x: number; y: number; vx: number; r: number; dmg: number; life: number; ult?: boolean };
 
 export type GameEvent =
   | { id: number; type: "hit"; x: number; y: number; dmg: number; blocked: boolean; special: boolean; by: Slot; ult?: boolean; crit?: boolean }
@@ -1313,10 +1313,6 @@ export function step(m: Match, inputs: [Input, Input]) {
   if (m.arena) for (const f of m.fighters) arenaRingClamp(m, f); // (a shove apart must not push one through a wall)
 
   for (const p of m.projectiles) {
-    if (p.delay) {
-      p.delay--; // a Royal Pride follow-up blast hasn't left yet
-      continue;
-    }
     p.x += p.vx;
     const target = m.fighters[1 - p.owner];
     const blast = p.kind === "blast"; // a light hit: no super-flash, no element
@@ -1327,11 +1323,11 @@ export function step(m: Match, inputs: [Input, Input]) {
   }
   m.projectiles = m.projectiles.filter((p) => p.x > -100 && p.x < ARENA.w + 100);
 
-  // Timed cuts land where they were drawn: a ruled line only hurts someone standing on it, a remote detonation anyone in the column.
+  // Timed cuts (a remote detonation, the Overdue's knives) land where they were drawn, on anyone in the column.
   for (const h of m.hazards) {
     if (--h.left > 0) continue;
     const target = m.fighters[1 - h.owner];
-    if (m.phase === "fight" && overlaps(h.x - h.w / 2, h.x + h.w / 2, target.y - BODY.h, target.y, target) && (h.kind === "cut" || target.grounded)) {
+    if (m.phase === "fight" && overlaps(h.x - h.w / 2, h.x + h.w / 2, target.y - BODY.h, target.y, target)) {
       applyHit(m, m.fighters[h.owner], target, h.dmg, { knock: 4, special: true, ult: h.ult, proj: true, at: { x: h.x, y: target.y - BODY.h * 0.55 } });
     }
   }

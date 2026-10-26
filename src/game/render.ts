@@ -51,7 +51,7 @@ export class Renderer {
   private dim: { slot: Slot; life: number } | null = null; // special start: darken + speed lines
   private impact: { x: number; y: number; until: number } | null = null; // impact frame: where (world) and until when
   private view = { cx: ARENA.w / 2, cy: ARENA.h / 2, z: 1 }; // the camera as drawn this frame (world → screen)
-  private redPage = 0; // 0..1: the page bleeds red once the Redline Regent unseals its second form (eased)
+  private formTint = 0; // 0..1: the page takes the boss's second colour once its second form is out (eased)
   private cine = 0; // 0..1: how far into the ultimate's blackout we are (eased)
   private banner: { text: string; color: string; life: number } | null = null;
   private arenaView: ArenaView | null = null; // an arena fight's backdrop and live hazards (src/game/arenaRender.ts)
@@ -500,12 +500,12 @@ export class Renderer {
       ctx.fillStyle = `rgba(5,5,12,${0.62 * this.cine})`;
       ctx.fillRect(-20, -20, ARENA.w + 40, ARENA.h + 40);
     }
-    this.redPage += ((cur.bossPhase === 2 ? 1 : 0) - this.redPage) * ease;
-    if (this.redPage > 0.01) {
+    this.formTint += ((cur.bossPhase === 2 ? 1 : 0) - this.formTint) * ease;
+    if (this.formTint > 0.01) {
       // The second form tints the page in the boss's own second colour.
       const tint = cur.bossFloor ? bossLook(cur.bossFloor)?.palette.sub ?? "#9e1b1b" : "#9e1b1b";
       const [r, g, b] = [1, 3, 5].map((i) => parseInt(tint.slice(i, i + 2), 16));
-      ctx.fillStyle = `rgba(${r},${g},${b},${0.14 * this.redPage})`;
+      ctx.fillStyle = `rgba(${r},${g},${b},${0.14 * this.formTint})`;
       ctx.fillRect(-20, -20, ARENA.w + 40, ARENA.h + 40);
     }
     for (const h of cur.hazards ?? []) this.hazard(h, fighters[1 - h.owner], now);
@@ -536,7 +536,7 @@ export class Renderer {
     }
     this.spin = 0;
     this.lastNow = now;
-    for (const p of projectiles) if (!p.delay) this.projectile(p.kind, p.x, p.y, p.r, p.vx, now, p.owner, fighters[p.owner].x);
+    for (const p of projectiles) this.projectile(p.kind, p.x, p.y, p.r, p.vx, now, p.owner, fighters[p.owner].x);
     this.fx();
     if (cur.arena && this.arenaView) this.arenaView.front(ctx, cur, now, getReduceFlashes());
     ctx.restore();
@@ -938,7 +938,7 @@ export class Renderer {
       ctx.restore();
     }
 
-    // Afterimages while a special is out (and Smudge's grey trail while its Afterimage is ready).
+    // Afterimages while a special is out (and a boss's trail while its Afterimage is ready).
     const trail = this.trails[f.slot];
     const ghost = passive === "afterimage" && (f.pv?.cd ?? 1) === 0;
     if ((f.action === "special" && special !== "beam") || ghost || (f.draw && f.action === "attack")) {
