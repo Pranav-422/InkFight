@@ -3,7 +3,7 @@
 // A → B exists if a jump planned with this fighter's own numbers (deriveDef jump / speed / air control, the scene-5 boost)
 // lands on B. The plan is found by replaying the sim's jump physics, so it is right for an AGI-40 fighter and for an AGI-100 one.
 
-import { ARENA_TUNE, arenaBoost, arenaWorld, platformsAt, ROCK_DEFS, standingOn, type Platform } from "./arena";
+import { ARENA_TUNE, arenaBoost, arenaWorld, CONSTELLATIONS, platformsAt, ROCK_DEFS, standingOn, type Platform } from "./arena";
 import { ARENA, BODY } from "./space";
 import { GRAVITY, type FighterDef, type Input, type Match, type Slot } from "./sim";
 
@@ -124,7 +124,8 @@ export function nextHop(def: FighterDef, boost: { jump: number; air: number }, n
   return null;
 }
 
-export type NavMemory = { hop?: Hop; hopT?: number }; // the jump being flown (brain.nav)
+// The jump being flown (hop, hopT) and, in the ceremony, which constellation it wants and when it gets round to picking (brain.nav).
+export type NavMemory = { hop?: Hop; hopT?: number; want?: number; pickT?: number; delay?: number };
 
 // Hazard avoidance and the climb. Returns true when it set the movement for this tick (the fight logic then stands down).
 export function arenaNav(m: Match, slot: Slot, def: FighterDef, mem: NavMemory, input: Input): boolean {
@@ -180,7 +181,7 @@ export function arenaNav(m: Match, slot: Slot, def: FighterDef, mem: NavMemory, 
     const under = standingOn(m, me);
     const here = under ? nodeOf(under) : me.y >= ARENA.ground - 1 ? floorNode : null;
     if (!here || here.id === FINAL) return false;
-    const hop = nextHop(def, arenaBoost(m), nodes, here, FINAL, me.x);
+    const hop = nextHop(def, arenaBoost(m, slot), nodes, here, FINAL, me.x);
     if (!hop) return false;
     const dx = hop.x - me.x;
     if (Math.abs(dx) > Math.max(2.5, def.speed / 2)) {
@@ -213,6 +214,7 @@ export function cueNav(m: Match, slot: Slot, def: FighterDef, mem: NavMemory, in
   const me = m.fighters[slot];
   const mk = c.target?.[slot];
   input.left = input.right = input.block = false;
+  if (c.id === "pick") return pickNav(m, slot, mem, input);
   if (!mk || c.done[slot]) return;
   const go = (dir: -1 | 0 | 1) => {
     input.left = dir < 0;
@@ -237,7 +239,7 @@ export function cueNav(m: Match, slot: Slot, def: FighterDef, mem: NavMemory, in
     go(Math.abs(dx) > 1 ? (dx > 0 ? 1 : -1) : 0);
     return;
   }
-  const hop = nextHop(def, arenaBoost(m), nodes, here, goal.id, me.x);
+  const hop = nextHop(def, arenaBoost(m, slot), nodes, here, goal.id, me.x);
   if (!hop) return; // the stairs aren't built far enough yet
   const dx = hop.x - me.x;
   if (Math.abs(dx) > Math.max(2.5, def.speed / 2)) {
@@ -247,4 +249,23 @@ export function cueNav(m: Match, slot: Slot, def: FighterDef, mem: NavMemory, in
   input.jump++;
   mem.hop = hop;
   mem.hopT = 0;
+}
+
+// The ceremony: the computer picks a constellation at random after a moment's thought, scrolling the list one place every 8 ticks
+// (like a player's thumb) and punching to lock. If someone else takes the one it wanted, it settles for where the cursor is.
+function pickNav(m: Match, slot: Slot, mem: NavMemory, input: Input) {
+  const a = m.arena!;
+  if (a.pick[slot]) return;
+  mem.pickT = (mem.pickT ?? 0) + 1;
+  if (mem.want === undefined) {
+    mem.want = Math.floor(Math.random() * CONSTELLATIONS.length);
+    mem.delay = 45 + Math.floor(Math.random() * 120);
+  }
+  if (mem.pickT < mem.delay!) return;
+  if (a.pick.includes(CONSTELLATIONS[mem.want])) mem.want = a.cur[slot];
+  if (a.cur[slot] !== mem.want) {
+    if (mem.pickT % 8 === 0) input.right = true;
+    return;
+  }
+  if (mem.pickT % 8 === 0) input.attack++;
 }

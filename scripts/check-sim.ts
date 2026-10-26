@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { ARENA_STORY_LENGTH, ARENA_TUNE, arenaTick, arenaWorld, lavaY, platformsAt, ROCK_DEFS, sceneAt, STAIRS_UP_TICK } from "../src/game/arena";
+import { ARENA_STORY_IDS, ARENA_STORY_LENGTH, ARENA_TUNE, arenaBoost, arenaTick, arenaWorld, CONSTELLATIONS, lavaY, platformsAt, ROCK_DEFS, sceneAt, STAIRS_UP_TICK } from "../src/game/arena";
 import { CLASS_ULT, SLOT1_COST, SPECIAL_KINDS, STYLE_INFO, ULT_COST } from "../src/game/moves";
 import { poseFor } from "../src/game/poses";
 import { AVERAGE_BUILD, buildFor, solveStick } from "../src/game/stickman";
@@ -905,15 +905,16 @@ const p2 = (): BossSpec => bossOf("curse-marks", { phase2: { stats: { ...fighter
 }
 
 // An arena match already in the fight phase at `tick`, fighters at x0 / x1 on the floor, random hazards off unless asked.
-// The story (the guided pauses) is marked as told unless `story`, so a test that jumps to a scene isn't interrupted by one.
-function arena(tick: number, x0 = 300, x1 = 660, hazards = false, story = false) {
+// The story (the guided pauses) is marked as told up to `story`: "none" (the default: nothing interrupts a test that jumps to a scene),
+// "climb" (the ceremony is over, the climb pause at scene 5 is still to come).
+function arena(tick: number, x0 = 300, x1 = 660, hazards = false, story: "none" | "climb" = "none") {
   const ia = { ...EMPTY_INPUT }, ib = { ...EMPTY_INPUT };
   const m = createMatch(fighter("Fighter"), fighter("Fighter"), [ia, ib], { arena: "inferno" });
   for (const d of m.defs) d.dodge = 0;
+  m.arena!.beat = story === "climb" ? ARENA_STORY_IDS.indexOf("climb") : ARENA_STORY_LENGTH;
   for (let i = 0; i < 3 * TICK_HZ; i++) step(m, [ia, ib]);
   assert.equal(m.phase, "fight");
   m.timer = ARENA_TUNE.matchTicks - tick;
-  if (!story) m.arena!.beat = ARENA_STORY_LENGTH;
   if (!hazards) m.arena!.next = [1e9, 1e9];
   m.fighters[0].x = x0;
   m.fighters[1].x = x1;
@@ -936,7 +937,7 @@ function arena(tick: number, x0 = 300, x1 = 660, hazards = false, story = false)
   assert.deepEqual(seen, [[1, 0], [2, 1800], [3, 3600], [4, 6300], [5, 9000]], "scenes must change at 0, 30, 60, 105 and 150 s");
   assert.deepEqual([0, 1799, 1800, 3599, 3600, 6299, 6300, 8999, 9000, 17999].map(sceneAt), [0, 0, 1, 1, 2, 2, 3, 3, 4, 4]);
   // With the story on, scene 5 begins with a guided pause: its announcement comes on the pause's first tick, at the same match tick.
-  const S = arena(8990, 300, 660, false, true);
+  const S = arena(8990, 300, 660, false, "climb");
   S.m.arena!.scene = 3;
   let phase5 = -1;
   for (let t = 0; t < 40; t++) {
@@ -1018,7 +1019,7 @@ function arena(tick: number, x0 = 300, x1 = 660, hazards = false, story = false)
 // Guided pause (the "cue" phase): scene 5 begins with "Get up there!". The clock and the fight hold still, nobody can attack,
 // the staircase keeps rising on the world clock, and the pause ends when both fighters stand on the final platform.
 {
-  const S = arena(8990, 300, 660, false, true);
+  const S = arena(8990, 300, 660, false, "climb");
   const { m, ia } = S;
   m.projectiles.push({ id: 9500, owner: 0, kind: "orb", x: 400, y: 400, vx: 5, r: 10, dmg: 30, life: 50 });
   Object.assign(m.fighters[1], { action: "attack", t: 3, move: "jab" as never });
@@ -1088,7 +1089,7 @@ function arena(tick: number, x0 = 300, x1 = 660, hazards = false, story = false)
 
 // A pause that nobody finishes times out and lifts whoever is still below onto the platform.
 {
-  const S = arena(8990, 300, 660, false, true);
+  const S = arena(8990, 300, 660, false, "climb");
   run(S, 12);
   assert.equal(S.m.phase, "cue");
   run(S, ARENA_TUNE.cue.climb - 20);
@@ -1102,7 +1103,7 @@ function arena(tick: number, x0 = 300, x1 = 660, hazards = false, story = false)
 
 // A snapshot taken in a pause survives JSON and the resumed match carries on identically.
 {
-  const S = arena(8990, 300, 660, false, true);
+  const S = arena(8990, 300, 660, false, "climb");
   run(S, 250);
   const snap = JSON.parse(JSON.stringify(snapshot(S.m)));
   assert.equal(snap.phase, "cue");
@@ -1294,6 +1295,195 @@ function arena(tick: number, x0 = 300, x1 = 660, hazards = false, story = false)
     step(b, [{ ...ib, ...EMPTY_INPUT }, { ...EMPTY_INPUT }]);
   }
   assert.deepEqual(JSON.parse(JSON.stringify(snapshot(b).arena)), JSON.parse(JSON.stringify(snapshot(m).arena)), "a resumed arena fight diverged");
+}
+
+// The opening ceremony: before any fighting, each fighter locks a constellation (left / right move the cursor one place per press, punch locks,
+// a taken one can't be locked twice, the cursor skips it, whoever hasn't locked when the time runs out gets the one under the cursor).
+{
+  const ia = { ...EMPTY_INPUT }, ib = { ...EMPTY_INPUT };
+  const m = createMatch(fighter("Fighter"), fighter("Fighter"), [ia, ib], { arena: "inferno" });
+  const C = ARENA_TUNE.ceremony;
+  assert.equal(m.phase, "intro");
+  run({ m, ia, ib }, C.intro - 1);
+  assert.equal(m.phase, "intro");
+  run({ m, ia, ib }, 1);
+  assert.equal(m.phase, "cue");
+  assert.equal(m.cue!.id, "open");
+  assert.equal(m.cue!.text, "THE STARS WAKE");
+  const a = m.arena!;
+  assert.deepEqual([a.pick[0], a.pick[1]], [null, null]);
+  // Pressing in the first beat does nothing (the stars are only waking): no lock, no cursor move.
+  ia.attack++; ia.right = true;
+  run({ m, ia, ib }, 3);
+  ia.right = false;
+  assert.deepEqual(a.pick, [null, null]);
+  assert.deepEqual(a.cur, [0, 2], "the cursor must not move before the pick");
+  run({ m, ia, ib }, C.open);
+  assert.equal(m.cue!.id, "pick");
+  const E = ARENA_TUNE.matchTicks;
+  assert.equal(m.timer, E, "no fighting clock runs in the ceremony");
+  // One press moves the cursor one place; a held key doesn't repeat; left goes back; it wraps round.
+  ia.right = true;
+  run({ m, ia, ib }, 30);
+  assert.equal(a.cur[0], 1, "a held key moves the cursor once");
+  ia.right = false;
+  run({ m, ia, ib }, 2);
+  ia.left = true;
+  run({ m, ia, ib }, 2);
+  ia.left = false;
+  assert.equal(a.cur[0], 0);
+  run({ m, ia, ib }, 2);
+  ia.left = true;
+  run({ m, ia, ib }, 2);
+  ia.left = false;
+  assert.equal(a.cur[0], CONSTELLATIONS.length - 1, "the list wraps");
+  // Both press punch on the same tick with the cursors on the same constellation: P1 gets it, P2's cursor moves on.
+  a.cur[0] = 1;
+  a.cur[1] = 1;
+  ia.attack++;
+  ib.attack++;
+  run({ m, ia, ib }, 1);
+  assert.equal(a.pick[0], CONSTELLATIONS[1], "P1 wins a tie");
+  assert.equal(a.pick[1], null, "P2 can't take what P1 just locked");
+  assert.notEqual(a.cur[1], 1, "P2's cursor moves off the taken one");
+  assert.ok(m.events.some((e) => e.type === "arena" && e.kind === "star" && e.slot === 0), "a lock announces itself");
+  // A locked fighter's cursor and presses do nothing more; the other's cursor skips the taken one.
+  ia.right = true;
+  ia.attack++;
+  a.cur[1] = 0;
+  ib.right = true;
+  run({ m, ia, ib }, 2);
+  ib.right = false;
+  ia.right = false;
+  assert.equal(a.pick[0], CONSTELLATIONS[1]);
+  assert.equal(a.cur[1], 2, "the cursor skips the constellation the other fighter took");
+  run({ m, ia, ib }, 2);
+  // Nobody can attack during the ceremony: the fighters stand where they were.
+  assert.equal(m.fighters[0].action, "idle");
+  // P2 doesn't press: the pick times out and P2 gets the one under the cursor.
+  const t0 = m.phaseT;
+  run({ m, ia, ib }, C.pick - t0 + 2);
+  assert.equal(a.pick[1], CONSTELLATIONS[2], "an unlocked fighter gets the constellation under the cursor at the end");
+  assert.notEqual(a.pick[0], a.pick[1], "two fighters never share a constellation");
+  assert.equal(m.cue!.id, "settle", "the pick ends and the stars settle");
+  run({ m, ia, ib }, C.settle - 10);
+  assert.equal(m.phase, "cue");
+  run({ m, ia, ib }, 12);
+  assert.equal(m.phase, "fight", "the fight starts after the settle");
+  assert.ok(m.timer >= E - 12, "the match clock starts only now");
+  // In the whole ceremony nobody lost a point of health and the meter stayed empty (a few ticks of the fight have passed by now).
+  assert.deepEqual(m.fighters.map((f) => f.hp), [m.defs[0].maxHp, m.defs[1].maxHp]);
+  assert.ok(m.fighters.every((f) => f.energy < 1), "the meter must not fill during the ceremony");
+  // The pick is in every snapshot, and a resumed match keeps it.
+  const snap = JSON.parse(JSON.stringify(snapshot(m)));
+  assert.deepEqual(snap.arena.pick, [CONSTELLATIONS[1], CONSTELLATIONS[2]]);
+  const b = resumeMatch(snap, fighter("Fighter"), fighter("Fighter"), [{ ...ia }, { ...ib }]);
+  assert.deepEqual(b.arena!.pick, a.pick);
+}
+
+// Both lock quickly: the pick doesn't wait for its timeout, it ends after the short linger.
+{
+  const ia = { ...EMPTY_INPUT }, ib = { ...EMPTY_INPUT };
+  const m = createMatch(fighter("Fighter"), fighter("Fighter"), [ia, ib], { arena: "inferno" });
+  run({ m, ia, ib }, ARENA_TUNE.ceremony.intro + ARENA_TUNE.ceremony.open + 1);
+  assert.equal(m.cue!.id, "pick");
+  ia.attack++;
+  ib.attack++;
+  run({ m, ia, ib }, 1);
+  assert.deepEqual(m.cue!.done, [true, true]);
+  run({ m, ia, ib }, ARENA_TUNE.ceremony.lock + 1);
+  assert.equal(m.cue!.id, "settle");
+  assert.ok(m.arena!.pick[0] && m.arena!.pick[1] && m.arena!.pick[0] !== m.arena!.pick[1]);
+}
+
+// The ceremony takes about 15 s at the most (the sheet's number), whatever the players do.
+{
+  const C = ARENA_TUNE.ceremony;
+  const longest = C.intro + C.open + C.pick + C.lock + C.settle;
+  assert.ok(longest <= 16 * TICK_HZ, `the ceremony can take ${(longest / TICK_HZ).toFixed(1)} s`);
+}
+
+// What each constellation grants (the numbers are ARENA_TUNE.stars). `with` gives a fighter a constellation in a match already in the fight.
+{
+  const S = ARENA_TUNE.stars;
+  const star = (tick: number, slot0: (typeof CONSTELLATIONS)[number] | null, slot1: (typeof CONSTELLATIONS)[number] | null = null, x0 = 300, x1 = 660) => {
+    const x = arena(tick, x0, x1);
+    x.m.arena!.pick = [slot0, slot1];
+    return x;
+  };
+  // Phoenix: lava and cracks hurt 60% less.
+  const crack = (pick: (typeof CONSTELLATIONS)[number] | null) => {
+    const x = star(3700, pick, null, 500, 800);
+    x.m.arena!.cracks.push({ id: 9601, x: 500, w: 60, born: 3700, glow: 0, end: 9999 });
+    run(x, 90);
+    return x.m.arena!.envDmg[0];
+  };
+  const plain = crack(null), phoenix = crack("phoenix");
+  assert.ok(plain > 0 && Math.abs(phoenix / plain - S.phoenix.lava) < 0.12, `Phoenix took ${phoenix} of ${plain} from a crack (want x${S.phoenix.lava})`);
+  // Tortoise: the cap on environment damage is halved, scorch is capped at 10%.
+  const rescue0 = ARENA_TUNE.lava.rescue;
+  const lava = (pick: (typeof CONSTELLATIONS)[number] | null) => {
+    const x = star(15500, pick, null, 480, 700);
+    x.m.fighters[0].hp = 3000;
+    x.m.fighters[0].y = ARENA.ground;
+    ARENA_TUNE.lava.rescue = 1e9;
+    const dealt: number[] = [];
+    for (let t = 0; t < 1400; t++) {
+      const before = x.m.arena!.envDmg[0];
+      run(x, 1);
+      dealt.push(x.m.arena!.envDmg[0] - before);
+    }
+    ARENA_TUNE.lava.rescue = rescue0;
+    let worst = 0, sum = 0;
+    for (let i = 0; i < dealt.length; i++) { sum += dealt[i]; if (i >= 600) sum -= dealt[i - 600]; worst = Math.max(worst, sum); }
+    return { worst, weak: x.m.arena!.weak[0], pool: x.m.defs[0].maxHp };
+  };
+  const l0 = lava(null), l1 = lava("tortoise");
+  assert.ok(l0.worst > 0 && l1.worst <= Math.round(ARENA_TUNE.env.cap * S.tortoise.cap * l1.pool), `Tortoise took ${l1.worst} in 10 s (cap ${ARENA_TUNE.env.cap * S.tortoise.cap * l1.pool})`);
+  assert.ok(l1.worst < l0.worst * 0.7, "Tortoise should take clearly less than everyone else in lava");
+  assert.ok(l1.weak <= S.tortoise.weak + 1e-9 && l0.weak > S.tortoise.weak, `Tortoise scorch ${l1.weak} (cap ${S.tortoise.weak}), others ${l0.weak}`);
+  // Hare: more jump and air control, all match, stacked on scene 5's boost.
+  {
+    const y = star(1000, "hare", null);
+    const b = arenaBoost(y.m, 0), n = arenaBoost(y.m, 1);
+    assert.deepEqual([b.jump, b.air, n.jump, n.air], [S.hare.jump, S.hare.air, 1, 1]);
+    const apex = (x: ReturnType<typeof star>) => {
+      const f = x.m.fighters[0];
+      x.ia.jump++;
+      let top = f.y;
+      for (let t = 0; t < 80; t++) { run(x, 1); top = Math.min(top, f.y); if (t > 3 && f.grounded) break; }
+      return ARENA.ground - top;
+    };
+    const hare = apex(y), base = apex(star(1000, null, null));
+    assert.ok(hare / base > S.hare.jump ** 2 - 0.05, `Hare jumps ${hare} against ${base}`);
+    const five = star(9500, "hare", null);
+    assert.ok(Math.abs(arenaBoost(five.m, 0).jump - S.hare.jump * ARENA_TUNE.boost.jump) < 1e-9, "the Hare's jump stacks with scene 5's");
+  }
+  // Serpent: +10% on a scorched foe, nothing on a clean one.
+  {
+    const hit = (pick: (typeof CONSTELLATIONS)[number] | null, scorched: number) => {
+      const x = star(2000, pick, null, 480, 520);
+      x.m.defs[0].punch *= 20; // (a big hit: damage is rounded to whole points, which would blur a 10% difference)
+      x.m.arena!.weak[1] = scorched;
+      x.m.fighters[1].blocking = false;
+      x.ia.attack++;
+      run(x, 20);
+      return x.m.defs[1].maxHp - x.m.fighters[1].hp;
+    };
+    const clean = hit(null, 0), cleanS = hit("serpent", 0), burnt = hit(null, 0.1), burntS = hit("serpent", 0.1);
+    assert.ok(clean > 0 && Math.abs(cleanS - clean) < 1e-9, "the Serpent's bonus needs a scorched foe");
+    assert.ok(Math.abs(burntS / burnt - S.serpent.scorched) < 0.01 && Math.abs(burnt - clean) < 1e-9, `Serpent dealt ${burntS} against ${burnt} on a scorched foe`);
+  }
+  // Comet: the special meter fills 15% faster.
+  {
+    const e = (pick: (typeof CONSTELLATIONS)[number] | null) => {
+      const x = star(2000, pick, null);
+      run(x, 600);
+      return x.m.fighters[0].energy;
+    };
+    const base = e(null), comet = e("comet");
+    assert.ok(base > 0 && Math.abs(comet / base - S.comet.energy) < 0.02, `Comet meter ${comet} against ${base}`);
+  }
 }
 
 console.log("check-sim: all good");

@@ -6,7 +6,7 @@ import { CLASS_CHAIN, CLASS_CHAIN_POWER, CLASS_TUNE, COMBO_WINDOW, ELEMENT_TUNE,
 
 export type { SpecialKind } from "./moves";
 
-import { ARENA_TUNE, arenaBeat, arenaBoost, arenaClampX, arenaCueEnd, arenaCueTick, arenaStep, arenaSurface, cloneArena, matchupFactor, newArena, standingOn, type ArenaGameEvent, type ArenaId, type ArenaState } from "./arena";
+import { ARENA_TUNE, arenaBeat, arenaBoost, arenaClampX, arenaCueEnd, arenaCueInput, arenaCueTick, arenaDamageFactor, arenaEnergyMul, arenaOpen, arenaStep, arenaSurface, cloneArena, newArena, standingOn, type ArenaGameEvent, type ArenaId, type ArenaState } from "./arena";
 import { ARENA, BODY, TICK_HZ } from "./space";
 
 export { ARENA, BODY, TICK_HZ };
@@ -347,7 +347,7 @@ const FROST_SLOW = 0.3; // frozen fighters walk 30% slower
 // Energy a fighter earns from `base`: their IQ multiplier, plus up to TENSION_ENERGY more at full tension.
 // Royal Pride (boss): below 40% health the Prince's meter fills twice as fast.
 const prideful = (m: Match, f: Fighter) => m.defs[f.slot].passive === "royal-pride" && f.hp / m.defs[f.slot].maxHp < 0.4;
-const energyGain = (m: Match, f: Fighter, base: number) => base * m.defs[f.slot].energyMul * (1 + TRAIT.TENSION_ENERGY * f.tension) * (prideful(m, f) ? 2 : 1);
+const energyGain = (m: Match, f: Fighter, base: number) => base * m.defs[f.slot].energyMul * (1 + TRAIT.TENSION_ENERGY * f.tension) * (prideful(m, f) ? 2 : 1) * (m.arena ? arenaEnergyMul(m, f.slot) : 1);
 
 // Pencil Case (boss): the class traits follow the weapon in hand (mace, sword, shield); everyone else keeps their class.
 const WEAPON_CLASS = ["Mace", "Sword", "Tank"];
@@ -421,7 +421,7 @@ function applyHit(
   const def = m.defs[vic.slot];
   const ad = m.defs[att.slot];
   // Arena fights: lava and cracks weaken a fighter's hits for a while (ARENA_TUNE.weak), and each matchup has a small trim (ARENA_TUNE.matchup).
-  if (m.arena) raw *= (1 - m.arena.weak[att.slot]) * matchupFactor(ad.cls, def.cls);
+  if (m.arena) raw *= arenaDamageFactor(m, att, vic);
   // Slip-weave: the hit is slipped and the weaver's next move comes out fast, to punish with
   // (an automatic counter stunned the attacker every time: a free win, not a read).
   if (def.skill === "weave" && vic.skillT > 0 && !opts.proj && vic.action !== "hit") {
@@ -991,7 +991,7 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
   const kickP = pressed("kick") && !cueing;
   const specialP = pressed("special") && !cueing;
   const skillP = pressed("skill");
-  const boost = arenaBoost(m); // scene 5 of an arena fight: a little more jump and air control (1 / 1 everywhere else)
+  const boost = arenaBoost(m, f.slot); // scene 5 of an arena fight, and the Hare: more jump and air control (1 / 1 everywhere else)
 
   f.cooldown = Math.max(0, f.cooldown - 1);
   f.comboT = Math.max(0, f.comboT - 1);
@@ -1308,13 +1308,19 @@ export function step(m: Match, inputs: [Input, Input]) {
   }
   m.phaseT++;
 
-  if (m.phase === "intro" && m.phaseT >= INTRO_TICKS) {
-    m.phase = "fight";
-    m.phaseT = 0;
+  if (m.phase === "intro" && m.phaseT >= (m.arena ? ARENA_TUNE.ceremony.intro : INTRO_TICKS)) {
+    // An arena fight opens with its ceremony (guided pauses) before the first blow.
+    const open = m.arena ? arenaOpen(m, ARENA_HOOKS) : null;
+    if (open) startCue(m, open);
+    else {
+      m.phase = "fight";
+      m.phaseT = 0;
+    }
   }
 
   const [a, b] = m.fighters;
   if (m.phase === "fight") clash(m, a, b);
+  if (m.phase === "cue" && m.arena) arenaCueInput(m, inputs, ARENA_HOOKS); // (the ceremony reads the buttons before the fighters consume them)
   // During intro/roundEnd, inputs are still consumed (so stale presses don't fire later) but ignored.
   updateFighter(m, a, b, inputs[0]);
   updateFighter(m, b, a, inputs[1]);

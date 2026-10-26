@@ -1,6 +1,11 @@
 import type { ArenaId } from "./arena";
 import type { Input, Slot, Snapshot } from "./sim";
 
+// The five constellations of Arena 1's opening ceremony: each fighter locks one, and it grants a skill for the whole fight
+// (src/game/arena.ts: ARENA_TUNE.stars). The pick lives in the match (`Snapshot.arena.pick`), which is what a guest and a resumed
+// match read; the lobby has nothing to carry because the pick is made inside the fight, after both players have readied.
+export type ConstellationId = "phoenix" | "hare" | "tortoise" | "serpent" | "comet";
+
 export type PublicFighter = {
   id: string;
   name: string;

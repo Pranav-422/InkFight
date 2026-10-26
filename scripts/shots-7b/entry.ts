@@ -13,7 +13,8 @@ const kit = (cls: string) => ({ ...ruleStats(cls, { ...neutral, dominant_colors:
 
 // A moment to draw: every field given must hold. phase / cue: the sim's; phaseT: ticks into the phase; tick: the match clock;
 // world: the world clock; scene: 1-5; settle: frames to draw first (the camera and the fades ease in real time).
-export type Spec = { name: string; phase?: string; cue?: string; phaseT?: number; tick?: number; world?: number; scene?: number; settle?: number; ko?: boolean };
+// locked: constellations locked so far (the ceremony). ko: let the fight end (otherwise nobody dies).
+export type Spec = { name: string; phase?: string; cue?: string; phaseT?: number; tick?: number; world?: number; scene?: number; settle?: number; ko?: boolean; locked?: number };
 export type Opts = { seed?: number; a?: string; b?: string; protect?: boolean; skipTo?: number };
 
 declare global {
@@ -29,7 +30,8 @@ const holds = (m: Match, s: Spec) =>
   (s.phaseT === undefined || m.phaseT >= s.phaseT) &&
   (s.tick === undefined || arenaTick(m) >= s.tick) &&
   (s.world === undefined || arenaWorld(m) >= s.world) &&
-  (s.scene === undefined || (m.arena?.scene ?? -1) + 1 >= s.scene);
+  (s.scene === undefined || (m.arena?.scene ?? -1) + 1 >= s.scene) &&
+  (s.locked === undefined || (m.arena?.pick.filter(Boolean).length ?? 0) >= s.locked);
 
 window.capture = (specs, opts = {}) => {
   let seed = opts.seed ?? 5;

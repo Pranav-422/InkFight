@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { ARENA_TUNE, arenaTick, arenaWorld, lavaY, platformsAt, ROCK_DEFS, SCENE_NAMES, sceneAt, STAIRS_UP_TICK } from "../src/game/arena";
+import { ARENA_STORY_IDS, ARENA_TUNE, arenaTick, arenaWorld, lavaY, platformsAt, ROCK_DEFS, SCENE_NAMES, sceneAt, STAIRS_UP_TICK } from "../src/game/arena";
 import { cpuThink, newBrain } from "../src/game/cpu";
 import { nextHop } from "../src/game/arenaNav";
 import { CLASS_ITEM, CLASS_SPECIAL, CLASS_STYLE, MOVES } from "../src/game/moves";
@@ -166,6 +166,7 @@ console.log("\nthe climb pause with the real sim (nobody fights; both fighters a
 function climb(stats: FighterStats, other: FighterStats, x: number, xo: number): { ticks: number; warps: number } | null {
   const ia = { ...EMPTY_INPUT }, ib = { ...EMPTY_INPUT };
   const m = createMatch(stats, other, [ia, ib], { arena: "inferno" });
+  m.arena!.beat = ARENA_STORY_IDS.indexOf("climb"); // (the opening ceremony is not what is being measured)
   for (let i = 0; i < 4 * TICK_HZ; i++) step(m, [ia, ib]);
   m.timer = T.matchTicks - 8990;
   m.arena!.next = [1e9, 1e9];
@@ -208,19 +209,20 @@ if (QUICK) {
 
 // ------------------------------------------------------------------ CPU vs CPU
 
-type Result = { winner: number | null; ticks: number; by: "ko" | "time"; env: number; dmg: number; scene5: boolean[]; ready: boolean[]; final: boolean[]; warps: number; hash: string };
+type Result = { winner: number | null; ticks: number; by: "ko" | "time"; env: number; dmg: number; scene5: boolean[]; ready: boolean[]; final: boolean[]; warps: number; opening: number; picks: (string | null)[]; hash: string };
 function play(a: FighterStats, b: FighterStats, level: "normal" | "hard" = "normal"): Result {
   const ia = { ...EMPTY_INPUT }, ib = { ...EMPTY_INPUT };
   const m: Match = createMatch(a, b, [ia, ib], { arena: "inferno" });
   const brains = [newBrain(level), newBrain(level)];
   const h = createHash("sha1");
   const scene5 = [false, false], ready = [false, false], final = [false, false];
-  let ticks = 0, warps = 0, seen = 0;
+  let ticks = 0, warps = 0, seen = 0, opening = -1;
   while (m.phase !== "matchEnd" && ticks < 3 * T.matchTicks) {
     cpuThink(m, 0, brains[0], ia);
     cpuThink(m, 1, brains[1], ib);
     step(m, [ia, ib]);
     ticks++;
+    if (opening < 0 && m.phase === "fight") opening = ticks; // the ceremony is over: the first blow can be struck
     for (const e of m.events) if (e.id > seen) { seen = e.id; if (e.type === "arena" && e.kind === "warp") warps++; }
     if (m.phase === "fight" && sceneAt(arenaTick(m)) === 4) {
       for (const f of m.fighters) {
@@ -234,7 +236,7 @@ function play(a: FighterStats, b: FighterStats, level: "normal" | "hard" = "norm
   }
   assert.equal(m.phase, "matchEnd", "an arena fight must end (KO or the clock)");
   h.update(`${m.matchWinner}:${ticks}:${m.fighters.map((f) => f.hp)}`);
-  return { winner: m.matchWinner, ticks, by: m.roundReason ?? "time", env: m.arena!.envDmg[0] + m.arena!.envDmg[1], dmg: m.damage[0] + m.damage[1], scene5, ready, final, warps, hash: h.digest("hex") };
+  return { winner: m.matchWinner, ticks, by: m.roundReason ?? "time", env: m.arena!.envDmg[0] + m.arena!.envDmg[1], dmg: m.damage[0] + m.damage[1], scene5, ready, final, warps, opening, picks: [...m.arena!.pick], hash: h.digest("hex") };
 }
 
 const pairs: [string, string][] = [];
@@ -274,6 +276,8 @@ if (TUNING) {
   seedRandom(20261025);
   const started = Date.now();
   let ko = 0, timeout = 0, draws = 0, reached = 0, ready = 0, readyFinal = 0, envSum = 0, dmgSum = 0, ticksSum = 0, total = 0, bothReady = 0, bothFinal = 0, warpSum = 0;
+  let openSum = 0, openMax = 0, dupes = 0;
+  const picked: Record<string, number> = {};
   for (const [A, B] of pairs) {
     for (let g = 0; g < per(A, B); g++) {
       const r = g % 2 === 0 ? play(kit(A), kit(B)) : play(kit(B), kit(A));
@@ -283,6 +287,10 @@ if (TUNING) {
       else timeout++;
       if (r.winner === null) draws++;
       warpSum += r.warps;
+      openSum += r.opening;
+      openMax = Math.max(openMax, r.opening);
+      if (r.picks[0] === r.picks[1]) dupes++;
+      for (const p of r.picks) picked[p ?? "none"] = (picked[p ?? "none"] ?? 0) + 1;
       envSum += r.env;
       dmgSum += r.dmg;
       ticksSum += r.ticks;
@@ -296,6 +304,11 @@ if (TUNING) {
   console.log(`  ${((Date.now() - started) / 1000).toFixed(0)} s. ended by KO ${ko}, by the clock ${timeout} (draws ${draws}); average ${(ticksSum / total / TICK_HZ).toFixed(0)} s of play (the clock holds during hit-stop)`);
   const reachRate = ready ? readyFinal / ready : 1;
   console.log(`  fighters in scene 5: ${reached}/${total * 2}; still fighting 10 s after the stairs stood: ${ready}; of those on the final platform at some point: ${(reachRate * 100).toFixed(1)}% (both fighters of a fight: ${bothReady ? ((bothFinal / bothReady) * 100).toFixed(1) : "n/a"}% of ${bothReady})`);
+  const names = Object.keys(picked).sort();
+  console.log(`  opening ceremony: ${(openSum / total / TICK_HZ).toFixed(1)} s on average, ${(openMax / TICK_HZ).toFixed(1)} s at the most (the sheet: first 15 s); the computer picked ${names.map((n) => `${n} ${Math.round((picked[n] / (2 * total)) * 100)}%`).join(", ")}; two fighters on one constellation: ${dupes}`);
+  if (openMax > 16 * TICK_HZ) fail(`the opening ceremony took ${(openMax / TICK_HZ).toFixed(1)} s`);
+  if (dupes > 0) fail(`${dupes} fights where both fighters chose the same constellation`);
+  if (names.length !== 5 || names.some((n) => picked[n] < 0.1 * 2 * total || picked[n] > 0.3 * 2 * total)) fail(`the computer's constellation picks are not spread out: ${JSON.stringify(picked)}`);
   console.log(`  fighters lifted onto the final platform by a pause timeout: ${warpSum}`);
   if (warpSum > 0) fail(`${warpSum} fighters had to be lifted by the climb pause's timeout: the computer should climb by itself`);
   const share = envSum / (envSum + dmgSum);

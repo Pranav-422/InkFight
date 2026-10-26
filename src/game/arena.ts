@@ -7,8 +7,9 @@
 // normal best-of-3.
 
 import { CLASSES } from "../lib/stats";
+import type { ConstellationId } from "./protocol";
 import { ARENA, BODY, TICK_HZ } from "./space";
-import type { Cue, Fighter, Match, Slot } from "./sim";
+import type { Cue, Fighter, Input, Match, Slot } from "./sim";
 
 export const ARENAS = ["inferno"] as const;
 export type ArenaId = (typeof ARENAS)[number];
@@ -62,7 +63,40 @@ export const ARENA_TUNE = {
   // "Get up there!" pause waits for both fighters to reach the final platform before it lifts whoever is still below.
   // `hold`: ticks both fighters linger once they are in place, so the arrival reads.
   cue: { climb: 25 * S, hold: 30 },
+  // The opening ceremony, before any fighting (about 15 s at the longest): the arena's title card (`intro`), the stars waking
+  // (`open`), each fighter locking a constellation (`pick`, then `lock` ticks to read the stamp once both have), and the two
+  // chosen ones settling in the sky (`settle`). A fighter who hasn't locked when `pick` runs out gets the one under the cursor.
+  ceremony: { intro: 90, open: 120, pick: 540, lock: 45, settle: 120 },
+  // What each constellation grants for the whole fight (the numbers the sheet asks for; the rest of the rules stay as they are).
+  stars: {
+    phoenix: { lava: 0.4 }, // lava and cracks deal this share of their damage: 60% less (lava adaptation, spec section 6)
+    hare: { jump: 1.15, air: 1.3 }, // jump and air control, all match (they stack with scene 5's boost)
+    tortoise: { cap: 0.5, weak: 0.1 }, // the environment-damage cap is halved and scorch can't weaken hits by more than 10%
+    serpent: { scorched: 1.1 }, // hits on a scorched opponent (weakened by lava or a crack) deal +10%
+    comet: { energy: 1.15 }, // the special meter fills 15% faster
+  },
 };
+
+// ------------------------------------------------------------------ constellations
+
+export const CONSTELLATIONS: readonly ConstellationId[] = ["phoenix", "hare", "tortoise", "serpent", "comet"];
+const pct = (v: number) => `${Math.round(Math.abs(v - 1) * 100)}%`;
+// What a constellation is called and what it grants, written from ARENA_TUNE so the text can't drift from the numbers.
+export function starInfo(id: ConstellationId): { name: string; skill: string } {
+  const T = ARENA_TUNE.stars;
+  switch (id) {
+    case "phoenix":
+      return { name: "Phoenix", skill: `Lava & cracks hurt ${Math.round((1 - T.phoenix.lava) * 100)}% less` };
+    case "hare":
+      return { name: "Hare", skill: `Jump +${pct(T.hare.jump)}, air control +${pct(T.hare.air)}` };
+    case "tortoise":
+      return { name: "Tortoise", skill: `Hazard cap halved, scorch max ${Math.round(T.tortoise.weak * 100)}%` };
+    case "serpent":
+      return { name: "Serpent", skill: `+${pct(T.serpent.scorched)} damage on scorched foes` };
+    case "comet":
+      return { name: "Comet", skill: `Special meter fills ${pct(T.comet.energy)} faster` };
+  }
+}
 
 // ------------------------------------------------------------------ scenes
 
@@ -164,6 +198,9 @@ export type ArenaState = {
   drop: [number, number]; // ticks left of falling through platforms
   pause: number; // ticks spent in guided pauses since the fight began (see arenaWorld)
   beat: number; // how many of the story's beats (ARENA_STORY) have been played
+  pick: [ConstellationId | null, ConstellationId | null]; // each fighter's locked constellation (null until they lock one)
+  cur: [number, number]; // each fighter's cursor in the ceremony's list (index into CONSTELLATIONS)
+  dir: [number, number]; // the direction each fighter held last tick (a press moves the cursor once)
 };
 
 export function newArena(id: ArenaId): ArenaState {
@@ -184,6 +221,9 @@ export function newArena(id: ArenaId): ArenaState {
     drop: [0, 0],
     pause: 0,
     beat: 0,
+    pick: [null, null],
+    cur: [0, 2],
+    dir: [0, 0],
   };
 }
 
@@ -201,6 +241,9 @@ export const cloneArena = (a: ArenaState): ArenaState => ({
   lavaT: [...a.lavaT],
   immune: [...a.immune],
   drop: [...a.drop],
+  pick: [a.pick[0], a.pick[1]],
+  cur: [...a.cur],
+  dir: [...a.dir],
 });
 
 // The arena's damage trim for a class hitting another (ARENA_TUNE.matchup).
@@ -210,7 +253,23 @@ export function matchupFactor(att: string, vic: string): number {
   return i < j ? (ARENA_TUNE.matchup[`${att}-${vic}`] ?? 1) : 1 / (ARENA_TUNE.matchup[`${vic}-${att}`] ?? 1);
 }
 
-export const arenaBoost = (m: Match) => (m.arena && sceneAt(arenaTick(m)) === 4 ? ARENA_TUNE.boost : { jump: 1, air: 1 });
+// Jump and air-control multipliers for a fighter: scene 5's boost, and the Hare's own on top of it. (1 / 1 outside an arena.)
+export function arenaBoost(m: Match, slot: Slot): { jump: number; air: number } {
+  const scene5 = m.arena && sceneAt(arenaTick(m)) === 4 ? ARENA_TUNE.boost : { jump: 1, air: 1 };
+  if (m.arena?.pick[slot] !== "hare") return scene5;
+  return { jump: scene5.jump * ARENA_TUNE.stars.hare.jump, air: scene5.air * ARENA_TUNE.stars.hare.air };
+}
+
+// The arena's say in how hard a hit lands: the attacker's scorch weakness (lava and cracks), the class matchup trim, the
+// Serpent's bonus on a scorched foe. Everything is 1 when nothing applies.
+export function arenaDamageFactor(m: Match, att: Fighter, vic: Fighter): number {
+  const a = m.arena!;
+  const serpent = a.pick[att.slot] === "serpent" && a.weak[vic.slot] > 0 ? ARENA_TUNE.stars.serpent.scorched : 1;
+  return (1 - a.weak[att.slot]) * matchupFactor(m.defs[att.slot].cls, m.defs[vic.slot].cls) * serpent;
+}
+
+// The Comet's faster special meter (1 for everyone else and outside an arena).
+export const arenaEnergyMul = (m: Match, slot: Slot) => (m.arena?.pick[slot] === "comet" ? ARENA_TUNE.stars.comet.energy : 1);
 
 // Where a falling fighter lands: the floor, or the highest platform top it crossed this tick. `prevY` is the feet before
 // the move, so even at a fall speed of 60 px/tick it can't pass through a platform (it checks the crossing, not the end
@@ -239,9 +298,10 @@ export function arenaClampX(m: Match, att: Fighter, x: number): number {
 // ------------------------------------------------------------------ per-tick update
 
 type Hooks = { roll: (m: Match, salt: number) => number; emit: (m: Match, e: ArenaEvent) => void };
-export type ArenaEventKind = "scene" | "crack" | "meteor" | "impact" | "rumble" | "rise" | "burn" | "rescue" | "cue" | "warp";
+export type ArenaEventKind = "scene" | "crack" | "meteor" | "impact" | "rumble" | "rise" | "burn" | "rescue" | "cue" | "warp" | "star";
 // What the renderer and the sound get through the sim's event list (it keeps the last 16, so a skipped relay snapshot loses nothing).
-// scene: n = 1-5. burn: n = damage, slot. rescue / warp: slot. cue: a guided pause began (its text is in the snapshot). The rest: x is where.
+// scene: n = 1-5. burn: n = damage, slot. rescue / warp: slot. cue: a guided pause began (its text is in the snapshot). star: slot locked
+// constellation n (index into CONSTELLATIONS). The rest: x is where.
 export type ArenaGameEvent = { id: number; type: "arena"; kind: ArenaEventKind; x: number; y: number; n?: number; slot?: Slot };
 type ArenaEvent = Omit<ArenaGameEvent, "id">;
 
@@ -255,7 +315,8 @@ function envHurt(m: Match, h: Hooks, f: Fighter, frac: number, tick: number): nu
   const a = m.arena!;
   const pool = m.defs[f.slot].maxHp;
   const want = Math.max(1, Math.round(frac * pool));
-  const dealt = Math.min(want, Math.round(ARENA_TUNE.env.cap * pool) - bucketSum(a, f.slot), Math.floor(f.hp) - 1);
+  const cap = ARENA_TUNE.env.cap * (a.pick[f.slot] === "tortoise" ? ARENA_TUNE.stars.tortoise.cap : 1);
+  const dealt = Math.min(want, Math.round(cap * pool) - bucketSum(a, f.slot), Math.floor(f.hp) - 1);
   if (dealt <= 0) return 0;
   f.hp -= dealt;
   a.envDmg[f.slot] += dealt;
@@ -394,8 +455,9 @@ export function arenaStep(m: Match, h: Hooks) {
       a.since[s] = 0;
       if (a.contact[s] % (inLava ? T.lava.hit : T.crack.hit) === 1) {
         const p = crack ? (tick - T.scenes[2]) / (T.scenes[3] - T.scenes[2]) : 0;
-        const dealt = envHurt(m, h, f, inLava ? T.lava.dmg : lerp(T.crack.dmg[0], T.crack.dmg[1], Math.min(1, Math.max(0, p))), tick);
-        if (dealt > 0) a.weak[s] = Math.min(T.weak.max, a.weak[s] + T.weak.step);
+        const hurt = (inLava ? T.lava.dmg : lerp(T.crack.dmg[0], T.crack.dmg[1], Math.min(1, Math.max(0, p)))) * (a.pick[s] === "phoenix" ? T.stars.phoenix.lava : 1);
+        const dealt = envHurt(m, h, f, hurt, tick);
+        if (dealt > 0) a.weak[s] = Math.min(a.pick[s] === "tortoise" ? Math.min(T.weak.max, T.stars.tortoise.weak) : T.weak.max, a.weak[s] + T.weak.step);
       }
     } else {
       a.contact[s] = 0;
@@ -423,7 +485,63 @@ function warp(m: Match, h: Hooks, f: Fighter, mk: { x: number; y: number; r: num
 
 const FINAL = ROCKS[ROCKS.length - 1];
 
+// Lock a constellation for a fighter. The other fighter's cursor moves on if it was resting there (and that is returned: a press the
+// other fighter made on the same tick was for the one just taken, so it must not lock the next one).
+function lockStar(m: Match, h: Hooks, slot: Slot, id: ConstellationId): boolean {
+  const a = m.arena!;
+  a.pick[slot] = id;
+  m.cue!.done[slot] = true;
+  h.emit(m, ev("star", 0, 0, { n: CONSTELLATIONS.indexOf(id), slot }));
+  const other = (1 - slot) as Slot;
+  if (a.pick[other] || CONSTELLATIONS[a.cur[other]] !== id) return false;
+  a.cur[other] = nextFree(a, other, a.cur[other], 1);
+  return true;
+}
+
+// The next constellation along `dir` that nobody has locked (the cursor skips what the other fighter took).
+function nextFree(a: ArenaState, slot: Slot, from: number, dir: number): number {
+  const n = CONSTELLATIONS.length;
+  for (let k = 1; k <= n; k++) {
+    const i = (((from + dir * k) % n) + n) % n;
+    if (!a.pick.includes(CONSTELLATIONS[i])) return i;
+  }
+  return from;
+}
+
+// What the ceremony reads from the buttons, before the fighters consume them: left / right move the cursor one place per press,
+// punch locks the constellation under it (when the other fighter hasn't taken it). Slot 0 is read first, so a tie goes to P1.
+export function arenaCueInput(m: Match, inputs: [Input, Input], h: Hooks) {
+  const a = m.arena!;
+  if (m.cue?.id !== "pick") return;
+  const bumped = [false, false]; // whose cursor the other fighter's lock just moved
+  for (const f of m.fighters) {
+    const s = f.slot, input = inputs[s];
+    if (a.pick[s]) continue;
+    const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+    if (dir !== 0 && dir !== a.dir[s]) a.cur[s] = nextFree(a, s, a.cur[s], dir);
+    a.dir[s] = dir;
+    if (input.attack !== f.seen.attack && !bumped[s] && lockStar(m, h, s, CONSTELLATIONS[a.cur[s]])) bumped[1 - s] = true;
+  }
+}
+
 const STORY: Beat[] = [
+  // The opening ceremony. The stars wake in the sky...
+  { id: "open", make: () => ({ id: "open", text: "THE STARS WAKE", until: ARENA_TUNE.ceremony.open, hold: 0, done: [false, false] }) },
+  // ...each fighter locks one (the cursor and the lock are read in arenaCueInput; a fighter who doesn't gets the one under the cursor)...
+  {
+    id: "pick",
+    make: () => ({ id: "pick", text: "CHOOSE YOUR CONSTELLATION", until: ARENA_TUNE.ceremony.pick, hold: ARENA_TUNE.ceremony.lock, done: [false, false] }),
+    end: (m, h) => {
+      const a = m.arena!;
+      for (const f of m.fighters) {
+        if (a.pick[f.slot]) continue;
+        if (a.pick.includes(CONSTELLATIONS[a.cur[f.slot]])) a.cur[f.slot] = nextFree(a, f.slot, a.cur[f.slot], 1);
+        lockStar(m, h, f.slot, CONSTELLATIONS[a.cur[f.slot]]);
+      }
+    },
+  },
+  // ...and only the two chosen ones stay in the sky.
+  { id: "settle", make: () => ({ id: "settle", text: "THE STARS ARE SET", until: ARENA_TUNE.ceremony.settle, hold: 0, done: [false, false] }) },
   // Scene 5: the staircase rises and the fight stops until both fighters are on the final platform (nobody fights on the
   // stairs). Whoever is still below after the timeout is lifted up.
   {
@@ -440,11 +558,18 @@ const STORY: Beat[] = [
   },
 ];
 export const ARENA_STORY_LENGTH = STORY.length;
+export const ARENA_STORY_IDS: readonly string[] = STORY.map((b) => b.id); // (the order the beats are told in, for tests and tools)
 
 function begin(m: Match, h: Hooks, b: Beat): Cue {
   m.arena!.beat++;
   h.emit(m, ev("cue", 0, 0));
   return b.make(m, h);
+}
+
+// The end of the intro: the opening ceremony, if the story starts with one (it may already have been told).
+export function arenaOpen(m: Match, h: Hooks): Cue | null {
+  const b = STORY[m.arena!.beat];
+  return b && b.at === undefined ? begin(m, h, b) : null;
 }
 
 // After a tick of the fight: is the next beat due? Returns its cue (step() then starts the pause) or null.

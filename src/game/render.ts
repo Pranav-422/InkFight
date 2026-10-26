@@ -3,7 +3,8 @@
 // impact FX (smears, rings, ink splats, hit-stop shake) and the HUD.
 
 import { normClass } from "../lib/stats";
-import { ArenaView } from "./arenaRender";
+import { starInfo } from "./arena";
+import { ArenaView, ROW } from "./arenaRender";
 import { getReduceFlashes } from "./flashes";
 import { play, type Sfx } from "./sound";
 import { itemOf, MOVES, SKILL_INFO, STYLE_INFO, type SideSkill } from "./moves";
@@ -127,6 +128,7 @@ export class Renderer {
   private ingested = false; // the first snapshot has been seen (what it carries from before we joined stays silent)
   private quiet = false;
   private swing: [string, string] = ["", ""]; // the swing each fighter's whiff sound was last played for
+  private cursor = -1; // the local player's cursor in the ceremony, to tick when it moves
 
   // Sound for the effect being shown (silent while catching up on events from before this renderer existed).
   private sfx(name: Sfx, power?: number) {
@@ -145,6 +147,12 @@ export class Renderer {
       this.effect(e, hud, s);
     }
     this.quiet = false;
+    // The ceremony's cursor: a tick for the local player each time it moves.
+    if (s.cue?.id === "pick" && s.arena) {
+      const c = s.arena.cur[hud.you];
+      if (this.cursor >= 0 && c !== this.cursor && !first) play("tap");
+      this.cursor = c;
+    } else this.cursor = -1;
     // A swing: the swish when a punch or kick starts (a hit that lands plays its thud on top). timer + t is the same
     // number for the whole move, so it names the swing.
     for (const f of s.fighters) {
@@ -297,8 +305,18 @@ export class Renderer {
     } else if (e.kind === "burn") {
       this.particles.push({ x: e.x, y: e.y - 18, vx: 0, vy: -1.1, life: 0, max: 34, text: `-${e.n}`, color: "#ff8a22", size: 20 });
       if (s.fighters[e.slot ?? 0]?.hp > 0) this.sfx("hiss");
+    } else if (e.kind === "star") {
+      // A constellation locked: a chime, a gold ring and sparks where it hangs in the row.
+      this.sfx("chime");
+      const at = ROW(e.n ?? 0);
+      this.rings.push({ x: at.x, y: at.y, r: 20, grow: 3.2, life: 0, max: 26, color: C.gold, width: 5 });
+      this.rings.push({ x: at.x, y: at.y, r: 8, grow: 5.5, life: 0, max: 20, color: "#ffffff", width: 2 });
+      for (let i = 0; i < 16; i++) {
+        const an = Math.random() * Math.PI * 2, sp = 1.5 + Math.random() * 4;
+        this.particles.push({ x: at.x, y: at.y, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, life: 0, max: 30 + Math.random() * 16, color: i % 2 ? C.gold : "#ffffff", size: 2 + Math.random() * 3 });
+      }
     } else if (e.kind === "cue") {
-      this.sfx("round"); // a guided pause begins
+      this.sfx(s.cue?.id === "open" ? "shimmer" : "round"); // a guided pause begins (the stars waking has its own sound)
       this.banner = null; // (a special's name from the last moment of the fight must not sit on the headline)
     } else if (e.kind === "warp") {
       this.sfx("skill");
@@ -1318,6 +1336,11 @@ export class Renderer {
 
   private hud(s: Snapshot, hud: HudInfo, now: number) {
     const { ctx } = this;
+    // The opening ceremony shows no health bars or clock yet: its title, the constellations and the pop-ups (src/game/arenaRender.ts).
+    if (s.arena && this.arenaView && (s.cue?.id === "open" || s.cue?.id === "pick")) {
+      this.arenaView.hud(ctx, s, now, Math.min(1.9, Math.max(1, 560 / this.canvas.clientWidth)), { names: hud.names, you: hud.you });
+      return;
+    }
     const barW = 360;
     const pad = 28;
     // On a phone the arena is drawn at ~0.4x; enlarge HUD text so it stays readable.
@@ -1371,7 +1394,8 @@ export class Renderer {
         // The arena's pool is 18x a normal fight's, so a percentage reads better than 3600 / 3600.
         const hpText = s.arena ? `${Math.max(0, Math.ceil(hpPct * 100))}%` : `${Math.ceil(f.hp)} / ${s.maxHp[slot]}`;
         const weak = s.arena?.weak[slot] ?? 0;
-        ctx.fillText(`${hpText}  ·  ${s.styles[slot]}${weak > 0.01 ? `  ·  SCORCHED -${Math.round(weak * 100)}% DMG` : ""}`, left ? x : x + barW, 98);
+        const star = s.arena?.pick[slot];
+        ctx.fillText(`${hpText}  ·  ${s.styles[slot]}${star ? `  ·  ★ ${starInfo(star).name}` : ""}${weak > 0.01 ? `  ·  SCORCHED -${Math.round(weak * 100)}% DMG` : ""}`, left ? x : x + barW, 98);
       }
 
       // Side skill: a short bar in the free space beside the energy meter (blue when ready).
@@ -1403,7 +1427,7 @@ export class Renderer {
     }
 
     if (s.arena && this.arenaView) {
-      this.arenaView.hud(ctx, s, now, z);
+      this.arenaView.hud(ctx, s, now, z, { names: hud.names, you: hud.you });
       return;
     }
     // Round timer

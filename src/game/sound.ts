@@ -5,7 +5,7 @@
 // The on/off switch is kept in localStorage (default on) and is separate from "Reduce flashes". Browsers block
 // audio until a user gesture, so the context is created on the first pointer press or key press (installUnlock).
 
-export type Sfx = "punch" | "kick" | "block" | "whiff" | "slip" | "special" | "ultimate" | "clash" | "ko" | "round" | "skill" | "phase" | "tap" | "rumble" | "crack" | "meteor" | "impact" | "grind" | "eruption" | "hiss";
+export type Sfx = "punch" | "kick" | "block" | "whiff" | "slip" | "special" | "ultimate" | "clash" | "ko" | "round" | "skill" | "phase" | "tap" | "rumble" | "crack" | "meteor" | "impact" | "grind" | "eruption" | "hiss" | "chime" | "shimmer";
 
 const KEY = "inkfight.sound";
 const MAX_VOICES = 10;
@@ -208,6 +208,16 @@ export const RECIPES: Record<Sfx, Recipe> = {
     return blip(r, "sine", 55, 30, 1.6, 0.8, 0.05);
   },
   hiss: (r) => burst(r, "highpass", 4000, 6500, 0.18, 0.1),
+  // The opening ceremony: a constellation locked in (two bell notes), and the stars waking (a soft rising run).
+  chime: (r) => {
+    blip(r, "sine", 880, 880, 0.35, 0.22);
+    blip(r, "triangle", 1320, 1320, 0.45, 0.14, 0.08);
+    return blip(r, "sine", 1760, 1760, 0.6, 0.12, 0.16);
+  },
+  shimmer: (r) => {
+    [660, 880, 1100, 1320, 1760].forEach((f, i) => blip(r, "sine", f, f * 1.01, 0.5, 0.1, i * 0.09));
+    return burst(r, "highpass", 5000, 8000, 0.5, 0.04, 0.05);
+  },
 };
 
 // ---------------------------------------------------------------- playing
