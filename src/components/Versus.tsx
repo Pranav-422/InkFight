@@ -10,43 +10,50 @@ import { StatBar } from "./StatBar";
 export type VersusSide = { fighter: PublicFighter; tag: string; tone: "hit" | "guard" | "wait"; owner?: string };
 
 const TONE = {
-  hit: { panel: "bg-[#fff0ea]", tag: "bg-hit text-white", ring: "border-hit" },
-  guard: { panel: "bg-[#eaf0ff]", tag: "bg-guard text-white", ring: "border-guard" },
-  wait: { panel: "bg-cream", tag: "bg-white text-muted", ring: "border-ink/30" },
+  hit: { glow: "#e5482d", tint: "linear-gradient(115deg,#3a1510 0%,#241210 60%,#17171a 100%)", tag: "bg-hit text-white" },
+  guard: { glow: "#2f5be0", tint: "linear-gradient(245deg,#10203f 0%,#111a2e 60%,#17171a 100%)", tag: "bg-guard text-white" },
+  wait: { glow: "#8a8a92", tint: "linear-gradient(115deg,#2a2a2f 0%,#17171a 100%)", tag: "bg-white text-muted" },
 };
 
-// The face-off after matchmaking (and before a fight with the computer): both fighters on a split stage
-// with an ink slash between them and a VS burst on top.
+// Dark brush-stroke backdrop (all CSS: a few slashes of lighter ink over the black), shared by both halves.
+const BRUSH =
+  "repeating-linear-gradient(115deg,rgba(255,255,255,0.035) 0 2px,transparent 2px 22px),linear-gradient(100deg,transparent 30%,rgba(255,255,255,0.05) 31%,transparent 36%,transparent 62%,rgba(255,255,255,0.04) 63%,transparent 66%)";
+
+// The face-off after matchmaking (and before a fight with the computer), in the style of a fighting-game select screen:
+// a black title bar with a notched centre, two halves split by a slanted white line, a gold VS badge on the seam, and a big
+// gold name plate under each fighter. Dark ink panel, our paper / hit / guard / gold colours.
 export function Versus({ left, right, title = "Face-off", arena, children }: { left: VersusSide; right: VersusSide; title?: string; arena?: ArenaId; children?: ReactNode }) {
   return (
-    <section className="lift relative overflow-hidden bg-card">
-      <header className="flex items-center justify-between gap-2 border-b-[3px] border-ink bg-card px-3 py-2">
-        <span className="tag bg-ink text-gold">{arena ? ARENA_INFO[arena].short : "Round 1"}</span>
-        <h2 className="-rotate-1 border-[3px] border-ink bg-gold px-3 py-1 font-comic text-2xl shadow-[3px_3px_0_var(--ink)] sm:text-3xl">{title}</h2>
-        <span className="tag bg-white">{arena ? "5:00" : "1 vs 1"}</span>
+    <section className="lift relative overflow-hidden bg-ink text-white">
+      <header className="relative flex items-center justify-between gap-2 bg-black px-3 pt-2 pb-2.5 sm:px-5">
+        <span className="tag bg-gold text-ink">{arena ? ARENA_INFO[arena].short : "Round 1"}</span>
+        <div className="relative px-6 text-center sm:px-10" style={{ clipPath: "polygon(0 0,100% 0,94% 100%,6% 100%)", background: "#17171a" }}>
+          <p className="text-[10px] font-extrabold uppercase tracking-[0.3em] text-white/60">{arena ? ARENA_INFO[arena].name : "Select your fighters"}</p>
+          <h2 className="font-comic text-2xl leading-none sm:text-3xl">{title}</h2>
+        </div>
+        <span className="tag bg-white text-ink">{arena ? "5:00" : "1 vs 1"}</span>
+        <span className="absolute inset-x-0 bottom-0 h-[3px] bg-gold" />
       </header>
 
       {arena && (
-        <p className="border-b-[3px] border-ink bg-[#2b0f0a] px-3 py-1.5 text-center text-xs font-extrabold uppercase tracking-[0.2em] text-gold">
+        <p className="bg-[#2b0f0a] px-3 py-1.5 text-center text-xs font-extrabold uppercase tracking-[0.2em] text-gold">
           {ARENA_INFO[arena].name} · one fight, five minutes · the arena gets worse
         </p>
       )}
-      <div className="relative grid overflow-hidden md:grid-cols-2">
+
+      <div className="relative grid overflow-hidden md:grid-cols-2" style={{ backgroundImage: BRUSH, backgroundColor: "#17171a" }}>
         <Side side={left} flip={false} />
         <Side side={right} flip />
-        {/* The ink slash: across the middle on phones, down it on wider screens. */}
-        <div className="pointer-events-none absolute top-1/2 left-[-10%] h-3 w-[120%] -translate-y-1/2 -rotate-6 bg-ink md:top-[-10%] md:left-1/2 md:h-[120%] md:w-3 md:translate-y-0 md:-translate-x-1/2 md:rotate-6" />
-        <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-          <div className="slam relative size-28 sm:size-32">
-            <div className="burst absolute inset-0 bg-ink" />
-            <div className="burst absolute inset-[7px] flex items-center justify-center bg-gold">
-              <span className="font-comic text-5xl sm:text-6xl">VS</span>
-            </div>
+        {/* The slanted seam (a white line with a black shadow), down the middle on wide screens, across it on phones. */}
+        <div className="pointer-events-none absolute top-1/2 left-[-10%] h-[5px] w-[120%] -translate-y-1/2 -rotate-3 bg-white shadow-[0_0_0_3px_#000] md:top-[-10%] md:left-1/2 md:h-[120%] md:w-[5px] md:translate-y-0 md:-translate-x-1/2 md:rotate-[4deg]" />
+        <div className="pointer-events-none absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
+          <div className="slam -rotate-6 border-[4px] border-black bg-gold px-4 py-1 shadow-[4px_4px_0_#000] sm:px-5">
+            <span className="font-comic text-4xl text-ink sm:text-5xl">VS</span>
           </div>
         </div>
       </div>
 
-      {children && <footer className="border-t-[3px] border-ink bg-card p-3 sm:p-4">{children}</footer>}
+      {children && <footer className="border-t-[3px] border-gold bg-card p-3 text-ink sm:p-4">{children}</footer>}
     </section>
   );
 }
@@ -55,31 +62,35 @@ function Side({ side, flip }: { side: VersusSide; flip: boolean }) {
   const { fighter: f, tag, tone, owner } = side;
   const t = TONE[tone];
   const slide = flip ? "slide-r" : "slide-l";
+  // Each half is cut on the slant towards the seam on wide screens; the colour wash and a glow sit behind the figure.
+  const cut = flip ? "md:[clip-path:polygon(7%_0,100%_0,100%_100%,0_100%)]" : "md:[clip-path:polygon(0_0,100%_0,93%_100%,0_100%)]";
   return (
-    <div className={`relative p-3 sm:p-5 ${t.panel} ${flip ? "pt-10 md:pt-5" : "pb-10 md:pb-5"}`}>
-      <div className={`flex ${flip ? "justify-end" : ""}`}>
-        <span className={`tag ${t.tag} ${slide}`}>{tag}</span>
+    <div className={`relative flex min-h-[19rem] flex-col justify-between overflow-hidden md:min-h-[27rem] ${cut}`} style={{ background: t.tint }}>
+      <div className="pointer-events-none absolute inset-0 opacity-70" style={{ background: `radial-gradient(60% 55% at ${flip ? "55%" : "45%"} 45%, ${t.glow}55, transparent 70%)` }} />
+      <div className={`relative flex items-start p-3 sm:p-4 ${flip ? "justify-end" : ""}`}>
+        <span className={`tag ${t.tag} ${slide} skew-x-[-8deg]`}>{tag}</span>
       </div>
-      <div className={`mt-2 flex items-center gap-2 ${flip ? "flex-row-reverse" : ""} md:flex-col md:items-stretch`}>
-        <div className={`${slide} h-36 w-24 shrink-0 sm:h-44 sm:w-32 md:mx-auto md:h-56 md:w-44`}>
-          <FighterAvatar fighter={f} />
-        </div>
-        <div className={`card-edge min-w-0 flex-1 bg-card p-3 ${slide}`}>
-          <p className="line-clamp-2 font-display text-2xl leading-none break-words sm:text-3xl">{f.name}</p>
-          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      <div className={`${slide} relative mx-auto -mt-2 h-44 w-32 sm:h-56 sm:w-40 md:h-72 md:w-56`}>
+        <FighterAvatar fighter={f} />
+      </div>
+      <div className="relative">
+        <div className={`grid gap-1 px-3 pb-2 sm:px-4 ${flip ? "md:pl-9" : "md:pr-9"}`} style={{ gridTemplateColumns: "repeat(auto-fit,minmax(5.5rem,1fr))" }}>
+          <div className="col-span-full flex flex-wrap items-center gap-1.5 text-white">
             <ClassBadge cls={f.class} />
-            {owner && <span className="truncate text-xs font-semibold text-muted">@{owner}</span>}
+            {owner && <span className="truncate text-xs font-semibold text-white/70">@{owner}</span>}
+            <span className="ml-auto max-w-full truncate border-2 border-white/30 bg-black/50 px-2 py-0.5 text-[11px]"><b className="uppercase tracking-wider text-gold">Special</b> {f.specialMove}</span>
           </div>
-          <div className="mt-2 grid gap-1">
+          <div className="col-span-full grid gap-1 bg-card/95 p-2 text-ink">
             <StatBar stat="atk" value={f.atk} compact />
             <StatBar stat="def" value={f.def} compact />
             <StatBar stat="spd" value={f.spd} compact />
             {f.agi != null && <StatBar stat="agi" value={f.agi} compact />}
             {f.iq != null && <StatBar stat="iq" value={f.iq} compact />}
           </div>
-          <p className="mt-2 border-2 border-ink bg-cream px-2 py-1 text-[11px] leading-snug">
-            <span className="font-extrabold uppercase tracking-wider text-hit">Special</span> {f.specialMove}
-          </p>
+        </div>
+        {/* The gold name plate: a slanted slab like the select screen's, the name set big on it. */}
+        <div className={`relative bg-gold px-4 py-2 ${flip ? "text-right md:[clip-path:polygon(6%_0,100%_0,100%_100%,0_100%)]" : "md:[clip-path:polygon(0_0,94%_0,100%_100%,0_100%)]"}`}>
+          <p className="line-clamp-1 font-comic text-3xl leading-tight break-words text-ink uppercase sm:text-4xl md:text-5xl">{f.name}</p>
         </div>
       </div>
     </div>
