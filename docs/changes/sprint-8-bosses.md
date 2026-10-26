@@ -592,6 +592,10 @@ exit 0
 
 On fresh seeds (`SEED0=777 npx tsx scripts/dungeon.ts 200`) the curve reads 86 74 69 64 57 44 37 34 24 13 (section E).
 
+In a real browser after the last cleanup (dev server on the local database, `demo1` with floors 1-9 cleared, Chromium driven by Playwright): `/play/dungeon` lists the ten
+bosses with their tier, passive hint and reward ("Copied: ..."), and fights against floors 3 and 10 start, run (the Overdue cast the time stop) and show the boss's own head and
+outfit; the dev server log and the page console had no errors. `demo1`'s progress was reset to 0 afterwards.
+
 
 
 ## 6. Frames
