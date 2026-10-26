@@ -211,14 +211,14 @@ if (QUICK) {
 
 // ------------------------------------------------------------------ CPU vs CPU
 
-type Result = { winner: number | null; ticks: number; by: "ko" | "time"; env: number; dmg: number; scene5: boolean[]; ready: boolean[]; final: boolean[]; warps: number; opening: number; picks: (string | null)[]; buff: number[]; entry: number; leftRing: number; hash: string };
+type Result = { winner: number | null; ticks: number; by: "ko" | "time"; env: number; dmg: number; scene5: boolean[]; ready: boolean[]; final: boolean[]; warps: number; opening: number; picks: (string | null)[]; buff: number[]; entry: number; leftRing: number; endTicks: number; kicked: boolean; ringEnd: boolean; splashX: number; hash: string };
 function play(a: FighterStats, b: FighterStats, level: "normal" | "hard" = "normal"): Result {
   const ia = { ...EMPTY_INPUT }, ib = { ...EMPTY_INPUT };
   const m: Match = createMatch(a, b, [ia, ib], { arena: "inferno", seed: Math.floor(Math.random() * 4294967296) }); // (the script's seeded Math.random: repeatable)
   const brains = [newBrain(level), newBrain(level)];
   const h = createHash("sha1");
   const scene5 = [false, false], ready = [false, false], final = [false, false];
-  let ticks = 0, warps = 0, seen = 0, opening = -1, entryFrom = -1, entry = 0, leftRing = 0;
+  let ticks = 0, warps = 0, seen = 0, opening = -1, entryFrom = -1, entry = 0, leftRing = 0, endFrom = -1, splashX = NaN;
   while (m.phase !== "matchEnd" && ticks < 3 * T.matchTicks) {
     cpuThink(m, 0, brains[0], ia);
     cpuThink(m, 1, brains[1], ib);
@@ -228,7 +228,8 @@ function play(a: FighterStats, b: FighterStats, level: "normal" | "hard" = "norm
     if (entryFrom < 0 && m.cue?.id === "climb") entryFrom = ticks; // scene 5's story: the climb, the marks, the stars answering...
     if (entryFrom >= 0 && !entry && m.phase === "fight") entry = ticks - entryFrom; // ...and then the fight
     if (m.phase === "fight" && ringUp(m)) for (const f of m.fighters) if (f.y > fin.top + 1) leftRing++; // nobody may be below the platform in the ring
-    for (const e of m.events) if (e.id > seen) { seen = e.id; if (e.type === "arena" && e.kind === "warp") warps++; }
+    if (endFrom < 0 && m.phase === "roundEnd") endFrom = ticks; // the fight is decided: the winner's kick, the lava, the star
+    for (const e of m.events) if (e.id > seen) { seen = e.id; if (e.type === "arena" && e.kind === "warp") warps++; if (e.type === "arena" && e.kind === "splash") splashX = e.x; }
     if (m.phase === "fight" && sceneAt(arenaTick(m)) === 4) {
       for (const f of m.fighters) {
         scene5[f.slot] = true;
@@ -241,7 +242,7 @@ function play(a: FighterStats, b: FighterStats, level: "normal" | "hard" = "norm
   }
   assert.equal(m.phase, "matchEnd", "an arena fight must end (KO or the clock)");
   h.update(`${m.matchWinner}:${ticks}:${m.fighters.map((f) => f.hp)}`);
-  return { winner: m.matchWinner, ticks, by: m.roundReason ?? "time", env: m.arena!.envDmg[0] + m.arena!.envDmg[1], dmg: m.damage[0] + m.damage[1], scene5, ready, final, warps, opening, picks: [...m.arena!.pick], buff: [...m.arena!.buff], entry, leftRing, hash: h.digest("hex") };
+  return { winner: m.matchWinner, ticks, by: m.roundReason ?? "time", env: m.arena!.envDmg[0] + m.arena!.envDmg[1], dmg: m.damage[0] + m.damage[1], scene5, ready, final, warps, opening, picks: [...m.arena!.pick], buff: [...m.arena!.buff], entry, leftRing, endTicks: endFrom < 0 ? 0 : ticks - endFrom, kicked: m.arena!.end?.planned === true, ringEnd: m.arena!.end?.lava !== ARENA.ground + 52, splashX, hash: h.digest("hex") };
 }
 
 const pairs: [string, string][] = [];
@@ -282,6 +283,7 @@ if (TUNING) {
   const started = Date.now();
   let ko = 0, timeout = 0, draws = 0, reached = 0, ready = 0, readyFinal = 0, envSum = 0, dmgSum = 0, ticksSum = 0, total = 0, bothReady = 0, bothFinal = 0, warpSum = 0;
   let openSum = 0, openMax = 0, dupes = 0, entrySum = 0, entryMax = 0, entryN = 0, leftRings = 0, bigger = 0, biggerWon = 0;
+  let kicked = 0, kickedRing = 0, endSum = 0, endMax = 0, splashBad = 0;
   const buffs: number[] = [];
   const picked: Record<string, number> = {};
   for (const [A, B] of pairs) {
@@ -304,6 +306,14 @@ if (TUNING) {
         }
       }
       leftRings += r.leftRing;
+      // The ending: a decided fight ends with the kick and the splash (in the lake's view on the floor, clear of the platform on the ring).
+      endSum += r.endTicks;
+      endMax = Math.max(endMax, r.endTicks);
+      if (r.kicked) {
+        kicked++;
+        if (r.ringEnd) kickedRing++;
+        if (r.ringEnd ? !(r.splashX < fin.x - 20 || r.splashX > fin.x + fin.w + 20) : !(r.splashX >= ARENA.wall && r.splashX <= ARENA.w - ARENA.wall)) splashBad++;
+      } else if (r.winner !== null) splashBad++;
       openSum += r.opening;
       openMax = Math.max(openMax, r.opening);
       if (r.picks[0] === r.picks[1]) dupes++;
@@ -331,6 +341,10 @@ if (TUNING) {
   console.log(`  plausibility buffs: ${Math.min(...buffs)}-${Math.max(...buffs)}%, mean ${meanBuff.toFixed(1)}%; the fighter with the bigger buff won ${bigger ? Math.round((biggerWon / bigger) * 100) : 0}% of ${bigger} decided fights (swingy by design); fighters seen below the ring in a fight: ${leftRings}`);
   if (leftRings > 0) fail(`${leftRings} fighter-ticks below the ring platform in a fight: the walls leak`);
   if (buffs.length && (Math.min(...buffs) < ARENA_TUNE.buff.min || Math.max(...buffs) > ARENA_TUNE.buff.max)) fail("a buff outside 10-50%");
+  console.log(`  endings: ${kicked} kicked into the lava (${kickedRing} off the ring, ${kicked - kickedRing} off the floor), ${draws} draws; the ending takes ${(endSum / total / TICK_HZ).toFixed(1)} s on average, ${(endMax / TICK_HZ).toFixed(1)} s at the most; splashes out of place or kicks missing: ${splashBad}`);
+  if (splashBad > 0) fail(`${splashBad} endings without the kick, or with the loser landing out of place`);
+  if (kicked + draws !== total) fail(`${total - kicked - draws} fights ended without a scripted ending`);
+  if (endMax > 12 * TICK_HZ) fail(`an ending took ${(endMax / TICK_HZ).toFixed(1)} s`);
   console.log(`  fighters lifted onto the final platform by a pause timeout: ${warpSum}`);
   if (warpSum > 0) fail(`${warpSum} fighters had to be lifted by the climb pause's timeout: the computer should climb by itself`);
   const share = envSum / (envSum + dmgSum);

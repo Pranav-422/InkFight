@@ -203,7 +203,7 @@ before, so the weakest jumper still climbs it: `scripts/arena.ts` checks with th
 
 **The ring:** a stone post at each end of the platform with three ropes between them (red, white, blue) that rise over 1 s; **the walls are solid from 2 s after they start to rise** (`ARENA_TUNE.ring`: inset 18 px, lock 120 ticks).
 Anyone at or above the platform is held inside them: a held walk, a shove, a launch, an ultimate's hit-lock pin and the 'drop through' (hold block + jump) all stop at the walls, so **nobody falls off mid-fight**
-(`arenaRingClamp`, `arenaCanDrop`, asserted over 40 s of a random masher and in 440 computer fights). The tip about dropping down from a platform is gone with the free-for-all stairs.
+(`arenaRingClamp`, `arenaCanDrop`, asserted over 40 s of a random masher and in 220 computer fights). The tip about dropping down from a platform is gone with the free-for-all stairs.
 
 **Scale and camera:** in the ring the camera frames the whole platform (zoom 0.8) and **the fighters are drawn 12% smaller** (a drawing change: `ctx.scale` about the feet in `render.ts`; **the hitboxes in the sim are unchanged**, and the
 shadows now fall on the platform they stand on). A buffed fighter is drawn **1.10x-1.20x bigger** by the roll (10% -> 1.10, 50% -> 1.20, `buffScale`).
@@ -237,6 +237,70 @@ Phone:
 ![](sprint-7b/e-reveal-p1-phone.png)
 ![](sprint-7b/e-reveal-p2-phone.png)
 ![](sprint-7b/e-fight-in-the-ring-phone.png)
+
+### F. The ending: the boot into the lava, the shooting star, the sky clears
+
+A decided fight no longer jumps to the result panel. When the health runs out (or the clock does) the round ends as before ("K.O.!", the fall, the slow-motion) and then a **scripted ending** plays, host-authoritative like
+everything else (it is sim state, in the snapshot), ending in the result panel at `end.until` (the old 1.5 s wait is replaced by it, for the arena only):
+
+1. **The fall is read, 1 s** (`ending.wait` 60 ticks): the "K.O.!" word stays up for exactly this long, then goes, so it never sits on the kick.
+2. **The winner walks over** (3.4 px a tick) to 74 px from the loser and **throws a roundhouse**. It is a show, not a blow: it deals nothing (the unit test asserts both health bars are unchanged to the end).
+3. **The boot lands** (at the middle of the kick's active frames): 8 ticks of hit-stop, a flash, a gold ring, sparks, "BOOT!", a thud (`kick` + `impact`), and the loser is launched: up at 12 px a tick and away from the
+   winner, spinning about their middle (0.3 rad a tick), with a pale rim so the dark drawing reads against the dark cliffs and the slab.
+   - **From the ring** (scene 5): clear of the platform's edge (70 px past it), and down to the lava lake far under the podium (the camera drops to 0.78 at y 262 so there is room to see it).
+   - **From the floor** (scenes 1-4): off the front of the slab into the lava lake below it, flying 130 px at most and never past the part of the lake that shows between the cliffs (190 px from each wall); a fighter
+     who was already nearer a wall than that just drops. (My first version flew them past the walls: the splash landed behind the cliffs and the dark figure was invisible against them. See F2.)
+4. **The splash**, when the body meets the surface: a heavy sound, an orange ring and a spout of droplets; the loser then sinks (1.6 px a tick) at the angle they landed at, cut off at the lava's surface by a clip.
+5. **The shooting star**, 12 ticks after the splash: the loser's constellation (the same drawing as in the sky) pulls itself into one bright star over 14 ticks, then **streaks across the sky for 2.8 s**, a comet head with a tail of
+   18 fading strokes, and is gone. The winner's constellation does the opposite: from the boot it brightens and swells, so the sky says who won.
+6. **The weather clears:** from the boot the scene's sky is blended into scene 1's calm twilight over 5 s (the baked backdrop of scene 1 drawn over the current one with a rising alpha), and the heat haze, the shimmer, the embers
+   and the ash all scale down with it. The calm sky holds for 1.8 s (`ending.after`) and then the result panel shows.
+
+**A knockout and the clock end the same way.** On the clock the lower-health fighter is the loser (it was already that); the loser reels beaten instead of lying down until the kick. **An equal-health finish is still a draw**: no
+kick, no star, only the sky clearing (from half a second in) and holding for 4 s (`ending.draw`), and `matchWinner` stays `null` (not recorded, as in pass 1).
+
+**Where it is:** `arena.ts` (`ARENA_TUNE.ending`, `Ending` in `ArenaState`, `arenaEndBegin` / `planEnding` / `arenaEndStep`; events `boot`, `splash`, `shoot`), `sim.ts` (calls them from `endRound` and the step, and the arena's own
+round-end branch), `arenaRender.ts` (`calm`, `ending`, `endStar`, the camera, the clear-sky blend, the winner's star), `render.ts` (the spin, the rim and the lava clip, the three events' effects, the "K.O.!" window), `sound.ts`
+(`splash`, `shoot`). The ending is about 200 bytes of snapshot (the whole arena state is asserted under 900 bytes).
+
+**Tests (`check-sim`):** both seats, by knockout and on the clock, from the ring: the winner never leaves the platform, nothing is dealt, the events arrive in order (boot, splash, shoot), the loser is in the air until the lava,
+lands outside the platform, sinks, the match clock is untouched, the star and the calm play before the result, and the whole ending is 4-12 s; a draw has no kick and nobody moves; seven floor cases (loser and winner either way
+round, near the middle, near a wall, against a wall) land inside the lake's view or just drop, never farther than 130 px; a snapshot taken mid-flight, through JSON, resumes to the identical end state. `scripts/arena.ts` now
+counts the endings in 220 computer fights (see the gate output).
+
+Floor (scene 4 here, so the weather has something to clear): the boot, the flight, the splash, the star, the calm sky.
+
+![The boot lands](sprint-7b/f-floor-3-boot.png)
+![In flight, spinning, rimmed](sprint-7b/f-floor-4-flight.png)
+![The splash into the lake under the slab](sprint-7b/f-floor-5-splash.png)
+![The shooting star, the loser's constellation gone from the sky](sprint-7b/f-floor-6-shooting-star.png)
+![The sky has cleared](sprint-7b/f-floor-7-calm-sky.png)
+
+The ring (scene 5):
+
+![The winner walks over for the kick](sprint-7b/f-ring-2-walk.png)
+![The boot](sprint-7b/f-ring-3-boot.png)
+![The splash, far below the ring](sprint-7b/f-ring-5-splash.png)
+![The shooting star](sprint-7b/f-ring-6-shooting-star.png)
+![The sky has cleared](sprint-7b/f-ring-7-calm-sky.png)
+
+Phone, the floor:
+
+![](sprint-7b/f-floor-3-boot-phone.png)
+![](sprint-7b/f-floor-4-flight-phone.png)
+![](sprint-7b/f-floor-5-splash-phone.png)
+![](sprint-7b/f-floor-6-shooting-star-phone.png)
+![](sprint-7b/f-floor-7-calm-sky-phone.png)
+
+Phone, the ring:
+
+![](sprint-7b/f-ring-2-walk-phone.png)
+![](sprint-7b/f-ring-3-boot-phone.png)
+![](sprint-7b/f-ring-5-splash-phone.png)
+![](sprint-7b/f-ring-6-shooting-star-phone.png)
+![](sprint-7b/f-ring-7-calm-sky-phone.png)
+
+(Still frames: the "Slash!" word is the last blow's floating text, which the screenshot tool, drawing one frame in four while it plays the fight, leaves up for longer than a real 60 fps game does.)
 
 ## 2. Decisions (everything the sheet left open, with the values chosen)
 
@@ -281,6 +345,22 @@ E5. **Scene 5 has no hazard that can reach a fighter once the ring is up** (the 
 E6. **Fighters are 12% smaller in the ring, and the platform's shadow is drawn on the platform** (before it fell on the floor far below). Hitboxes unchanged, as asked.
 E7. **The ring entry takes about 15 s** (14.5 on average, 17.1 at the most with the computer: the climb 7.5-10 s, the marks 3 s, the stars 4.5 s). The match clock is held through all of it.
 E8. **P1 isn't always on the left in the ring** (the one standing further left takes the left mark), so the stars, the beams and the camera follow the side a fighter stands on, while the HUD keeps P1 on the left.
+
+F1. **The kick is a show, not a blow.** The result is decided before it (health or the clock): the winner's roundhouse is flagged as already landed so it can't touch the loser's health, and the test asserts both bars are
+    unchanged to the end. Nothing about who won depends on the ending, so a dropped snapshot or a late guest can't change the result.
+F2. **The loser doesn't fly out past the walls on the floor.** The first version sent them 80 px beyond the wall (like past the end of the platform in the ring). The slab's ends are covered by the cliffs, so the splash was
+    behind them and a dark figure on a dark cliff was invisible. Now: off the front of the slab, 130 px sideways at most, landing inside the part of the lake that shows (190 px from each wall), or straight down if already
+    nearer a wall. A pale rim (a canvas shadow) is drawn round the loser while they fly and sink, because they still cross the dark slab face on the way.
+F3. **The splash fires when the body's middle reaches the surface, not the feet.** The loser spins about their middle (70 px above the feet), so the sim's feet point has to be 60 px below the surface (`ending.deep`) for the
+    drawing to touch the lava at the same moment as the splash effect (it looked as if they splashed 50 px above the lava before).
+F4. **The sky clears by drawing scene 1's baked backdrop over the current one**, not by a new set of weather values: the calm look is exactly the arena's opening look, nothing new to keep in step. The renderer keeps that
+    backdrop cached for the ending (`keep0`); without it the 3-layer cache would have re-baked a backdrop twice a frame.
+F5. **"K.O.!" is up for the first second only** (it used to stay for the whole 1.5 s round end; now the round end is 7-9 s and the kick should be clear of it).
+F6. **The clock decides the same way a knockout does**, with one visible difference: on the clock the loser reels (`hit` stun) instead of lying down, so the kick has someone to kick. A tie is a draw with no kick (a
+    kick with no loser would be a lie).
+F7. **The ending is part of the match, so it isn't skippable.** It takes 7.6 s on average and 9.1 s at the most with the computer (the test allows 4-12 s); the sheet's own list (kick, star, calm sky, then the panel) takes that long, and the result panel isn't delayed past it.
+F8. **Relay and resume:** the ending is ordinary snapshot state (`ArenaState.end` plus the fighters' positions it sets each tick), so a guest on the relay (a snapshot every 4th tick) interpolates it, and a resumed match
+    plays out the same ending (asserted).
 
 
 ## 3. Gate output
@@ -1150,6 +1230,186 @@ CPU vs CPU, normal level: 220 arena fights over 15 class pairs, both seats
 CPU vs CPU, hard level: 300 fights per class pair (±6%)
   302 s. Sword-Mace 52%, Sword-Tank 51%, Sword-Attacker 44%, Sword-Fighter 48%, Mace-Tank 50%, Mace-Attacker 49%, Mace-Fighter 50%, Tank-Attacker 50%, Tank-Fighter 45%, Attacker-Fighter 45%
   fair: every pair within 44-52% (target 35-65%)
+
+determinism: the first 6 fights replay identically
+
+ok: all arena checks passed (scenes: ARRIVAL > HEATWAVE > GROUND FRACTURE > VOLCANIC WARNING > ELEVATED FINAL ARENA)
+exit 0
+
+$ npx tsx scripts/balance.ts 200
+win rate of row vs column (hard CPU, default kits, 200 matches each) · avg round length
+         Sword     | Mace      | Tank      | Attacker  | Fighter  
+Sword     51% 23s |  55% 23s |  59% 29s |  39% 18s |  51% 25s
+Mace      49% 22s |  55% 23s |  56% 28s |  44% 19s |  51% 24s
+Tank      40% 29s |  44% 29s |  51% 40s |  56% 26s |  58% 30s
+Attacker  58% 19s |  54% 19s |  45% 26s |  51% 16s |  43% 20s
+Fighter   56% 24s |  55% 24s |  39% 30s |  59% 20s |  41% 25s
+pairs (400 matches each, ±2.5%): Sword-Mace 53%, Sword-Tank 60%, Sword-Attacker 41%, Sword-Fighter 48%, Mace-Tank 56%, Mace-Attacker 45%, Mace-Fighter 48%, Tank-Attacker 56%, Tank-Fighter 60%, Attacker-Fighter 42%
+fair: every pair within 41-60%
+
+stat line vs all-70 (200 kits, 2 matches each): one stat at 100, the other four ~62
+STR 53%  ·  DUR 52%  ·  SPD 55%  ·  AGI 50%  ·  IQ 50%
+ok: every stat line within 45-62%
+exit 0
+
+balance diff vs main: empty (identical)
+```
+
+### Part F
+
+```
+$ npx tsc --noEmit
+exit 0
+
+$ npm run lint
+
+> inkfight@0.1.0 lint
+> eslint
+
+exit 0
+
+$ npx tsx scripts/check-sim.ts
+check-sim: all good
+exit 0
+
+$ npx tsx scripts/arena.ts
+weakest fighter (AGI 40, SPD 40): jump apex 106.3 px, 34 ticks in the air, 102 px sideways at walking speed
+
+scene 1-4: the floor (tick 0, 0 s, lava y 540)
+200 |||                                                                                          |||
+220 |||                                                                                          |||
+240 |||                                                                                          |||
+260 |||                                                                                          |||
+280 |||                                                                                          |||
+300 |||                                                                                          |||
+320 |||                                                                                          |||
+340 |||                                                                                          |||
+360 |||                                                                                          |||
+380 |||                                                                                          |||
+400 |||                                                                                          |||
+420 |||                                                                                          |||
+440 |||                                                                                          |||
+460 |||                                                                                          |||
+480 |||##########################################################################################|||
+500 |||                                                                                          |||
+520 |||                                                                                          |||
+
+scene 4, 5 s before the stairs: dust where they will rise (tick 8760, 146 s, lava y 540)
+200 |||                                                                                          |||
+220 |||                                                                                          |||
+240 |||                                                                                          |||
+260 |||                                                                                          |||
+280 |||                                                                                          |||
+300 |||                                                                                          |||
+320 |||                                                                                          |||
+340 |||                                                                                          |||
+360 |||                                                                                          |||
+380 |||                                                                                          |||
+400 |||                                                                                          |||
+420 |||                                                                                          |||
+440 |||                                                                                          |||
+460 |||                                                                                          |||
+480 |||###::::::::###################################################################::::::::####|||
+500 |||       1                                                                          2       |||
+520 |||                                                                                          |||
+
+scene 5, step 1 rising (tick 9030, 151 s, lava y 539)
+200 |||                                                                                          |||
+220 |||                                                                                          |||
+240 |||                                                                                          |||
+260 |||                                                                                          |||
+280 |||                                                                                          |||
+300 |||                                                                                          |||
+320 |||                                                                                          |||
+340 |||                                                                                          |||
+360 |||                                                                                          |||
+380 |||                                                                                          |||
+400 |||                                                                                          |||
+420 |||                                                                                          |||
+440 |||   ========                                                                   ========    |||
+460 |||       1                                                                          2       |||
+480 |||#############:::::::##################################################:::::::#############|||
+500 |||                3                                                        4                |||
+520 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+
+scene 5, steps 1 up, 2 and the final platform warn (tick 9200, 153 s, lava y 535)
+200 |||                                                                                          |||
+220 |||                                                                                          |||
+240 |||                                                                                          |||
+260 |||                                                                                          |||
+280 |||                                                                                          |||
+300 |||                                                                                          |||
+320 |||                                                                                          |||
+340 |||             =======                                                  =======             |||
+360 |||                3                                                        4                |||
+380 |||                                                                                          |||
+400 |||   ========                                                                   ========    |||
+420 |||       1                                                                          2       |||
+440 |||                                                                                          |||
+460 |||                                                                                          |||
+480 |||#####################::::::::::::::::::::::::::::::::::::::::::::::::#####################|||
+500 |||                                             5                                            |||
+520 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+
+scene 5, everything up (tick 9420, 157 s, lava y 530)
+200 |||                                                                                          |||
+220 |||                                                                                          |||
+240 |||                                                                                          |||
+260 |||                                                                                          |||
+280 |||                     ================================================                     |||
+300 |||                                             5                                            |||
+320 |||                                                                                          |||
+340 |||             =======                                                  =======             |||
+360 |||                3                                                        4                |||
+380 |||                                                                                          |||
+400 |||   ========                                                                   ========    |||
+420 |||       1                                                                          2       |||
+440 |||                                                                                          |||
+460 |||                                                                                          |||
+480 |||##########################################################################################|||
+500 |||                                                                                          |||
+520 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+
+5:00, lava at its highest (tick 18000, 300 s, lava y 315)
+200 |||                                                                                          |||
+220 |||                                                                                          |||
+240 |||                                                                                          |||
+260 |||                                                                                          |||
+280 |||                     ================================================                     |||
+300 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~5~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+320 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+340 |||~~~~~~~~~~~~~=======~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~=======~~~~~~~~~~~~~|||
+360 |||~~~~~~~~~~~~~~~~3~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~4~~~~~~~~~~~~~~~~|||
+380 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+400 |||~~~========~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~========~~~~|||
+420 |||~~~~~~~1~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~2~~~~~~~|||
+440 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+460 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+480 |||##########################################################################################|||
+500 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+520 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+
+layout asserts
+  rises <= 69.1 (staircase: 66, 66, 133, 133), gaps <= 70.0, final platform 480 px wide (380 needed), 200 px up. ok
+
+the climb pause with the real sim (nobody fights; both fighters are computer-driven):
+  AGI 40 / SPD 40: 65:8.1s 100:8.1s 150:7.5s 230:10.4s 300:10.0s 480:9.5s 650:10.0s 740:10.5s 810:7.5s 895:8.1s
+  AGI 100 / SPD 100: 65:7.8s 100:7.9s 150:7.9s 230:7.7s 300:7.7s 480:7.7s 650:7.7s 740:7.7s 810:7.9s 895:7.8s
+  AGI 70 / SPD 40: 65:7.8s 100:7.6s 150:7.7s 230:7.5s 300:7.5s 480:7.5s 650:7.5s 740:7.5s 810:7.7s 895:7.8s
+
+CPU vs CPU, normal level: 220 arena fights over 15 class pairs, both seats
+  23 s. ended by KO 179, by the clock 41 (draws 0); average 339 s of play (the clock holds during hit-stop)
+  fighters in scene 5: 438/440; still fighting 10 s after the stairs stood: 434; of those on the final platform at some point: 100.0% (both fighters of a fight: 100.0% of 217)
+  opening ceremony: 8.6 s on average, 9.4 s at the most (the sheet: first 15 s); the computer picked comet 20%, hare 19%, phoenix 21%, serpent 18%, tortoise 21%; two fighters on one constellation: 0
+  ring entry (the climb, the marks, the stars answering): 14.5 s on average, 16.9 s at the most, over 219 fights
+  plausibility buffs: 10-50%, mean 29.3%; the fighter with the bigger buff won 64% of 211 decided fights (swingy by design); fighters seen below the ring in a fight: 0
+  endings: 220 kicked into the lava (219 off the ring, 1 off the floor), 0 draws; the ending takes 7.6 s on average, 9.1 s at the most; splashes out of place or kicks missing: 0
+  fighters lifted onto the final platform by a pause timeout: 0
+  hazards dealt 8.7% of all damage (121377 of 1398049)
+
+CPU vs CPU, hard level: 300 fights per class pair (±6%)
+  303 s. Sword-Mace 53%, Sword-Tank 51%, Sword-Attacker 53%, Sword-Fighter 49%, Mace-Tank 58%, Mace-Attacker 50%, Mace-Fighter 56%, Tank-Attacker 52%, Tank-Fighter 45%, Attacker-Fighter 47%
+  fair: every pair within 45-58% (target 35-65%)
 
 determinism: the first 6 fights replay identically
 

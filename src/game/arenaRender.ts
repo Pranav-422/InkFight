@@ -20,8 +20,8 @@ export const ROW = (i: number) => ({ x: 130 + 175 * i, y: 18 });
 const HOME = [{ x: 262, y: 140 }, { x: 698, y: 140 }];
 const HOME_RING = [{ x: 170, y: 40 }, { x: 790, y: 40 }]; // in the ring (scene 5) they hang higher and wider, clear of the fighters' heads
 const FINAL_ROCK = ROCK_DEFS[ROCK_DEFS.length - 1];
-// Which end of the sky a fighter's star hangs over in the ring: the side that fighter stands on (the one further left is on the left).
-const ringSide = (s: StageState, slot: Slot): 0 | 1 => (s.fighters && s.fighters[slot].x > s.fighters[1 - slot].x ? 1 : s.fighters && s.fighters[slot].x === s.fighters[1 - slot].x ? slot : 0);
+// Which end of the sky a fighter's star hangs over in the ring: the side that fighter stands on (fixed when they took their marks).
+const ringSide = (s: StageState, slot: Slot): 0 | 1 => (s.arena && s.arena.side[slot] === 1 ? 1 : 0);
 const PANEL = { w: 240, h: 232 }; // a ceremony pop-up
 const DULL = 0.5; // how brightly the two chosen constellations glow while the fight goes on
 const SLOT_COLOR = ["#e5482d", "#2f5be0"];
@@ -81,6 +81,8 @@ type Decal = { x: number; born: number };
 
 export class ArenaView {
   private baked = new Map<number, HTMLCanvasElement>();
+  private focus = 0; // the scene on screen (the baked layers around it are kept)
+  private keep0 = false; // the ending clears the sky to scene 1's: that layer is kept too
   private scale = 1;
   private embers: Ember[] = [];
   private craters: Decal[] = [];
@@ -119,8 +121,8 @@ export class ArenaView {
     this.lavaRiver(g, L, R);
     this.cliffs(g, L);
     this.floor(g, L, R, i);
-    // Keep three layers at most: this one, the one it fades from and the next one.
-    if (this.baked.size >= 3) for (const k of this.baked.keys()) if (Math.abs(k - i) > 1) this.baked.delete(k);
+    // Keep three layers at most: the one on screen, the one it fades from and the next one (and the calm sky in the ending).
+    if (this.baked.size >= 3) for (const k of this.baked.keys()) if (k !== i && Math.abs(k - this.focus) > 1 && !(this.keep0 && k === 0)) this.baked.delete(k);
     this.baked.set(i, c);
     return c;
   }
@@ -513,18 +515,23 @@ export class ArenaView {
     const F = ARENA_TUNE.weather.fade;
     const world = arenaWorld(s);
     const into = world - ARENA_TUNE.scenes[scene];
-    const heat = heatAt(world);
+    const calm = this.calm(s); // the ending clears the sky
+    this.focus = scene;
+    this.keep0 = !!s.arena?.end;
+    if (this.keep0 && !this.baked.has(0)) this.bake(0); // (baked the moment the fight is decided, under the hit-stop: the clearing itself costs nothing)
+    const heat = heatAt(world) * (1 - calm);
     const warp = heat * (reduce ? 0.5 : 3.4); // the heat haze bends the far background sideways, up to this many px
     if (scene > 0 && into < F) {
       this.backdrop(ctx, scene - 1, 1, warp, now);
       this.backdrop(ctx, scene, ease(into / F), warp, now);
     } else this.backdrop(ctx, scene, 1, warp, now);
+    if (calm > 0.01) this.backdrop(ctx, 0, calm, 0, now); // (the calm twilight of scene 1 comes back over it)
     this.haze(ctx, heat, reduce);
     this.constellations(ctx, s, now);
     // Bake the next scene once this one has fully come in (so the change itself costs nothing, and the scene fading out isn't dropped).
     if (scene < LOOKS.length - 1 && !this.baked.has(scene + 1) && into > F + 60) this.bake(scene + 1);
     this.lastScene = scene;
-    this.floating(ctx, now, cam.cx, scene, this.mood(s));
+    this.floating(ctx, now, cam.cx, scene, this.mood(s) * (1 - calm));
   }
 
   // The weather as a number: scene - 1 + how far into the next sky we are (0..4); scene 1 is 0.
@@ -593,6 +600,7 @@ export class ArenaView {
     }
     const wake = stage === "open" ? Math.min(1, s.phaseT / 90) : 1;
     const settle = stage === "settle" ? ease(Math.min(1, s.phaseT / C.settle)) : stage ? 0 : 1;
+    this.endStar(ctx, s, now);
     CONSTELLATIONS.forEach((id, i) => {
       const owner = (a.pick[0] === id ? 0 : a.pick[1] === id ? 1 : -1) as Slot | -1;
       const row = ROW(i);
@@ -606,6 +614,8 @@ export class ArenaView {
         y = row.y + (HOME[owner].y - row.y) * settle;
         size = STAR_SIZE + (104 - STAR_SIZE) * settle;
         alpha = 1 + (DULL - 1) * settle;
+      } else if (owner >= 0 && !stage && a.end && a.end.l >= 0 && a.end.planned && owner === a.end.l && s.phaseT >= a.end.splashAt) {
+        return; // (the loser's constellation is falling: endStar draws it)
       } else if (owner >= 0 && !stage) {
         const ow = owner as Slot;
         // In the fight: dull, over the fighter's side; in the ring they hang higher and wider; in the reveal their own flares bright.
@@ -622,6 +632,12 @@ export class ArenaView {
           size = 104 * (1 + 0.55 * up);
         } else if (s.cue?.id === "marks") alpha = DULL;
         else if (s.cue?.id !== "climb" && a.buff[ow] > 0) alpha = after;
+        // The ending: the winner's constellation shines on, the loser's gathers itself (endStar).
+        if (a.end && a.end.planned && s.phaseT >= a.end.hitAt && ow === a.end.w) {
+          const up = ease(Math.max(0, Math.min(1, (s.phaseT - a.end.hitAt) / 120)));
+          alpha += (1 - alpha) * up;
+          size = 104 * (1 + 0.4 * up);
+        }
       } else if (stage === "settle" && owner < 0) alpha = 1 - Math.min(1, settle * 1.6);
       else if (!stage && owner < 0) return;
       drawStar(ctx, id, x, y, size, alpha * twinkle);
@@ -652,6 +668,27 @@ export class ArenaView {
         ctx.restore();
       });
     });
+  }
+
+  // How much the sky has cleared (0..1) in the ending: it starts when the boot lands (or half a second in, in a draw) and takes 5 s. Everything
+  // the weather made fades with it: the sky goes back to the calm twilight, the heat, the haze, the embers and the ash.
+  calm(s: StageState): number {
+    const e = s.arena?.end;
+    if (!e || (s.phase !== "roundEnd" && s.phase !== "matchEnd")) return 0;
+    const from = e.l < 0 ? 30 : e.planned ? e.hitAt : Infinity;
+    return ease(Math.max(0, Math.min(1, (s.phaseT - from) / 300)));
+  }
+
+  // The loser's tumble and sink in the ending, for the renderer: how far they have spun (radians, in screen direction) and the lava line
+  // they are sinking below (null before the splash).
+  ending(s: StageState): { spin: [number, number]; clip: [number | null, number | null] } {
+    const e = s.arena?.end, none = { spin: [0, 0] as [number, number], clip: [null, null] as [null, null] };
+    if (!e || !e.planned || e.l < 0 || (s.phase !== "roundEnd" && s.phase !== "matchEnd") || s.phaseT < e.hitAt) return none;
+    const spin: [number, number] = [0, 0], clip: [number | null, number | null] = [null, null];
+    const l = e.l as Slot;
+    spin[l] = (Math.min(s.phaseT, e.splashAt) - e.hitAt) * 0.3 * e.d; // (it tumbles until it lands, then sinks at the angle it landed at)
+    if (s.phaseT >= e.splashAt) clip[l] = e.lava + 2;
+    return { spin, clip };
   }
 
   // What each fighter's buff looks like right now, in percent: nothing until the stars answer, then each one when their roll is shown.
@@ -746,6 +783,61 @@ export class ArenaView {
         ctx.fillStyle = g;
         ctx.fillRect(x0 - 8, top - H - 36, 32, 32);
       }
+    }
+    ctx.restore();
+  }
+
+  // The loser's constellation in the ending: after the splash it gathers into one bright star and streaks across the sky, trailing light, to the
+  // other side and down. Every point of the path is a function of the clock.
+  private endStar(ctx: CanvasRenderingContext2D, s: StageState, now: number) {
+    const a = s.arena, e = a?.end;
+    if (!a || !e || e.l < 0 || !e.planned || s.phaseT < e.splashAt) return;
+    const l = e.l as Slot;
+    const id = a.pick[l];
+    if (!id) return;
+    const E = ARENA_TUNE.ending;
+    const home = a.ring > 0 ? HOME_RING[ringSide(s, l)] : HOME[l];
+    const col = starColor(id);
+    const t = s.phaseT - e.splashAt;
+    const gather = Math.min(1, t / 14); // it draws itself together
+    const u = Math.max(0, (t - 14) / E.star); // 0..1 along the streak
+    const dirx = home.x < ARENA.w / 2 ? 1 : -1;
+    const at = (p: number) => ({ x: home.x + dirx * 1050 * ease(p), y: home.y + 300 * ease(p) * ease(p) });
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    if (u <= 0) {
+      drawStar(ctx, id, home.x, home.y, 104 * (1 - 0.7 * gather), 0.5 + 0.5 * gather);
+    } else if (u < 1) {
+      const fade = 1 - Math.pow(u, 3);
+      const head = at(u);
+      // The tail: points the head passed a moment ago, thinner and dimmer the older they are.
+      for (let k = 18; k >= 1; k--) {
+        const p = at(Math.max(0, u - k * 0.012));
+        const q = at(Math.max(0, u - (k - 1) * 0.012));
+        ctx.strokeStyle = col;
+        ctx.globalAlpha = fade * (1 - k / 19) * 0.8;
+        ctx.lineWidth = 1 + (1 - k / 19) * 7;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(q.x, q.y);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = fade;
+      const g = ctx.createRadialGradient(head.x, head.y, 0, head.x, head.y, 34);
+      g.addColorStop(0, "#ffffff");
+      g.addColorStop(0.25, `${col}cc`);
+      g.addColorStop(1, `${col}00`);
+      ctx.fillStyle = g;
+      ctx.fillRect(head.x - 34, head.y - 34, 68, 68);
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      for (let q = 0; q < 8; q++) {
+        const a2 = (q * Math.PI) / 4 + now / 500, rr = q % 2 ? 3 : 11;
+        ctx.lineTo(head.x + Math.cos(a2) * rr, head.y + Math.sin(a2) * rr);
+      }
+      ctx.closePath();
+      ctx.fill();
     }
     ctx.restore();
   }
@@ -1429,7 +1521,7 @@ export class ArenaView {
     }
     // Heat shimmer: wavy lines of bent light rising off the floor and tall faint plumes of hot air, strongest in the heatwave (scene 2),
     // lower for the rest of the fight. "Reduce flashes" turns it down to a whisper. No blur, no full-screen distortion.
-    const heat = heatAt(arenaWorld(s));
+    const heat = heatAt(arenaWorld(s)) * (1 - this.calm(s));
     if (heat > 0.02) {
       const k = reduce ? 0.3 : 1;
       ctx.lineWidth = 2.5;
@@ -1458,7 +1550,7 @@ export class ArenaView {
         ctx.restore();
       }
     }
-    this.sparks(ctx, this.mood(s), arenaWorld(s), reduce);
+    this.sparks(ctx, this.mood(s) * (1 - this.calm(s)), arenaWorld(s), reduce);
   }
 
   // Embers drifting up and ash falling, capped.
@@ -1516,6 +1608,8 @@ export class ArenaView {
   // The camera for an arena fight: both fighters in frame, with room for their heads under the HUD, zoomed out when one is up
   // on a platform. A special's push-in or the KO (render.ts) override it.
   camera(fighters: { x: number; y: number }[], cue?: Cue, arena?: ArenaState): { z: number; x: number; y: number } {
+    // The ending: wide enough to follow the loser off the edge and down into the lava (on the ring, with the lake under the podium in view).
+    if (arena?.end) return arena.ring > 0 ? { z: 0.78, x: ARENA.w / 2, y: 262 } : { z: 0.8, x: ARENA.w / 2, y: 330 };
     // The ring (scene 5): the whole platform in frame, a little more sky for the stars; during the reveal looking up at them.
     if (arena && arena.ring > 0) return cue?.id === "reveal" ? { z: 0.72, x: ARENA.w / 2, y: 160 } : { z: 0.8, x: ARENA.w / 2, y: 215 };
     // The ceremony looks up: the sky with its constellations above, the two fighters standing below.

@@ -6,7 +6,7 @@ import { CLASS_CHAIN, CLASS_CHAIN_POWER, CLASS_TUNE, COMBO_WINDOW, ELEMENT_TUNE,
 
 export type { SpecialKind } from "./moves";
 
-import { ARENA_TUNE, arenaBeat, arenaBoost, arenaClampX, arenaCueEnd, arenaCueInput, arenaCueTick, arenaCanDrop, arenaDamageFactor, arenaEnergyMul, arenaOpen, arenaRingClamp, arenaStep, arenaSurface, cloneArena, newArena, type ArenaGameEvent, type ArenaId, type ArenaState } from "./arena";
+import { ARENA_TUNE, arenaBeat, arenaBoost, arenaClampX, arenaCueEnd, arenaCueInput, arenaCueTick, arenaCanDrop, arenaDamageFactor, arenaEndBegin, arenaEndStep, arenaEnergyMul, arenaOpen, arenaRingClamp, arenaStep, arenaSurface, cloneArena, newArena, type ArenaGameEvent, type ArenaId, type ArenaState } from "./arena";
 import { ARENA, BODY, TICK_HZ } from "./space";
 
 export { ARENA, BODY, TICK_HZ };
@@ -632,7 +632,10 @@ function endRound(m: Match, winner: Slot | null, reason: "ko" | "time") {
   m.phaseT = 0;
   m.roundWinner = winner;
   m.roundReason = reason;
-  if (m.arena) m.arena.cracks = m.arena.meteors = []; // the match is over: no hazard lands after it
+  if (m.arena) {
+    m.arena.cracks = m.arena.meteors = []; // the match is over: no hazard lands after it
+    arenaEndBegin(m, winner); // the winner will kick the loser into the lava (src/game/arena.ts)
+  }
   if (winner !== null) {
     m.wins[winner]++;
     emit(m, { type: "ko", loser: (1 - winner) as Slot });
@@ -1362,6 +1365,7 @@ export function step(m: Match, inputs: [Input, Input]) {
 
   // The arena acts after the fighters, only while the fight is on: a knockout earlier this tick has already ended it.
   if (m.arena && m.phase === "fight") arenaStep(m, ARENA_HOOKS);
+  if (m.arena && m.phase === "roundEnd") arenaEndStep(m, ARENA_HOOKS); // the scripted ending (its last word on where everyone is)
 
   if (m.phase === "cue") {
     cueTick(m);
@@ -1376,9 +1380,13 @@ export function step(m: Match, inputs: [Input, Input]) {
       const cue = arenaBeat(m, ARENA_HOOKS);
       if (cue) startCue(m, cue);
     }
-  } else if (m.phase === "roundEnd" && m.phaseT >= ROUND_END_TICKS && m.arena) {
-    m.phase = "matchEnd"; // an arena fight is one round: a knockout or the clock decides (equal health on the clock: a draw, matchWinner null)
-    m.matchWinner = m.roundWinner;
+  } else if (m.phase === "roundEnd" && m.arena) {
+    // An arena fight is one round: a knockout or the clock decides (equal health on the clock: a draw, matchWinner null). The result shows
+    // once the scripted ending has played.
+    if (m.phaseT >= (m.arena.end?.until ?? ROUND_END_TICKS)) {
+      m.phase = "matchEnd";
+      m.matchWinner = m.roundWinner;
+    }
   } else if (m.phase === "roundEnd" && m.phaseT >= ROUND_END_TICKS) {
     const champ = m.wins[0] >= WINS_NEEDED ? 0 : m.wins[1] >= WINS_NEEDED ? 1 : null;
     if (champ !== null) {

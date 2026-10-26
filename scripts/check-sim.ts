@@ -1270,7 +1270,7 @@ function arena(tick: number, x0 = 300, x1 = 660, hazards = false, story: "none" 
     assert.equal(m.phase, "roundEnd");
     assert.equal(m.roundReason, "time");
     assert.equal(m.roundWinner, winner);
-    run({ m, ia, ib }, 3 * TICK_HZ);
+    for (let t = 0; t < 1500 && (m.phase as string) !== "matchEnd"; t++) run({ m, ia, ib }, 1); // (the scripted ending plays first: see below)
     assert.equal(m.phase, "matchEnd", "an arena fight is one round");
     assert.equal(m.matchWinner, winner);
     assert.equal(m.round, 1);
@@ -1681,6 +1681,133 @@ function arena(tick: number, x0 = 300, x1 = 660, hazards = false, story: "none" 
   assert.deepEqual(first(5), first(5));
   assert.notDeepEqual(first(5), first(6), "two seeds put the cracks in the same places");
   assert.equal(JSON.parse(JSON.stringify(snapshot(createMatch(fighter("Fighter"), fighter("Fighter"), [{ ...EMPTY_INPUT }, { ...EMPTY_INPUT }], { arena: "inferno", seed: 99 })))).arena.seed, 99);
+}
+
+// The ending: the fight is decided, and the winner walks over and kicks the loser off the ring (or the floor) into the lava; the loser's constellation
+// falls as a star; then the result shows. A knockout and a loss on the clock play the same; an equal-health draw has no kick.
+{
+  type X = ReturnType<typeof arena>;
+  const ring = (kind: "ko" | "time" | "draw", seat: 0 | 1 = 0, xs: [number, number] = [440, 540]): X => {
+    const x = arena(12000, xs[0], xs[1]);
+    const fin = platformsAt(arenaWorld(x.m)).find((p) => p.kind === "final")!;
+    x.m.arena!.ring = ARENA_TUNE.ring.lock + 10;
+    for (const f of x.m.fighters) Object.assign(f, { y: fin.top, vx: 0, vy: 0, grounded: true });
+    x.m.arena!.pick = ["phoenix", "comet"];
+    const [W, L] = [seat, 1 - seat] as const;
+    if (kind === "ko") {
+      x.m.fighters[L].hp = 1;
+      x.m.fighters[W].x = x.m.fighters[L].x + (seat === 0 ? -60 : 60);
+      (W === 0 ? x.ia : x.ib).attack++;
+    } else {
+      x.m.fighters[0].hp = kind === "time" ? (seat === 0 ? 900 : 400) : 500;
+      x.m.fighters[1].hp = kind === "time" ? (seat === 0 ? 400 : 900) : 500;
+      x.m.timer = 3;
+    }
+    return x;
+  };
+  const play = (x: X, record: (t: number) => void = () => {}) => {
+    let t = 0;
+    while (x.m.phase !== "matchEnd" && t < 1600) {
+      run(x, 1);
+      t++;
+      if (x.m.phase === "roundEnd") record(x.m.phaseT);
+    }
+    return t;
+  };
+  const evs = (x: X, kind: string) => x.m.events.filter((e) => e.type === "arena" && e.kind === kind);
+  const fin = platformsAt(arenaWorld(arena(12000).m)).find((p) => p.kind === "final")!;
+  const { lo, hi } = ringBounds();
+
+  for (const [kind, seat] of [["ko", 0], ["ko", 1], ["time", 0], ["time", 1]] as const) {
+    const x = ring(kind, seat);
+    const [W, L] = [seat, 1 - seat] as const;
+    const hp = [0, 0];
+    const kinds: string[] = [];
+    let last = 0, splashed = false, sank = 0, timerAtEnd = -1;
+    play(x, () => {
+      if (timerAtEnd < 0) timerAtEnd = x.m.timer;
+      const e = x.m.arena!.end!;
+      const w = x.m.fighters[W], l = x.m.fighters[L];
+      assert.ok(w.x >= lo - 1e-9 && w.x <= hi + 1e-9 && w.y === fin.top, `the winner left the ring (x ${w.x}, y ${w.y})`);
+      if (hp[0] === 0) { hp[0] = w.hp; hp[1] = l.hp; }
+      assert.deepEqual([w.hp, l.hp], [hp[0], hp[1]], "nothing is dealt in the ending");
+      for (const ev of x.m.events) if (ev.id > last && ev.type === "arena") { last = ev.id; kinds.push(ev.kind); }
+      if (e.planned && x.m.phaseT >= e.splashAt) {
+        splashed = true;
+        sank = Math.max(sank, l.y - e.lava - ARENA_TUNE.ending.deep);
+      }
+      if (e.planned && x.m.phaseT > e.hitAt && x.m.phaseT < e.splashAt) assert.ok(l.y < e.lava + ARENA_TUNE.ending.deep + 0.5, "the loser is in the air until the lava");
+    });
+    const e = x.m.arena!.end!;
+    assert.ok(e.planned && splashed, `${kind} (seat ${seat}): the ending was never played`);
+    assert.equal(e.d, x.m.fighters[L].x >= 480 ? 1 : -1, "the loser is kicked off the end they are nearer / away from the winner");
+    assert.ok(e.d === (e.x0 >= x.m.fighters[W].x ? 1 : -1), "away from the winner");
+    assert.equal(x.m.phase, "matchEnd");
+    assert.equal(x.m.matchWinner, W);
+    assert.deepEqual(kinds.filter((k) => ["boot", "splash", "shoot"].includes(k)), ["boot", "splash", "shoot"], "boot, then splash, then the star");
+    const sp = evs(x, "splash")[0] as { x: number };
+    assert.ok(sp.x < fin.x - 20 || sp.x > fin.x + fin.w + 20, `the loser fell back onto the platform (x ${sp.x})`);
+    assert.equal(x.m.arena!.end!.lava, lavaY(arenaWorld(x.m)), "into the rising lava");
+    assert.ok(sank > 20, "the loser sinks into the lava");
+    assert.equal(x.m.timer, timerAtEnd, "the match clock is unchanged by the ending");
+    assert.ok(x.m.phaseT >= e.until && e.until - e.splashAt >= ARENA_TUNE.ending.star, "the star and the calm play before the result");
+    assert.ok(e.until <= 12 * TICK_HZ && e.until >= 4 * TICK_HZ, `the ending lasts ${(e.until / TICK_HZ).toFixed(1)} s`);
+  }
+  // A draw on the clock: no kick, only the calm.
+  {
+    const x = ring("draw");
+    const before = x.m.fighters.map((f) => [f.x, f.y]);
+    const t = play(x);
+    assert.equal(x.m.arena!.end!.l, -1);
+    assert.equal(x.m.matchWinner, null);
+    assert.equal(evs(x, "boot").length + evs(x, "splash").length, 0, "a draw has no kick");
+    assert.deepEqual(x.m.fighters.map((f) => [f.x, f.y]), before, "nobody moves in a draw");
+    assert.ok(t <= ARENA_TUNE.ending.draw + 15, "the draw's calm is short");
+  }
+  // On the floor (scene 2) the loser is kicked off the front of the slab, away from the winner, into the lake where it shows: it flies `drift` px
+  // at most, never past the lake's view (ARENA_TUNE.ending.inset from each wall), and one standing nearer a wall than that just drops.
+  {
+    const T = ARENA_TUNE.ending, seen = { drift: 0, clamped: 0, dropped: 0 };
+    for (const [wx, lx] of [[460, 520], [520, 460], [330, 400], [560, 640], [700, 760], [840, 905], [120, 55]] as const) {
+      const x = arena(2500, wx, lx);
+      x.m.fighters[1].hp = 1;
+      x.m.fighters[0].x = wx;
+      x.m.fighters[1].x = lx;
+      x.ia.attack++;
+      play(x);
+      const e = x.m.arena!.end!;
+      assert.ok(e.planned && e.lava === ARENA.ground + 52);
+      const sp = evs(x, "splash")[0] as { x: number; y: number };
+      const dx = (sp.x - e.x0) * e.d;
+      assert.equal(e.d, lx >= wx ? 1 : -1, "away from the winner");
+      assert.ok(dx > -0.5 && dx < T.drift + 0.5, `the loser at ${lx} flew ${dx.toFixed(1)} px`);
+      const inView = sp.x >= T.inset - 0.5 && sp.x <= ARENA.w - T.inset + 0.5;
+      if (dx < 0.5) seen.dropped++;
+      else if (dx > T.drift - 0.5) seen.drift++;
+      else seen.clamped++;
+      assert.ok(inView || dx < 0.5, `the loser at ${lx} (winner at ${wx}) landed out of the lake's view (x ${sp.x})`);
+      assert.equal(sp.y, ARENA.ground + 52);
+      assert.equal(x.m.matchWinner, 0);
+    }
+    assert.ok(seen.drift > 0 && seen.clamped > 0 && seen.dropped > 0, `every case of the floor kick should be covered: ${JSON.stringify(seen)}`);
+  }
+  // A snapshot taken in mid-air resumes to the same ending.
+  {
+    const x = ring("ko");
+    let t = 0;
+    while (!(x.m.arena!.end?.planned && x.m.phaseT > x.m.arena!.end.hitAt + 6) && t++ < 1000) run(x, 1);
+    const snap = JSON.parse(JSON.stringify(snapshot(x.m)));
+    assert.equal(snap.phase, "roundEnd");
+    assert.ok(snap.arena.end.planned && JSON.stringify(snap.arena).length < 900, `the arena state is ${JSON.stringify(snap.arena).length} bytes`);
+    const b = resumeMatch(snap, fighter("Fighter"), fighter("Fighter"), [{ ...x.ia }, { ...x.ib }]);
+    for (const d of b.defs) d.dodge = 0;
+    for (let k = 0; k < 600 && x.m.phase !== "matchEnd"; k++) {
+      step(x.m, [x.ia, x.ib]);
+      step(b, [{ ...x.ia }, { ...x.ib }]);
+    }
+    assert.equal(b.phase, "matchEnd");
+    assert.deepEqual(JSON.parse(JSON.stringify(snapshot(b).fighters)), JSON.parse(JSON.stringify(snapshot(x.m).fighters)), "a resumed ending diverged");
+  }
 }
 
 console.log("check-sim: all good");

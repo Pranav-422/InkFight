@@ -13,9 +13,11 @@ const kit = (cls: string) => ({ ...ruleStats(cls, { ...neutral, dominant_colors:
 
 // A moment to draw: every field given must hold. phase / cue: the sim's; phaseT: ticks into the phase; tick: the match clock;
 // world: the world clock; scene: 1-5; settle: frames to draw first (the camera and the fades ease in real time).
-// locked: constellations locked so far (the ceremony). ko: let the fight end (otherwise nobody dies).
+// locked: constellations locked so far (the ceremony). ko: let the fight end (otherwise nobody dies); from: only once the world clock has
+// reached that tick; inRing: only once the fight is back on in the ring; loser: which fighter is left with a sliver of health when the fight may end (so the other one wins). end + dt: the arena's ending has
+// reached that moment ("kickAt", "hitAt", "splashAt" or "until"), plus dt ticks.
 // calm: no special, hit or knockout in progress (the camera is at rest). nearCrack: a fighter within that many px of a leaking crack's edge.
-export type Spec = { name: string; phase?: string; cue?: string; phaseT?: number; tick?: number; world?: number; scene?: number; settle?: number; ko?: boolean; locked?: number; calm?: boolean; nearCrack?: number };
+export type Spec = { name: string; phase?: string; cue?: string; phaseT?: number; tick?: number; world?: number; scene?: number; settle?: number; ko?: boolean; from?: number; inRing?: boolean; loser?: 0 | 1; end?: "kickAt" | "hitAt" | "splashAt" | "until"; dt?: number; locked?: number; calm?: boolean; nearCrack?: number };
 export type Opts = { seed?: number; a?: string; b?: string; protect?: boolean; skipTo?: number };
 
 declare global {
@@ -32,6 +34,7 @@ const holds = (m: Match, s: Spec) =>
   (s.tick === undefined || arenaTick(m) >= s.tick) &&
   (s.world === undefined || arenaWorld(m) >= s.world) &&
   (s.scene === undefined || (m.arena?.scene ?? -1) + 1 >= s.scene) &&
+  (s.end === undefined || (m.arena?.end?.planned === true && m.phaseT >= m.arena.end[s.end] + (s.dt ?? 0))) &&
   (s.locked === undefined || (m.arena?.pick.filter(Boolean).length ?? 0) >= s.locked) &&
   (s.nearCrack === undefined || (m.arena?.cracks ?? []).some((c) => arenaTick(m) >= c.born + c.glow && m.fighters.some((f) => f.grounded && f.y >= 479 && Math.abs(f.x - c.x) - c.w / 2 < s.nearCrack!))) &&
   (!s.calm || (m.slow === 0 && m.freeze === 0 && m.fighters.every((f) => f.action !== "special" && f.action !== "hit" && f.action !== "ko")));
@@ -61,7 +64,9 @@ window.capture = (specs, opts = {}) => {
     cpuThink(m, 1, brains[1], ib);
     step(m, [ia, ib]);
     // Nobody dies unless a shot wants the knockout: the scenes are what is being looked at.
-    if (opts.protect !== false && !pending.some((s) => s.ko)) for (const f of m.fighters) f.hp = Math.max(f.hp, m.defs[f.slot].maxHp * 0.4);
+    const mortal = pending.find((s) => s.ko && arenaWorld(m) >= (s.from ?? 0) && (!s.inRing || (m.arena!.ring > 0 && m.phase === "fight")));
+    if (opts.protect !== false && !mortal) for (const f of m.fighters) f.hp = Math.max(f.hp, m.defs[f.slot].maxHp * 0.4);
+    else if (mortal?.loser !== undefined && m.phase === "fight") m.fighters[mortal.loser].hp = Math.min(m.fighters[mortal.loser].hp, 40);
     const cur = snapshot(m);
     r.ingest(cur, hud);
     const hit = pending.filter((s) => holds(m, s));

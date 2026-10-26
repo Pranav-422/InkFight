@@ -7,6 +7,7 @@
 // normal best-of-3.
 
 import { CLASSES } from "../lib/stats";
+import { MOVES } from "./moves";
 import type { ConstellationId } from "./protocol";
 import { ARENA, BODY, TICK_HZ } from "./space";
 import type { Cue, Fighter, Input, Mark, Match, Slot } from "./sim";
@@ -74,6 +75,15 @@ export const ARENA_TUNE = {
   // x(1 + p), what they take / (1 + p) (the admin buff's two halves, 1.3 and 0.75, for p = 30%). The buffed fighter is drawn `look` (at the
   // smallest roll .. at the biggest) times bigger. `until`: how long the pause lasts, `at`: when each fighter's roll is shown inside it.
   buff: { min: 10, max: 50, look: [1.1, 1.2] as [number, number], until: 270, at: [60, 150] as [number, number] },
+  // The ending (a knockout, or the clock when the health isn't equal): the fight is over, the result is decided, and the winner kicks the loser off the
+  // ring into the lava. `wait`: ticks the fall and the "K.O.!" are left to read; the winner then walks to `gap` px from the loser at `walk` px a tick and
+  // throws a roundhouse; the loser flies off at a vertical speed of `vy` (the horizontal one is whatever clears the nearest edge) and falls into the lava,
+  // sinking at `sink` px a tick; then the loser's constellation streaks across the sky for `star` ticks while the weather clears, `after` ticks of calm
+  // sky, and the result shows. `draw`: an equal-health timeout has no kick, only the calm. `drift`: how far sideways (px) a loser on the floor flies
+  // before falling off the front of the slab into the lake, `inset`: how far from each wall the lake is in full view (the cliffs cover its ends:
+  // nobody lands nearer a wall than that, unless they were already there). On the ring they fly clear of its edge instead. `deep`: how far below the
+  // surface (px) the feet are when the splash fires: the body spins about its middle, 70 px up, so that is when it meets the lava.
+  ending: { wait: 60, walk: 3.4, gap: 74, vy: -12, drift: 130, inset: 190, deep: 60, sink: 1.6, star: 170, after: 110, draw: 240 },
   // The opening ceremony, before any fighting (about 15 s at the longest): the arena's title card (`intro`), the stars waking
   // (`open`), each fighter locking a constellation (`pick`, then `lock` ticks to read the stamp once both have), and the two
   // chosen ones settling in the sky (`settle`). A fighter who hasn't locked when `pick` runs out gets the one under the cursor.
@@ -216,6 +226,25 @@ export type ArenaState = {
   seed: number; // the match's seed (a number the host picks): every roll of the arena mixes it in, so no two matches roll alike
   ring: number; // ticks since the ring began to rise (0: no ring yet); the walls are solid from ARENA_TUNE.ring.lock
   buff: [number, number]; // each fighter's plausibility buff in percent (0 until the stars answer)
+  side: [number, number]; // 0 / 1: which end of the ring's sky each fighter's constellation hangs over (the side they stand on)
+  end: Ending | null; // the scripted ending, once the result is decided
+};
+
+// The scripted ending, planned `wait` ticks after the result (when everyone has settled). All times are ticks into the round-end phase.
+export type Ending = {
+  w: Slot; // the winner: walks over and kicks
+  l: Slot | -1; // the loser: kicked off the ring (-1: a draw, nobody is)
+  planned: boolean;
+  d: number; // the way the loser is kicked: -1 left, 1 right (away from the winner)
+  spot: number; // where the winner stands to kick
+  kickAt: number;
+  hitAt: number; // the boot lands
+  splashAt: number; // the loser reaches the lava
+  until: number; // the result shows
+  x0: number;
+  y0: number; // where the loser was kicked from
+  vx: number;
+  lava: number; // the surface they fall into
 };
 
 export function newArena(id: ArenaId, seed = 0): ArenaState {
@@ -242,6 +271,8 @@ export function newArena(id: ArenaId, seed = 0): ArenaState {
     seed,
     ring: 0,
     buff: [0, 0],
+    side: [0, 1],
+    end: null,
   };
 }
 
@@ -263,6 +294,8 @@ export const cloneArena = (a: ArenaState): ArenaState => ({
   cur: [...a.cur],
   dir: [...a.dir],
   buff: [a.buff[0], a.buff[1]],
+  side: [a.side[0], a.side[1]],
+  end: a.end && { ...a.end },
 });
 
 // The arena's damage trim for a class hitting another (ARENA_TUNE.matchup).
@@ -343,10 +376,11 @@ export function arenaClampX(m: Match, att: Fighter, x: number): number {
 // ------------------------------------------------------------------ per-tick update
 
 type Hooks = { roll: (m: Match, salt: number) => number; emit: (m: Match, e: ArenaEvent) => void };
-export type ArenaEventKind = "scene" | "crack" | "meteor" | "impact" | "rumble" | "rise" | "burn" | "rescue" | "cue" | "warp" | "star" | "ring" | "buff";
+export type ArenaEventKind = "scene" | "crack" | "meteor" | "impact" | "rumble" | "rise" | "burn" | "rescue" | "cue" | "warp" | "star" | "ring" | "buff" | "boot" | "splash" | "shoot";
 // What the renderer and the sound get through the sim's event list (it keeps the last 16, so a skipped relay snapshot loses nothing).
 // scene: n = 1-5. burn: n = damage, slot. rescue / warp: slot. cue: a guided pause began (its text is in the snapshot). star: slot locked
-// constellation n (index into CONSTELLATIONS). ring: the walls start to rise. buff: slot's roll n percent (the stars answered). The rest: x is where.
+// constellation n (index into CONSTELLATIONS). ring: the walls start to rise. buff: slot's roll n percent (the stars answered). boot: the winner's kick
+// lands (x, y: on the loser). splash: the loser hits the lava. shoot: the loser's constellation starts to fall. The rest: x is where.
 export type ArenaGameEvent = { id: number; type: "arena"; kind: ArenaEventKind; x: number; y: number; n?: number; slot?: Slot };
 type ArenaEvent = Omit<ArenaGameEvent, "id">;
 
@@ -619,6 +653,7 @@ const STORY: Beat[] = [
       h.emit(m, ev("ring", FINAL.x + FINAL.w / 2, FINAL.top));
       const T = ARENA_TUNE.marks, cx = FINAL.x + FINAL.w / 2;
       const left = m.fighters[0].x <= m.fighters[1].x ? 0 : 1;
+      m.arena!.side = left === 0 ? [0, 1] : [1, 0];
       const at = (x: number): Mark => ({ x, y: FINAL.top, r: T.r });
       const target: [Mark, Mark] = left === 0 ? [at(cx - T.gap), at(cx + T.gap)] : [at(cx + T.gap), at(cx - T.gap)];
       return { id: "marks", text: "TAKE YOUR MARKS", until: T.until, hold: T.hold, target, done: [false, false] };
@@ -673,4 +708,90 @@ export function arenaCueEnd(m: Match, h: Hooks, cue: Cue, timedOut: boolean): Cu
   STORY[i]?.end?.(m, h, cue, timedOut);
   const next = STORY[m.arena!.beat];
   return next && next.at === undefined ? begin(m, h, next) : null;
+}
+
+// ------------------------------------------------------------------ the ending
+
+const GRAV = 0.75; // (the sim's gravity: the loser's flight is a parabola under it)
+
+// The result is decided (called from the sim's endRound): nothing is planned yet, the fall and the "K.O.!" are given time to play.
+export function arenaEndBegin(m: Match, winner: Slot | null) {
+  const a = m.arena!, E = ARENA_TUNE.ending;
+  a.end = { w: winner ?? 0, l: winner === null ? -1 : ((1 - winner) as Slot), planned: false, d: 1, spot: 0, kickAt: 0, hitAt: 0, splashAt: 0, until: winner === null ? E.draw : E.wait + 600, x0: 0, y0: 0, vx: 0, lava: 0 };
+}
+
+// Where the lava is for this ending: in the ring, the rising lava; on the floor, the lake under the slab.
+const lavaFor = (m: Match) => (m.arena!.ring > 0 ? lavaY(arenaWorld(m)) : ARENA.ground + 52);
+
+// Plan the kick from where everyone ended up: the loser is kicked away from the winner, off the nearest end of whatever they stand on.
+function planEnding(m: Match, e: Ending) {
+  const E = ARENA_TUNE.ending, W = m.fighters[e.w], L = m.fighters[e.l as Slot];
+  const ring = m.arena!.ring > 0;
+  e.d = L.x >= W.x ? 1 : -1;
+  e.x0 = L.x;
+  e.y0 = L.y;
+  e.spot = L.x - e.d * E.gap;
+  e.lava = lavaFor(m);
+  // Time in the air: the loser rises at -vy and falls under gravity to the lava.
+  const air = Math.ceil((-E.vy + Math.sqrt(E.vy * E.vy + 2 * GRAV * Math.max(1, e.lava + E.deep - e.y0))) / GRAV);
+  // The ring: off the edge of the platform. The floor: off the front of the slab into the lake, where it shows (the cliffs cover its ends).
+  // A loser nearer a wall than that just drops.
+  const exit = ring ? (e.d > 0 ? FINAL.x + FINAL.w + 70 : FINAL.x - 70) : Math.min(ARENA.w - E.inset, Math.max(E.inset, e.x0 + e.d * E.drift));
+  e.vx = ring ? Math.min(22, Math.max(6, Math.abs(exit - e.x0) / air)) : Math.max(0, e.d * (exit - e.x0)) / air;
+  const walk = Math.ceil(Math.max(0, Math.abs(W.x - e.spot) - 1) / E.walk);
+  const kick = MOVES.roundhouse;
+  e.kickAt = Math.max(E.wait, m.phaseT) + walk + 8;
+  e.hitAt = e.kickAt + Math.round((kick.from + kick.to) / 2);
+  e.splashAt = e.hitAt + air;
+  e.until = e.splashAt + E.star + E.after;
+  e.planned = true;
+}
+
+// One tick of the ending (after the fighters have moved, so what is set here is what the snapshot shows).
+export function arenaEndStep(m: Match, h: Hooks) {
+  const a = m.arena!, e = a.end;
+  if (!e) return;
+  const E = ARENA_TUNE.ending, t = m.phaseT;
+  if (e.l < 0) return; // a draw: no kick, only the calm (the drawing reads end.until)
+  if (!e.planned && t >= E.wait) planEnding(m, e);
+  if (!e.planned) return;
+  const W = m.fighters[e.w], L = m.fighters[e.l as Slot];
+  if (t < e.kickAt) {
+    // The winner walks to the kick.
+    const dx = e.spot - W.x;
+    if (Math.abs(dx) > E.walk) {
+      W.x += Math.sign(dx) * E.walk;
+      W.moving = true;
+    } else W.x = e.spot;
+    W.facing = e.d > 0 ? 1 : -1;
+    if (L.action !== "ko") {
+      L.action = "hit"; // (a loss on the clock: the loser reels, beaten)
+      L.stun = 9999;
+      L.t = 0;
+    }
+  }
+  if (t === e.kickAt) {
+    W.action = "kick";
+    W.move = "roundhouse";
+    W.t = 0;
+    W.landed = true; // (a show, not a blow: it deals nothing)
+    W.facing = e.d > 0 ? 1 : -1;
+  }
+  if (t === e.hitAt) {
+    L.action = "ko";
+    L.t = 0;
+    m.freeze = Math.max(m.freeze, 8); // the boot lands: a beat of hit-stop
+    h.emit(m, ev("boot", L.x, L.y - BODY.h * 0.5, { slot: L.slot }));
+  }
+  if (t >= e.hitAt) {
+    // The loser's flight is scripted: a parabola off the edge, then into the lava and down.
+    const u = Math.min(t, e.splashAt) - e.hitAt;
+    L.x = e.x0 + e.d * e.vx * u;
+    L.y = t < e.splashAt ? e.y0 + E.vy * u + 0.5 * GRAV * u * u : e.lava + E.deep + (t - e.splashAt) * E.sink;
+    L.vx = L.vy = 0;
+    L.grounded = false;
+    L.action = "ko";
+    if (t === e.splashAt) h.emit(m, ev("splash", L.x, e.lava, { slot: L.slot }));
+    if (t === e.splashAt + 12) h.emit(m, ev("shoot", 0, 0, { slot: L.slot }));
+  }
 }

@@ -134,6 +134,7 @@ export class Renderer {
   private scales: [number, number] = [1, 1]; // how big each fighter is drawn (the ring shrinks them a little, a buff grows them)
   private buffs: [number, number] = [0, 0]; // each fighter's plausibility buff in percent, once shown
   private auras: [string | null, string | null] = [null, null]; // the colour of a buffed fighter's constellation
+  private spin = 0; // radians the fighter being drawn is spun about its body (the loser of an arena ending, in flight)
   private onStage = false; // an arena fight: fighters stand on platforms, so their shadows fall on what they stand on
   private revealed: [boolean, boolean] = [false, false]; // the reveal's two moments already sounded
 
@@ -331,6 +332,30 @@ export class Renderer {
         const an = Math.random() * Math.PI * 2, sp = 1.5 + Math.random() * 4;
         this.particles.push({ x: at.x, y: at.y, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, life: 0, max: 30 + Math.random() * 16, color: i % 2 ? C.gold : "#ffffff", size: 2 + Math.random() * 3 });
       }
+    } else if (e.kind === "boot") {
+      // The winner's kick lands on the loser: a thud, a flash, a ring and sparks, "BOOT!".
+      this.sfx("kick", 1);
+      this.sfx("impact");
+      this.shake = Math.max(this.shake, reduce ? 6 : 16);
+      if (!reduce) this.flash = Math.max(this.flash, 3);
+      this.rings.push({ x: e.x, y: e.y, r: 12, grow: 12, life: 0, max: 18, color: C.gold, width: 9 });
+      this.rings.push({ x: e.x, y: e.y, r: 4, grow: 18, life: 0, max: 14, color: "#ffffff", width: 3 });
+      for (let i = 0; i < 20; i++) {
+        const an = Math.random() * Math.PI * 2, sp = 3 + Math.random() * 7;
+        this.particles.push({ x: e.x, y: e.y, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp - 1, life: 0, max: 26, color: i % 2 ? C.gold : "#ffffff", size: 3 + Math.random() * 4 });
+      }
+      this.particles.push({ x: e.x, y: e.y - 40, vx: 0, vy: -1.1, life: 0, max: 50, text: "BOOT!", color: C.hit, size: 40 });
+    } else if (e.kind === "splash") {
+      // The loser hits the lava: a heavy splash, droplets and a spout.
+      this.sfx("splash");
+      this.shake = Math.max(this.shake, reduce ? 3 : 9);
+      for (const [r, grow, max] of [[8, 7, 24], [3, 11, 18]] as const) this.rings.push({ x: e.x, y: e.y, r, grow, life: 0, max, color: "#ffb13a", width: 6 });
+      for (let i = 0; i < 34; i++) {
+        const an = -Math.PI / 2 + (Math.random() - 0.5) * 1.8, sp = 4 + Math.random() * 8;
+        this.particles.push({ x: e.x + (Math.random() - 0.5) * 30, y: e.y, vx: Math.cos(an) * sp * 0.6, vy: Math.sin(an) * sp, life: 0, max: 30 + Math.random() * 20, color: i % 3 ? "#ff8a22" : "#ffe07a", size: 4 + Math.random() * 6, g: 0.33 });
+      }
+    } else if (e.kind === "shoot") {
+      this.sfx("shoot"); // the loser's constellation falls
     } else if (e.kind === "ring") {
       // The walls start to rise: stone grinding, dust off the two posts.
       this.sfx("grind");
@@ -451,7 +476,28 @@ export class Renderer {
 
     // Whoever is doing a special is drawn on top.
     const order = [...fighters].sort((a, b) => (a.action === "special" ? 1 : 0) - (b.action === "special" ? 1 : 0));
-    for (const f of order) this.fighter(f, (f.ult ? cur.ults?.[f.slot] : null) ?? cur.specials[f.slot], cur.styles[f.slot], now, hud.you === f.slot, cur.skills?.[f.slot], cur.passives?.[f.slot] ?? null);
+    const ending = cur.arena && this.arenaView ? this.arenaView.ending(cur) : null;
+    for (const f of order) {
+      // The loser of an arena ending tumbles off the edge and sinks into the lava: spun about the body, and cut off at the lava's surface.
+      const clip = ending?.clip[f.slot] ?? null;
+      this.spin = ending?.spin[f.slot] ?? 0;
+      if (this.spin !== 0) {
+        ctx.save();
+        // A pale rim round the loser, so the dark drawing reads against the dark cliffs and the slab on its way down.
+        ctx.shadowColor = "rgba(255,236,190,.9)";
+        ctx.shadowBlur = 14;
+      }
+      if (clip !== null) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(-4000, -4000, 8000, 4000 + clip);
+        ctx.clip();
+      }
+      this.fighter(f, (f.ult ? cur.ults?.[f.slot] : null) ?? cur.specials[f.slot], cur.styles[f.slot], now, hud.you === f.slot, cur.skills?.[f.slot], cur.passives?.[f.slot] ?? null);
+      if (clip !== null) ctx.restore();
+      if (this.spin !== 0) ctx.restore();
+    }
+    this.spin = 0;
     this.lastNow = now;
     for (const p of projectiles) if (!p.delay) this.projectile(p.kind, p.x, p.y, p.r, p.vx, now, p.owner, fighters[p.owner].x);
     this.fx();
@@ -883,6 +929,11 @@ export class Renderer {
     ctx.scale(sc, sc); // (the ring shrinks a fighter a little and a buff grows one; about the feet, so they stay on the floor)
     ctx.translate(0, lift);
     ctx.scale(dir, 1);
+    if (this.spin) {
+      ctx.translate(0, -70);
+      ctx.rotate(this.spin * dir); // (screen direction: the mirror above flips it back)
+      ctx.translate(0, 70);
+    }
     if (motion.fall) {
       // Fall backwards, unless that would land outside the arena. Lift a little so
       // the flopped-out limbs lie on the ground instead of through it.
@@ -1541,7 +1592,8 @@ export class Renderer {
     else if (s.phase === "fight" && s.phaseT < 45) {
       text = "FIGHT!";
       color = C.hit;
-    } else if (s.phase === "roundEnd") {
+    } else if (s.phase === "roundEnd" && (!s.arena || s.phaseT < ARENA_TUNE.ending.wait)) {
+      // (an arena's scripted ending runs for seconds: the word is there while the fall is read, then the winner walks over and it is the kick's turn)
       text = s.roundWinner === null ? "DRAW!" : s.roundReason === "ko" ? "K.O.!" : "TIME!";
       color = C.hit;
     }

@@ -5,7 +5,7 @@
 // The on/off switch is kept in localStorage (default on) and is separate from "Reduce flashes". Browsers block
 // audio until a user gesture, so the context is created on the first pointer press or key press (installUnlock).
 
-export type Sfx = "punch" | "kick" | "block" | "whiff" | "slip" | "special" | "ultimate" | "clash" | "ko" | "round" | "skill" | "phase" | "tap" | "rumble" | "crack" | "meteor" | "impact" | "grind" | "eruption" | "hiss" | "chime" | "shimmer" | "aura";
+export type Sfx = "punch" | "kick" | "block" | "whiff" | "slip" | "special" | "ultimate" | "clash" | "ko" | "round" | "skill" | "phase" | "tap" | "rumble" | "crack" | "meteor" | "impact" | "grind" | "eruption" | "hiss" | "chime" | "shimmer" | "aura" | "splash" | "shoot";
 
 const KEY = "inkfight.sound";
 const MAX_VOICES = 10;
@@ -221,6 +221,19 @@ export const RECIPES: Record<Sfx, Recipe> = {
     blip(r, "triangle", 440, 880 + p * 440, 0.6, 0.12, 0.1);
     [880, 1320, 1760].forEach((f, i) => blip(r, "sine", f, f, 0.5, 0.1, 0.35 + i * 0.1));
     return burst(r, "highpass", 4000, 9000, 0.7, 0.05, 0.2);
+  },
+  // The ending: a body hitting lava (a heavy splash, then bubbling), and the loser's star falling (a falling whistle with sparkle).
+  splash: (r) => {
+    burst(r, "lowpass", 2400, 120, 0.7, 0.6);
+    blip(r, "sine", 120, 40, 0.6, 0.7);
+    burst(r, "bandpass", 900, 300, 0.5, 0.25, 0.15, 1.6);
+    return burst(r, "highpass", 3500, 7000, 0.4, 0.12, 0.1);
+  },
+  shoot: (r) => {
+    blip(r, "sine", 2400, 500, 1.1, 0.12);
+    blip(r, "triangle", 1800, 400, 1.0, 0.08, 0.05);
+    [3000, 3600, 4400].forEach((f, i) => blip(r, "sine", f, f * 0.8, 0.25, 0.05, 0.05 + i * 0.12));
+    return burst(r, "highpass", 5000, 9000, 0.8, 0.04);
   },
   shimmer: (r) => {
     [660, 880, 1100, 1320, 1760].forEach((f, i) => blip(r, "sine", f, f * 1.01, 0.5, 0.1, i * 0.09));
