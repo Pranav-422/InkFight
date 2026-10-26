@@ -288,6 +288,8 @@ const BOSS_IDLE: Record<string, (now: number) => BodyMotion> = {
   },
 };
 
+export const BOSS_IDLES = Object.keys(BOSS_IDLE);
+
 // Idle stance per class: a 2-3 s loop, so a Tank reads heavy and an Attacker light before anyone moves.
 function idleFor(cls: string, now: number, boss?: string): BodyMotion {
   if (boss && BOSS_IDLE[boss]) return BOSS_IDLE[boss](now);

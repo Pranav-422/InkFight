@@ -161,6 +161,9 @@ export function auraFx(h: FxHost, look: BossLook, f: F, pose: StickPose, at: (v:
       for (let i = 0; i < n; i++) {
         const sx = head.x + (hash(seed + i) - 0.5) * 70, ex = foot.x + (hash(seed + i * 5) - 0.5) * 70;
         zig(ctx, sx, head.y - 6 + hash(seed + i * 2) * 20, ex, foot.y - hash(seed + i * 3) * 30, seed + i * 11, 12, 5);
+        ctx.strokeStyle = "rgba(255,154,0,.55)"; // (yellow on paper needs an edge)
+        ctx.lineWidth = 6;
+        ctx.stroke();
         ctx.strokeStyle = p.main;
         ctx.lineWidth = 3;
         ctx.stroke();
@@ -178,6 +181,11 @@ export function auraFx(h: FxHost, look: BossLook, f: F, pose: StickPose, at: (v:
         ctx.globalAlpha = Math.max(0, 1 - Math.max(0, f.t - mv.to) / 6);
         for (let i = 0; i < 3; i++) {
           zig(ctx, x0, hip.y - 20 + i * 18, hip.x, hip.y - 20 + i * 18 + (hash(seed + i) - 0.5) * 14, seed + i * 17, 9, 9);
+          if (i !== 1) {
+            ctx.strokeStyle = "rgba(255,154,0,.55)";
+            ctx.lineWidth = 8;
+            ctx.stroke();
+          }
           ctx.strokeStyle = i === 1 ? p.core : p.main;
           ctx.lineWidth = i === 1 ? 2 : 4;
           ctx.stroke();

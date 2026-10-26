@@ -92,4 +92,90 @@ commit per part: **A** this standard and the roster table, **B** move sets, pass
 
 ## 3. What changed
 
-(Filled in part by part.)
+### B. Move sets, passives, CPU personas
+
+**The kit.** A boss may have its own punch (J) and kick (K) chains: `FighterDef.kit` (`BossKit` in `moves.ts`), set only through `BossSpec.kit` in
+`createMatch(..., { boss })`. `chainOf` / `chainPower` read it first (a kit chain is priced like any chain: `moves.chainPower` keeps every chain at the same
+damage per second, checked in `check-sim`), `moveReach` and the CPU's spacing follow it. A boss also names its two specials by their real kind and name
+(`Boss.special` / `Boss.ult` / `Boss.moves`), its side skill, and a boss-only ultimate goes in through `BossSpec.ult` (the stat line cannot carry it).
+
+**Fifteen boss-only moves** (`MOVES` / `MOVE_POSES`; a player's chain can never name one). Frame data is the research's where it has some
+(`docs/research/new research`, martial arts), otherwise in its shape. Torso lean in the poses is the research's `torso.abs` turned round (its lean is measured
+the other way), limbs are its `abs` as they stand.
+
+| Move | Boss | dur / from / to | reach | mult | Notes |
+|---|---|---|---|---|---|
+| `kneeStomp` | Brass Shin | 16 / 5 / 9 | 84 | 0.95 | Oblique Knee Stomp Kick (low) |
+| `shinCannon` | Brass Shin | 38 / 15 / 20 | 104 | 2.3 | the Compressed Kick: stomp, rear leg cocked, `crush` |
+| `heartPunch` | Crosshatch | 15 / 3 / 6 | 58 | 1.4 | One-Inch Heart Punch (knock 15, launch 4) |
+| `flickerJab` `corkscrew` `gazelleHook` `dempsey` | Pip Punchline | 12 / 18 / 22 / 24 | 72 / 78 / 66 / 60 | 0.7 / 1.15 / 1.35 / 1.45 | the research's boxing chain, in its order |
+| `seiken` | Pale Ogre | 16 / 5 / 9 | 70 | 1.2 | Seiken Chudan Tsuki |
+| `kaitenGeri` | Pale Ogre | 30 / 12 / 19 | 92 | 1.65 | Rolling Thunder Kick (hops, flips) |
+| `thunderclap` | Yellow Streak | 20 / 5 / 9 | 92 | 1.0 | the draw: x3 lunge and x1.5 when armed |
+| `oniCut` | Triple Nib | 28 / 9 / 15 | 96 | 1.9 | swords crossed, then flung wide |
+| `pistol` `bazooka` | Rubber Bo | 20 / 26 | 150 / 130 | 0.9 / 1.7 | the arm is drawn out to the reach |
+| `whip` | Rubber Bo | 24 / 9 / 14 | 125 | 1.2 | a rubber kick, the leg drawn out |
+| `mudaJab` | The Overdue | 9 / 2 / 4 | 66 | 0.45 | alternating fists, four in a string then a hook |
+
+**`time_stop_barrage`** (`BOSS_KINDS`, not in `SPECIAL_KINDS`): the Overdue's ultimate. 10-tick tell (after the usual 16-tick super-freeze) in which a hit cancels
+it; then anyone within 180 px is held in front of him (the ultimate hit-lock, `lockOn`), eight blows land every 5 ticks from tick 12 (0.3 of the special's
+punch each), and tick 50 ends it with the usual launching blow. Nobody within reach: the stop finds nobody and he is left in a 12-tick recovery. The two
+knives he laid during the stop fall (`Hazard.knife`, delayed cuts) where the target lands; the second form holds ten ticks longer, lands ten blows and lays
+four. `SPECIAL_TUNE.time_stop_barrage` is 1 (only a boss casts it, the floor's budget tunes it).
+
+**Passives.** New passive ids: `guard-crush`, `fracture`, `rubber`, `charge-up`, `time-stop`. Kept because the rule *is* the new boss: `afterimage` (Pip's
+slip), `whiteout-guard` (now Aikido Redirect: the third blocked hit throws the attacker back 16 px/tick and stuns him for 22 ticks, no frost any more),
+`unbending-spine` (Triple Nib), `sheathed-draw` (Yellow Streak), `infinite-margin` (Asymptote). Removed with their tests and their render code:
+`heat-stacks` (became `fracture`, which bleeds), `royal-pride`, `endless-dance`, `pencil-case`, `curse-marks`, `red-margin-lines`. `Fighter.marks` / `markT` /
+`draw` stay in the type, unused, because `check-sim` hashes the snapshots of normal fights and a missing field would change every hash.
+
+| Passive | Rule (numbers are the sim's) |
+|---|---|
+| `guard-crush` | a `crush` move (the Compressed Kick) ignores a guard it meets; the victim's `pv.noBlock` = 40 keeps the guard down |
+| `fracture` | clean hits stack (max 3, close after 90 ticks, a blocked hit closes them); the hit at 3 stacks applies BLEED |
+| `afterimage` | once per 360 ticks the first hit that would land while he is moving is slipped (60 px slide) |
+| `whiteout-guard` | the third blocked hit within 120 ticks of the last throws the attacker back and stuns him for 22 |
+| `unbending-spine` | a swing's wind-up is not interrupted by normal hits (x0.8) |
+| `sheathed-draw` | 20 ticks still arm the blade; the next swing is a dash (x3 lunge, x1.5 damage, +12 recovery) |
+| `rubber` | a punch (the J chain, not a kick, weapon, projectile or special) deals x0.65 |
+| `infinite-margin` | projectiles x0.4 / x0.6; 90 ticks crowded and he blinks 600 px away after an 18-tick shimmer |
+| `charge-up` | standing still and not guarding: the meter fills x3 and `pv.charge` grows; a special cast after 120 ticks of it hits x1.3 |
+| `time-stop` | his ultimate is the time stop (above); the second form is `BossSpec.phase2` |
+
+**CPU personas** (`src/game/bossAi.ts`, set only through a boss's `BossRun`): the generic brain still blocks and hops projectiles and throws specials; a persona
+then decides where the boss stands and what it swings. `brawler` walks you down and kicks (70%), never backs off; `grappler` is a brawler that takes hold the
+moment you turtle; `boxer` only punches and bobs in and out at the edge of its range; `counterer` holds just outside its reach, takes the counter stance the
+instant a swing that would reach him begins (a reflex, before the think tick), punishes openings, and tests you now and then; `sheathed` stands absolutely
+still (walking breaks the stillness) and draws the instant it is armed and you are inside 215 px; `swordsman` never steps back and cuts from behind when you
+turtle; `poker` fights at the very end of its reach and makes room when crowded; `zoner` is the Attacker's own zoning brain; `charger` stands and gathers ki
+while you are far; `timekeeper` throws knives from range, rushes when you are close, and walks into the stop's reach with a full clock.
+
+**Checks.** `check-sim` covers the kit (the four punches run in order, reach follows the kit, chains priced alike), each new passive, the time stop (held about
+40 sim ticks, eight blows and a launching one, knives, whiff, interrupt, second form), the form change (clamp at exactly half, the form's own special / ultimate /
+banner, the next round starts in the first form), and that boss-only kinds are on no player list. `scripts/dungeon.ts` plays five matches per floor and asserts that
+every move and special the boss throws is in its kit, that Yellow Streak throws nothing but his draw and Pip never kicks. `balance.ts` asserts no player kit
+carries a passive, a kit or a boss-only kind, and that no stat line can.
+
+### C. Looks
+
+**One data module, `src/game/bossLook.ts`**, read by everyone: the **head** (SVG path layers in a 300 x 300 box with the face circle at (150, 150): hair, a straw
+hat, a blindfold, a sword in the teeth are drawn outside the circle), the **outfit** (pieces: trunks, coat, haori / cape, sash, gloves, sleeves, armbands,
+wraps, shin tape, scabbards, orbs, tattoo lines), the **palette** (`main` / `sub` / `glow` / `core` / `ink`, from the research hexes: `scripts/dungeon.ts`
+asserts at least two per boss), the **idle** loop (`poses.ts` `BOSS_IDLE`), the **aura** kind, and flags (`stretch`, `sheathes`, `hover`).
+
+- `bossSprite.ts` draws the head on a canvas from the layers (`Path2D`); `loadSpriteCached('/boss-art/N')` returns it without a fetch (a boss is not a photo:
+  the circle crop of a scanned head would cut the hair off, and the figure finder would see a filled hat). `Sprite` gets `headScale`, `headCenter` and `look`, so
+  every consumer (the arena, the avatar on the ladder) wears the same boss without more wiring.
+- `outfit.ts` draws the pieces from the skeleton's joints in three layers (behind the body, over the legs and torso, over the near arm); cloth sways with the
+  clock. `drawStick` skips the class's cosmetics for an outfit (a Tank boss has no shoulder pads unless its data says so) and a sheathed sword shows only its hilt.
+- `bossFx.ts` draws the aura (`heat`, `cracks`, `smoke`, `lightning`, `flame`, `steam`, `rings`, `ki`, `clock`; the ki's glow and the rings sit *behind* the body) and
+  the effects of the moves only a boss has: the stomp's floor cracks and shin glow, the draw's lightning streak, the three crossed lines of the cut, the infinity
+  sign of the weave, the counter's crater, the time stop's ring and ghost fists. The shared special effects (beam, slash, wave, pull, arrow, counter, dash...) take
+  the boss's palette (`Palette.ult` for an ultimate with its own colour: Asymptote's purple), so a Kamehameha is cyan, a Hollow Purple is purple, a thrown knife is a knife.
+- `render.ts`: the rubber arm / leg is drawn out to the move's reach (`stretchLimb`); the time stop inverts the page instead of blacking it out (softer with
+  "Reduce flashes", and the echo blows skip the impact frame so nothing strobes); the second form tints the page in the boss's second colour; `GUARD CRUSH` and `BOING`
+  float off the hits that earn them; the knives hang over their column and drop at the end.
+- `/boss-art/[floor]` draws the same head into the 400 x 600 PNG that the share cards use; the outfit and the item are never drawn there.
+- The ladder (`/play/dungeon`) shows each floor's tier, and its avatar plays the boss's own moves (`FighterAvatar` takes the kit).
+
+(Frames: section 6.)

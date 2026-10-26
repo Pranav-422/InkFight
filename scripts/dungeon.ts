@@ -10,7 +10,9 @@
 
 import assert from "node:assert/strict";
 import { cpuThink, newBrain } from "../src/game/cpu";
+import { bossLook, bossLookOf } from "../src/game/bossLook";
 import { BOSSES, bossFighter, bossKnobs, bossPersona, bossRun } from "../src/game/dungeon";
+import { BOSS_IDLES } from "../src/game/poses";
 import { CLASS_CHAIN, CLASS_ITEM, CLASS_SPECIAL, CLASS_STYLE, MOVES, STYLE_INFO, type MoveName, type Style } from "../src/game/moves";
 import { createMatch, deriveDef, EMPTY_INPUT, step, TICK_HZ, type FighterStats } from "../src/game/sim";
 import { CLASSES, normClass, ruleStats } from "../src/lib/stats";
@@ -85,6 +87,32 @@ for (const b of BOSSES) {
   if (b.persona === "boxer") for (const m of moves) assert.ok(AIR.includes(m as MoveName) || !MOVES[m as MoveName].tip.startsWith("foot"), `${b.title} kicked (${m})`);
   console.log(`floor ${String(b.floor).padStart(2)} ${b.title.padEnd(15)} throws: ${[...moves].filter((m) => !AIR.includes(m as MoveName)).join(", ")}  |  casts: ${[...specials].join(", ")}`);
 }
+
+// A boss's look is complete and comes from the research: a head and an outfit, an idle poses.ts has, and at least two of the hex colours its inspiration's
+// moves are given in docs/research (the palette, the outfit and the head drawing together).
+const RESEARCH: Record<number, string[]> = {
+  1: ["#ff5500", "#ffffff", "#222222"], // Compressed Low Kick
+  2: ["#4444ff", "#ff0000"], // Deconstruction
+  3: ["#ffffff", "#888888"], // Dempsey Roll
+  4: ["#000000", "#ff0033", "#ffffff"], // Counter Smash
+  5: ["#ffff00", "#ffffff"], // Rokuren
+  6: ["#00ff66", "#111111", "#ff0044", "#f0fff0", "#006400"], // Oni Giri, Lion's Song
+  7: ["#ff2200", "#111111", "#ffffff", "#ffc0cb"], // Jet Gatling
+  8: ["#800080", "#ffffff"], // Murasaki
+  9: ["#00ccff", "#ffffff", "#0044ff", "#ffd700", "#ff8800"], // Kamehameha, Dragon Fist
+  10: ["#ffd700", "#8800ff", "#00ffaa"], // The World
+};
+for (const b of BOSSES) {
+  const look = bossLook(b.floor);
+  assert.ok(look, `floor ${b.floor} has no look`);
+  assert.ok(look.head.length >= 8 && look.outfit.length >= 2, `floor ${b.floor}: a head and an outfit are drawn from data`);
+  assert.ok(BOSS_IDLES.includes(look.idle), `floor ${b.floor}: idle ${look.idle} isn't in poses.ts`);
+  const text = JSON.stringify(look).toLowerCase();
+  const hits = RESEARCH[b.floor].filter((c) => text.includes(`"${c}"`));
+  assert.ok(hits.length >= 2, `floor ${b.floor} (${b.title}) carries only ${hits.length} of the research's colours`);
+  assert.equal(bossLookOf(`/boss-art/${b.floor}`), look);
+}
+assert.equal(bossLookOf("/uploads/x.png"), null);
 
 // Bosses keep their budget through deriveDef (players are always clamped to 350).
 for (const b of BOSSES) {

@@ -977,7 +977,7 @@ export class Renderer {
     ctx.globalAlpha = base;
     const skillOn = f.skillT > 0 && f.action !== "ko" ? skill : undefined;
     if (f.armorTicks > 0 || f.action === "special") {
-      ctx.shadowColor = f.action === "special" ? C.hit : C.guard;
+      ctx.shadowColor = f.action === "special" ? ((f.ult && bl?.palette.ult) || bl?.palette.main || C.hit) : C.guard; // (a boss's special glows in its own colour)
       ctx.shadowBlur = 12; // blur cost grows with radius, and it runs per stroke
     } else if (skillOn === "poise" || skillOn === "blade") {
       ctx.shadowColor = skillOn === "poise" ? C.gold : C.hit; // iron poise / element blade

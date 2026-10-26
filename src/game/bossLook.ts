@@ -104,7 +104,7 @@ const looks: BossLook[] = [
   // ---------------------------------------------------------------- 2. Crosshatch: a scarred wanderer, a red sash, an arm covered in lines
   {
     floor: 2,
-    palette: { main: "#4466ff", sub: "#ff2222", glow: "#ff3b3b", core: "#e8eeff", ink: "#2b1d18" },
+    palette: { main: "#4444ff", sub: "#ff0000", glow: "#ff3b3b", core: "#e8eeff", ink: "#2b1d18" },
     idle: "grappler",
     aura: "cracks",
     head: [
@@ -133,7 +133,7 @@ const looks: BossLook[] = [
   // ---------------------------------------------------------------- 3. Pip Punchline: a boxer with a cowlick and a plaster on his cheek
   {
     floor: 3,
-    palette: { main: "#e5482d", sub: "#2f5be0", glow: "#ff6a4d", core: "#ffffff", ink: "#17171a" },
+    palette: { main: "#888888", sub: "#e5482d", glow: "#aaaaaa", core: "#ffffff", ink: "#17171a" },
     idle: "boxer",
     aura: "ghost",
     head: [
@@ -189,7 +189,7 @@ const looks: BossLook[] = [
   // ---------------------------------------------------------------- 5. Yellow Streak: yellow lightning hair, closed eyes, worried brows, a drop of sweat
   {
     floor: 5,
-    palette: { main: "#ffe600", sub: "#ffffff", glow: "#fff27a", core: "#ffffff", ink: "#3b2f00" },
+    palette: { main: "#ffff00", sub: "#ffffff", glow: "#fff27a", core: "#ffffff", ink: "#3b2f00" },
     idle: "sheathed",
     aura: "lightning",
     head: [
@@ -274,7 +274,7 @@ const looks: BossLook[] = [
   // ---------------------------------------------------------------- 8. Asymptote: white spiky hair, a black blindfold, pale and calm
   {
     floor: 8,
-    palette: { main: "#00aaff", sub: "#ff2200", glow: "#6cc8ff", core: "#f4f8ff", ink: "#1b2733", ult: "#9b30ff" },
+    palette: { main: "#00aaff", sub: "#ff2200", glow: "#6cc8ff", core: "#ffffff", ink: "#1b2733", ult: "#800080" },
     idle: "limitless",
     aura: "rings",
     head: [
