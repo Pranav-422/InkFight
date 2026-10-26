@@ -5,7 +5,7 @@
 // The on/off switch is kept in localStorage (default on) and is separate from "Reduce flashes". Browsers block
 // audio until a user gesture, so the context is created on the first pointer press or key press (installUnlock).
 
-export type Sfx = "punch" | "kick" | "block" | "whiff" | "slip" | "special" | "ultimate" | "clash" | "ko" | "round" | "skill" | "phase" | "tap" | "rumble" | "crack" | "meteor" | "impact" | "grind" | "eruption" | "hiss" | "chime" | "shimmer";
+export type Sfx = "punch" | "kick" | "block" | "whiff" | "slip" | "special" | "ultimate" | "clash" | "ko" | "round" | "skill" | "phase" | "tap" | "rumble" | "crack" | "meteor" | "impact" | "grind" | "eruption" | "hiss" | "chime" | "shimmer" | "aura";
 
 const KEY = "inkfight.sound";
 const MAX_VOICES = 10;
@@ -213,6 +213,14 @@ export const RECIPES: Record<Sfx, Recipe> = {
     blip(r, "sine", 880, 880, 0.35, 0.22);
     blip(r, "triangle", 1320, 1320, 0.45, 0.14, 0.08);
     return blip(r, "sine", 1760, 1760, 0.6, 0.12, 0.16);
+  },
+  // The stars answering: a rising swell with bells on top (power: how big the blessing is).
+  aura: (r) => {
+    const p = r.power;
+    blip(r, "sine", 220, 440 + p * 220, 0.7, 0.2);
+    blip(r, "triangle", 440, 880 + p * 440, 0.6, 0.12, 0.1);
+    [880, 1320, 1760].forEach((f, i) => blip(r, "sine", f, f, 0.5, 0.1, 0.35 + i * 0.1));
+    return burst(r, "highpass", 4000, 9000, 0.7, 0.05, 0.2);
   },
   shimmer: (r) => {
     [660, 880, 1100, 1320, 1760].forEach((f, i) => blip(r, "sine", f, f * 1.01, 0.5, 0.1, i * 0.09));

@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { heatAt } from "../src/game/arenaRender";
-import { ARENA_STORY_IDS, ARENA_STORY_LENGTH, ARENA_TUNE, arenaBoost, arenaTick, arenaWorld, CONSTELLATIONS, lavaY, platformsAt, ROCK_DEFS, sceneAt, STAIRS_UP_TICK } from "../src/game/arena";
+import { ARENA_STORY_IDS, ARENA_STORY_LENGTH, ARENA_TUNE, arenaBoost, arenaTick, arenaWorld, buffScale, CONSTELLATIONS, lavaY, platformsAt, ringBounds, ringUp, ROCK_DEFS, sceneAt, STAIRS_UP_TICK } from "../src/game/arena";
 import { CLASS_ULT, SLOT1_COST, SPECIAL_KINDS, STYLE_INFO, ULT_COST } from "../src/game/moves";
 import { poseFor } from "../src/game/poses";
 import { AVERAGE_BUILD, buildFor, solveStick } from "../src/game/stickman";
@@ -1033,7 +1033,7 @@ function arena(tick: number, x0 = 300, x1 = 660, hazards = false, story: "none" 
   assert.equal(arenaTick(m), 9000);
   assert.equal(m.cue!.id, "climb");
   assert.equal(m.cue!.text, "GET UP THERE!");
-  assert.equal(m.arena!.beat, ARENA_STORY_LENGTH, "a beat is played once");
+  assert.equal(m.arena!.beat, ARENA_STORY_IDS.indexOf("climb") + 1, "a beat is played once");
   assert.equal(m.projectiles.length, 0, "what was in flight stops when a pause begins");
   assert.equal(m.fighters[1].action, "idle");
   const f = m.fighters[0], g = m.fighters[1];
@@ -1079,13 +1079,10 @@ function arena(tick: number, x0 = 300, x1 = 660, hazards = false, story: "none" 
   assert.equal(f.x, 400, "someone in place is held there until the other arrives");
   ia.right = false;
   run(S, ARENA_TUNE.cue.hold + 2);
-  assert.equal(m.phase, "fight");
-  assert.equal(m.cue, undefined);
+  assert.equal(m.phase, "cue");
+  assert.equal(m.cue!.id, "marks", "the climb leads into the ring's marks");
   assert.equal(m.events.filter((e) => e.type === "arena" && e.kind === "warp").length, 0, "nobody needed lifting");
-  const t1 = m.timer;
-  run(S, 5);
-  assert.equal(m.timer, t1 - 5, "the clock runs again");
-  assert.equal(f.action, "idle", "a press made during the pause must not fire when the fight resumes");
+  assert.equal(m.timer, timer, "the clock is still held");
 }
 
 // A pause that nobody finishes times out and lifts whoever is still below onto the platform.
@@ -1096,7 +1093,8 @@ function arena(tick: number, x0 = 300, x1 = 660, hazards = false, story: "none" 
   run(S, ARENA_TUNE.cue.climb - 20);
   assert.equal(S.m.phase, "cue", "the pause waits for the timeout");
   run(S, 40);
-  assert.equal(S.m.phase, "fight");
+  assert.equal(S.m.phase, "cue");
+  assert.equal(S.m.cue!.id, "marks");
   const c = platformsAt(arenaWorld(S.m)).find((p) => p.kind === "final")!;
   for (const f of S.m.fighters) assert.ok(f.y === c.top && f.x >= c.x && f.x <= c.x + c.w, "a straggler is put on the final platform");
   assert.equal(S.m.events.filter((e) => e.type === "arena" && e.kind === "warp").length, 2);
@@ -1502,6 +1500,187 @@ function arena(tick: number, x0 = 300, x1 = 660, hazards = false, story: "none" 
     const base = e(null), comet = e("comet");
     assert.ok(base > 0 && Math.abs(comet / base - S.comet.energy) < 0.02, `Comet meter ${comet} against ${base}`);
   }
+}
+
+// The ring (scene 5): after the climb the walls rise, each fighter walks to a mark (the one standing further left takes the left one, so they
+// face each other from opposite sides), the stars answer with a buff per fighter, then the fight; the walls are solid.
+{
+  const S = arena(8990, 300, 660, false, "climb");
+  const { m, ia, ib } = S;
+  run(S, 12);
+  while (arenaWorld(m) < STAIRS_UP_TICK + 2) run(S, 1);
+  const fin = platformsAt(arenaWorld(m)).find((p) => p.kind === "final")!;
+  assert.equal(fin.w, 480, "the final platform is bigger than it was (420)");
+  const cx = fin.x + fin.w / 2, T = ARENA_TUNE.marks;
+  // Slot 0 is the one on the right this time.
+  Object.assign(m.fighters[0], { x: 560, y: fin.top, vx: 0, vy: 0, grounded: true });
+  Object.assign(m.fighters[1], { x: 400, y: fin.top, vx: 0, vy: 0, grounded: true });
+  assert.equal(m.arena!.ring, 0, "no ring before the climb is done");
+  run(S, ARENA_TUNE.cue.hold + 3);
+  assert.equal(m.cue!.id, "marks");
+  assert.equal(m.cue!.text, "TAKE YOUR MARKS");
+  assert.ok(m.arena!.ring > 0, "the walls begin to rise with the marks");
+  assert.deepEqual(m.cue!.target!.map((t) => t.x), [cx + T.gap, cx - T.gap], "the fighter standing further left takes the left mark");
+  assert.ok(m.cue!.target!.every((t) => t.y === fin.top));
+  // The walls are solid only once they have risen; a pause is not a place to be shoved into one.
+  assert.equal(ringUp(m), false);
+  // They walk to the marks (the computer's way: straight along the platform).
+  ia.right = true;
+  ib.left = true;
+  run(S, 10);
+  ia.right = false;
+  ib.left = false;
+  assert.deepEqual(m.cue!.done, [true, true], "both are on their marks");
+  assert.ok(Math.abs(m.fighters[0].x - (cx + T.gap)) <= T.r && Math.abs(m.fighters[1].x - (cx - T.gap)) <= T.r);
+  const timer = m.timer;
+  run(S, T.hold + 3);
+  assert.equal(m.cue!.id, "reveal");
+  assert.equal(m.cue!.text, "THE STARS ANSWER");
+  const buff = [...m.arena!.buff];
+  assert.ok(buff.every((p) => Number.isInteger(p) && p >= ARENA_TUNE.buff.min && p <= ARENA_TUNE.buff.max), `a buff of ${buff} is outside ${ARENA_TUNE.buff.min}-${ARENA_TUNE.buff.max}%`);
+  assert.equal(m.events.filter((e) => e.type === "arena" && e.kind === "buff").length, 2, "one roll per fighter");
+  assert.equal(m.timer, timer, "the clock is held through the whole ring entry");
+  ia.attack++; ib.special++; ia.block = true;
+  run(S, ARENA_TUNE.buff.until + 2);
+  ia.block = false;
+  assert.equal(m.phase, "fight", "then the fight");
+  assert.equal(m.cue, undefined);
+  assert.deepEqual(m.arena!.buff, buff, "the buff stays for the fight");
+  assert.equal(m.fighters[0].action, "idle", "a press made during the ring entry must not fire when the fight resumes");
+  const t1 = m.timer;
+  run(S, 5);
+  assert.equal(m.timer, t1 - 5, "the clock runs again");
+  assert.ok(ringUp(m), "the walls are solid in the fight");
+  // Solid walls: no one leaves the platform. A shove, a held walk, a launch and a drop attempt all stop at the walls.
+  const { lo, hi } = ringBounds();
+  const f = m.fighters[0], g = m.fighters[1];
+  ia.right = true;
+  run(S, 200);
+  ia.right = false;
+  assert.ok(f.x <= hi + 1e-9 && f.y === fin.top, `walked out of the ring: x ${f.x} y ${f.y}`);
+  f.vx = 60;
+  run(S, 10);
+  assert.ok(f.x <= hi + 1e-9 && f.y === fin.top, "a launch must stop at the wall");
+  ib.left = true;
+  run(S, 200);
+  ib.left = false;
+  assert.ok(g.x >= lo - 1e-9 && g.y === fin.top);
+  ia.block = true;
+  ia.jump++;
+  run(S, 40);
+  ia.block = false;
+  assert.equal(f.y, fin.top, "S + jump must not drop a fighter out of the ring");
+  // A masher fights on for 40 s: nobody ever leaves.
+  let s = 777;
+  const rnd = () => ((s = (Math.imul(s, 1103515245) + 12345) >>> 0) / 4294967296);
+  for (let t = 0; t < 2400 && m.phase === "fight"; t++) {
+    for (const i of [ia, ib]) if (t % 6 === 0) {
+      i.left = rnd() < 0.4; i.right = rnd() < 0.4; i.block = rnd() < 0.15;
+      if (rnd() < 0.3) i.jump++;
+      if (rnd() < 0.5) i.attack++;
+      if (rnd() < 0.3) i.kick++;
+      if (rnd() < 0.15) i.special++;
+    }
+    run(S, 1);
+    for (const x of m.fighters) assert.ok(x.x >= lo - 1e-9 && x.x <= hi + 1e-9 && x.y <= fin.top + 1e-9, `fighter ${x.slot} left the ring at tick ${t} (x ${x.x} y ${x.y})`);
+  }
+}
+
+// The plausibility roll is 10-50%, an integer, one per fighter, different from match to match (the seed) and the same for the same seed.
+{
+  const roll = (seed: number) => {
+    const ia = { ...EMPTY_INPUT }, ib = { ...EMPTY_INPUT };
+    const m = createMatch(fighter("Fighter"), fighter("Fighter"), [ia, ib], { arena: "inferno", seed });
+    m.arena!.beat = ARENA_STORY_IDS.indexOf("reveal"); // (straight to the stars answering)
+    run({ m, ia, ib }, ARENA_TUNE.ceremony.intro + 2);
+    assert.equal(m.cue!.id, "reveal");
+    return [...m.arena!.buff];
+  };
+  const all: number[] = [];
+  let same = 0;
+  for (let seed = 1; seed <= 500; seed++) {
+    const b = roll(seed * 2654435761);
+    all.push(...b);
+    if (b[0] === b[1]) same++;
+  }
+  assert.deepEqual(roll(12345), roll(12345), "the same seed must roll the same");
+  assert.equal(Math.min(...all), ARENA_TUNE.buff.min, "the lowest roll should reach 10%");
+  assert.equal(Math.max(...all), ARENA_TUNE.buff.max, "the highest roll should reach 50%");
+  const mean = all.reduce((a, b) => a + b, 0) / all.length;
+  assert.ok(Math.abs(mean - 30) < 1.5, `the mean roll is ${mean}%`);
+  assert.ok(same < 500 * 0.08, `${same} of 500 matches gave both fighters the same roll: the two rolls aren't independent`);
+  assert.ok(new Set(all).size >= 35, "the rolls cover the range");
+  assert.equal(buffScale(10), ARENA_TUNE.buff.look[0]);
+  assert.equal(buffScale(50), ARENA_TUNE.buff.look[1]);
+  assert.ok(Math.abs(buffScale(30) - 1.15) < 1e-9 && buffScale(0) === 1, "a buffed fighter is drawn 1.1x-1.2x bigger, an unbuffed one at 1");
+  // Without a seed every roll is the same each match (the default tests rely on).
+  assert.deepEqual(roll(0), roll(0));
+}
+
+// The buff is the admin buff's two halves: what the fighter deals x(1 + p), what they take / (1 + p).
+{
+  const dmg = (buff: [number, number], from: 0 | 1) => {
+    const x = arena(2000, 480, 520);
+    x.m.defs[from].punch *= 20; // (a big hit: damage is rounded to whole points)
+    x.m.arena!.buff = buff;
+    x.m.fighters[1 - from].blocking = false;
+    (from === 0 ? x.ia : x.ib).attack++;
+    run(x, 20);
+    return x.m.defs[1 - from].maxHp - x.m.fighters[1 - from].hp;
+  };
+  const base = dmg([0, 0], 0);
+  assert.ok(base > 0);
+  assert.ok(Math.abs(dmg([50, 0], 0) / base - 1.5) < 0.01, "+50% for the attacker");
+  assert.ok(Math.abs(dmg([0, 50], 0) / base - 1 / 1.5) < 0.01, "+50% for the victim takes a third off");
+  assert.ok(Math.abs(dmg([50, 10], 0) / base - 1.5 / 1.1) < 0.01, "both: dealt x1.5, taken / 1.1");
+  assert.ok(Math.abs(dmg([30, 30], 0) / base - 1) < 0.01, "equal buffs cancel");
+  assert.ok(Math.abs(dmg([10, 50], 1) / base - 1.5 / 1.1) < 0.01, "and the other way round (slot 1 attacking)");
+}
+
+// The ring entry survives a snapshot: a resumed match is in the same beat with the same buffs and walls.
+{
+  const S = arena(8990, 300, 660, false, "climb");
+  run(S, 12);
+  while (arenaWorld(S.m) < STAIRS_UP_TICK + 2) run(S, 1);
+  const fin = platformsAt(arenaWorld(S.m)).find((p) => p.kind === "final")!;
+  Object.assign(S.m.fighters[0], { x: 400, y: fin.top, vx: 0, vy: 0, grounded: true });
+  Object.assign(S.m.fighters[1], { x: 560, y: fin.top, vx: 0, vy: 0, grounded: true });
+  run(S, ARENA_TUNE.cue.hold + 3 + 20);
+  const snap = JSON.parse(JSON.stringify(snapshot(S.m)));
+  assert.equal(snap.cue.id, "marks");
+  assert.ok(snap.arena.ring > 0 && JSON.stringify(snap.arena).length < 800, `the arena state is ${JSON.stringify(snap.arena).length} bytes`);
+  const b = resumeMatch(snap, fighter("Fighter"), fighter("Fighter"), [{ ...S.ia }, { ...S.ib }]);
+  for (const d of b.defs) d.dodge = 0;
+  for (let t = 0; t < 700; t++) {
+    S.ia.left = S.ia.right = false;
+    step(S.m, [S.ia, S.ib]);
+    step(b, [{ ...S.ia }, { ...S.ib }]);
+  }
+  assert.deepEqual(JSON.parse(JSON.stringify(snapshot(b).arena)), JSON.parse(JSON.stringify(snapshot(S.m).arena)), "a resumed ring entry diverged");
+  assert.equal(b.phase, S.m.phase);
+}
+
+// Different seeds give different luck all through the fight (cracks land elsewhere), the same seed the same.
+{
+  const first = (seed: number) => {
+    const ia = { ...EMPTY_INPUT }, ib = { ...EMPTY_INPUT };
+    const m = createMatch(fighter("Fighter"), fighter("Fighter"), [ia, ib], { arena: "inferno", seed });
+    m.arena!.beat = ARENA_STORY_LENGTH;
+    run({ m, ia, ib }, 200);
+    m.timer = ARENA_TUNE.matchTicks - 3590;
+    m.fighters[0].x = 200;
+    m.fighters[1].x = 800;
+    const xs: number[] = [];
+    for (let t = 0; t < 1500 && xs.length < 3; t++) {
+      const n = m.arena!.cracks.length;
+      run({ m, ia, ib }, 1);
+      if (m.arena!.cracks.length > n) xs.push(m.arena!.cracks[m.arena!.cracks.length - 1].x);
+    }
+    return xs;
+  };
+  assert.deepEqual(first(5), first(5));
+  assert.notDeepEqual(first(5), first(6), "two seeds put the cracks in the same places");
+  assert.equal(JSON.parse(JSON.stringify(snapshot(createMatch(fighter("Fighter"), fighter("Fighter"), [{ ...EMPTY_INPUT }, { ...EMPTY_INPUT }], { arena: "inferno", seed: 99 })))).arena.seed, 99);
 }
 
 console.log("check-sim: all good");

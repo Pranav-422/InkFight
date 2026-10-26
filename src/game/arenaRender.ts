@@ -6,10 +6,10 @@
 //
 // render.ts calls back() before the fighters, mid() right after the page and floor, front() over everything and hud() last.
 
-import { ARENA_TUNE, arenaTick, arenaWorld, CONSTELLATIONS, lavaY, platformsAt, ROCK_DEFS, SCENE_NAMES, sceneAt, starInfo, type ArenaGameEvent, type ArenaState, type Platform } from "./arena";
+import { ARENA_TUNE, arenaTick, arenaWorld, buffScale, CONSTELLATIONS, lavaY, platformsAt, ringBounds, ROCK_DEFS, SCENE_NAMES, sceneAt, starInfo, type ArenaGameEvent, type ArenaState, type Platform } from "./arena";
 import { drawStar, starColor } from "./arenaStars";
 import type { Cue, Slot } from "./sim";
-import { ARENA, TICK_HZ } from "./space";
+import { ARENA, BODY, TICK_HZ } from "./space";
 
 // What the stage drawing reads from a snapshot.
 type StageState = { arena?: ArenaState; timer: number; phase: string; phaseT: number; cue?: Cue; fighters?: { x: number; y: number; grounded: boolean }[] };
@@ -18,6 +18,10 @@ type StageState = { arena?: ArenaState; timer: number; phase: string; phaseT: nu
 const STAR_SIZE = 140;
 export const ROW = (i: number) => ({ x: 130 + 175 * i, y: 18 });
 const HOME = [{ x: 262, y: 140 }, { x: 698, y: 140 }];
+const HOME_RING = [{ x: 170, y: 40 }, { x: 790, y: 40 }]; // in the ring (scene 5) they hang higher and wider, clear of the fighters' heads
+const FINAL_ROCK = ROCK_DEFS[ROCK_DEFS.length - 1];
+// Which end of the sky a fighter's star hangs over in the ring: the side that fighter stands on (the one further left is on the left).
+const ringSide = (s: StageState, slot: Slot): 0 | 1 => (s.fighters && s.fighters[slot].x > s.fighters[1 - slot].x ? 1 : s.fighters && s.fighters[slot].x === s.fighters[1 - slot].x ? slot : 0);
 const PANEL = { w: 240, h: 232 }; // a ceremony pop-up
 const DULL = 0.5; // how brightly the two chosen constellations glow while the fight goes on
 const SLOT_COLOR = ["#e5482d", "#2f5be0"];
@@ -596,17 +600,28 @@ export class ArenaView {
       let x = row.x, y = row.y, size = STAR_SIZE, alpha = wake;
       const focus = stage === "pick" ? ([0, 1] as Slot[]).filter((sl) => a.pick[sl] === null && a.cur[sl] === i) : [];
       if (focus.length) size *= 1.12;
-      if (owner >= 0 && stage !== "open" && stage !== "pick") {
+      if (owner >= 0 && stage === "settle") {
         // Chosen: glide to the fighter's side and settle to a dull glow.
         x = row.x + (HOME[owner].x - row.x) * settle;
         y = row.y + (HOME[owner].y - row.y) * settle;
         size = STAR_SIZE + (104 - STAR_SIZE) * settle;
         alpha = 1 + (DULL - 1) * settle;
       } else if (owner >= 0 && !stage) {
-        x = HOME[owner].x;
-        y = HOME[owner].y;
+        const ow = owner as Slot;
+        // In the fight: dull, over the fighter's side; in the ring they hang higher and wider; in the reveal their own flares bright.
+        const rk = a.ring > 0 ? ease(Math.min(1, a.ring / 90)) : 0;
+        const side = ringSide(s, ow); // in the ring the star hangs over the side its fighter stands on
+        x = HOME[ow].x + (HOME_RING[side].x - HOME[ow].x) * rk;
+        y = HOME[ow].y + (HOME_RING[side].y - HOME[ow].y) * rk;
         size = 104;
-        alpha = DULL;
+        const after = DULL + 0.2 * (a.buff[ow] / ARENA_TUNE.buff.max); // a bigger blessing keeps a brighter star
+        alpha = after;
+        if (s.cue?.id === "reveal") {
+          const up = ease(Math.max(0, Math.min(1, (s.phaseT - (ARENA_TUNE.buff.at[ow] - 30)) / 40)));
+          alpha = DULL + (1 - DULL) * up;
+          size = 104 * (1 + 0.55 * up);
+        } else if (s.cue?.id === "marks") alpha = DULL;
+        else if (s.cue?.id !== "climb" && a.buff[ow] > 0) alpha = after;
       } else if (stage === "settle" && owner < 0) alpha = 1 - Math.min(1, settle * 1.6);
       else if (!stage && owner < 0) return;
       drawStar(ctx, id, x, y, size, alpha * twinkle);
@@ -637,6 +652,179 @@ export class ArenaView {
         ctx.restore();
       });
     });
+  }
+
+  // What each fighter's buff looks like right now, in percent: nothing until the stars answer, then each one when their roll is shown.
+  buffShown(s: StageState): [number, number] {
+    const a = s.arena;
+    if (!a) return [0, 0];
+    if (s.cue?.id === "reveal") return [s.phaseT >= ARENA_TUNE.buff.at[0] ? a.buff[0] : 0, s.phaseT >= ARENA_TUNE.buff.at[1] ? a.buff[1] : 0];
+    if (s.cue?.id === "climb" || s.cue?.id === "marks") return [0, 0];
+    return [a.buff[0], a.buff[1]];
+  }
+
+  // How big each fighter is drawn: smaller in the ring (so the platform reads as an arena), bigger by the buff once it is shown. A drawing
+  // change only: the hitboxes in the sim don't move.
+  fighterScales(s: StageState): [number, number] {
+    const a = s.arena;
+    if (!a || a.ring <= 0) return [1, 1];
+    const base = 1 - (1 - ARENA_TUNE.ring.scale) * ease(Math.min(1, a.ring / 90));
+    const shown = this.buffShown(s);
+    const grow = (slot: Slot) => (s.cue?.id === "reveal" ? ease(Math.min(1, Math.max(0, (s.phaseT - ARENA_TUNE.buff.at[slot]) / 40))) : 1);
+    return [base * (1 + (buffScale(shown[0]) - 1) * grow(0)), base * (1 + (buffScale(shown[1]) - 1) * grow(1))];
+  }
+
+  // The ring on the final platform: a stone post at each end, three ropes (red, white, blue) between them behind the fighters. They rise over
+  // ARENA_TUNE.ring.rise ticks; the walls are solid a little later (the sim), the posts mark where.
+  private ring(ctx: CanvasRenderingContext2D, a: ArenaState, now: number) {
+    if (a.ring <= 0) return;
+    const up = ease(Math.min(1, a.ring / ARENA_TUNE.ring.rise));
+    const top = FINAL_ROCK.top, { lo, hi } = ringBounds();
+    const xl = lo - BODY.w / 2, xr = hi + BODY.w / 2; // the faces of the walls
+    const H = 156 * up, shake = a.ring < ARENA_TUNE.ring.rise ? Math.sin(now / 22) * 1.4 : 0;
+    ctx.save();
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    // The ropes.
+    const ropes: [number, string][] = [[34, "#e5482d"], [76, "#fff9ed"], [118, "#2f5be0"]];
+    for (const [h, col] of ropes) {
+      const y = top - (h / 156) * H;
+      if (up < 0.15) continue;
+      const sag = 7 * up + Math.sin(now / 700 + h) * 1.2;
+      for (const [lw, c] of [[9.5, INK], [5.5, col]] as const) {
+        ctx.strokeStyle = c;
+        ctx.lineWidth = lw;
+        ctx.beginPath();
+        ctx.moveTo(xl, y);
+        ctx.quadraticCurveTo((xl + xr) / 2, y + sag * 2, xr, y);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = "rgba(255,255,255,.55)";
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(xl + 6, y - 1.8);
+      ctx.quadraticCurveTo((xl + xr) / 2, y + sag * 2 - 1.8, xr - 6, y - 1.8);
+      ctx.stroke();
+    }
+    // The posts: stone, banded, with gold pads where the ropes tie on and a gold cap.
+    for (const side of [0, 1]) {
+      const x0 = (side === 0 ? xl - 17 : xr + 1) + shake;
+      ctx.fillStyle = "#322d3a";
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 4;
+      ctx.fillRect(x0, top - H, 16, H + 3);
+      ctx.strokeRect(x0, top - H, 16, H + 3);
+      ctx.fillStyle = "rgba(255,255,255,.08)";
+      ctx.fillRect(x0 + 2, top - H + 2, 4, H - 2);
+      ctx.strokeStyle = "rgba(15,13,18,.55)";
+      ctx.lineWidth = 2;
+      for (let cy = top - 14; cy > top - H; cy -= 26) {
+        ctx.beginPath();
+        ctx.moveTo(x0, cy);
+        ctx.lineTo(x0 + 16, cy);
+        ctx.stroke();
+      }
+      for (const [h] of ropes) {
+        const y = top - (h / 156) * H;
+        if (up < 0.15) continue;
+        ctx.fillStyle = "#f2b705";
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = 2.5;
+        ctx.fillRect(x0 - 3, y - 6, 22, 12);
+        ctx.strokeRect(x0 - 3, y - 6, 22, 12);
+      }
+      ctx.fillStyle = "#f2b705";
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 3.5;
+      ctx.fillRect(x0 - 4, top - H - 9, 24, 10);
+      ctx.strokeRect(x0 - 4, top - H - 9, 24, 10);
+      if (up > 0.9) {
+        // A glowing orb on each post, pulsing.
+        const g = ctx.createRadialGradient(x0 + 8, top - H - 20, 1, x0 + 8, top - H - 20, 16);
+        g.addColorStop(0, `rgba(255,236,150,${0.8 + 0.2 * Math.sin(now / 260 + side)})`);
+        g.addColorStop(1, "rgba(255,180,60,0)");
+        ctx.fillStyle = g;
+        ctx.fillRect(x0 - 8, top - H - 36, 32, 32);
+      }
+    }
+    ctx.restore();
+  }
+
+  // The stars answering (the "reveal" pause): a beam of light comes down from each fighter's constellation in turn, rings spread where it lands
+  // and the roll floats up over them ("+32%"). "Reduce flashes" dims the beam and drops the rings.
+  private reveal(ctx: CanvasRenderingContext2D, s: StageState, now: number, reduce: boolean) {
+    const a = s.arena!;
+    if (s.cue?.id !== "reveal" || !s.fighters) return;
+    const scales = this.fighterScales(s);
+    for (const o of [0, 1] as Slot[]) {
+      const t = s.phaseT - ARENA_TUNE.buff.at[o];
+      if (t < -25 || t > 120) continue;
+      const f = s.fighters[o], src = HOME_RING[ringSide(s, o)], sc = scales[o];
+      const pick = a.pick[o];
+      const col = pick ? starColor(pick) : "#f2b705";
+      const chest = { x: f.x, y: f.y - 88 * sc };
+      const beam = Math.max(0, Math.min(1, (t + 25) / 25)) * (t > 55 ? Math.max(0, 1 - (t - 55) / 40) : 1);
+      if (beam > 0.01) {
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        const g = ctx.createLinearGradient(src.x, src.y, chest.x, chest.y);
+        g.addColorStop(0, `${col}ee`);
+        g.addColorStop(1, `${col}44`);
+        ctx.fillStyle = g;
+        ctx.globalAlpha = beam * (reduce ? 0.3 : 0.55);
+        ctx.beginPath();
+        ctx.moveTo(src.x - 4, src.y);
+        ctx.lineTo(src.x + 4, src.y);
+        ctx.lineTo(chest.x + 38, chest.y + 46);
+        ctx.lineTo(chest.x - 38, chest.y + 46);
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = beam * 0.9;
+        ctx.fillStyle = "#fff8d0";
+        for (let k = 0; k < 7; k++) {
+          const p = (now / 520 + k / 7) % 1;
+          ctx.beginPath();
+          ctx.arc(src.x + (chest.x - src.x) * p + Math.sin(k * 5 + now / 200) * 6, src.y + (chest.y - src.y) * p, 2.4 * (1 - p * 0.5), 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+      if (t >= 0 && t < 40 && !reduce) {
+        for (const k of [0, 1]) {
+          const p = Math.max(0, (t - k * 7) / 40);
+          ctx.strokeStyle = `${col}`;
+          ctx.globalAlpha = Math.max(0, 1 - p);
+          ctx.lineWidth = 6 * (1 - p) + 1;
+          ctx.beginPath();
+          ctx.ellipse(f.x, f.y - 70 * sc, 30 + p * 90, 40 + p * 100, 0, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      }
+      if (t >= 6 && t < 110) {
+        const p = (t - 6) / 104, alpha = p < 0.12 ? p / 0.12 : 1 - Math.max(0, (p - 0.65) / 0.35);
+        const y = f.y - BODY.h * 1.15 * sc - 14 - 34 * p;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.textAlign = "center";
+        ctx.lineJoin = "round";
+        ctx.lineWidth = 9;
+        ctx.strokeStyle = INK;
+        ctx.fillStyle = "#f2b705";
+        const grow = 0.8 + 0.4 * Math.min(1, p / 0.1);
+        ctx.font = `800 ${Math.round(46 * grow)}px ${this.fontDisplay}`;
+        ctx.strokeText(`+${a.buff[o]}%`, f.x, y);
+        ctx.fillText(`+${a.buff[o]}%`, f.x, y);
+        if (pick) {
+          ctx.font = `800 17px ${this.fontDisplay}`;
+          ctx.lineWidth = 6;
+          ctx.fillStyle = "#fff9ed";
+          ctx.strokeText(`${starInfo(pick).name.toUpperCase()} BLESSES P${o + 1}`, f.x, y - 46 * grow);
+          ctx.fillText(`${starInfo(pick).name.toUpperCase()} BLESSES P${o + 1}`, f.x, y - 46 * grow);
+        }
+        ctx.restore();
+      }
+    }
   }
 
   // Floating rocks hanging on chains, drifting a little, with parallax against the camera.
@@ -711,6 +899,7 @@ export class ArenaView {
     for (const p of plats) this.platformFx(ctx, p, world, now);
     for (const p of plats) if (p.state === "rising" || p.state === "up") this.boulder(ctx, p, world, now);
     this.lava(ctx, tick, world, now);
+    this.ring(ctx, a, now);
     if (s.cue?.target) this.marks(ctx, s.cue, now);
   }
 
@@ -762,7 +951,7 @@ export class ArenaView {
       ctx.translate(mk.x, mk.y - 2);
       ctx.fillStyle = done ? "rgba(242,183,5,.6)" : `${color}40`;
       ctx.beginPath();
-      ctx.ellipse(0, 0, mk.r + 6, (mk.r + 6) * 0.24, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, Math.max(mk.r, 26) + 6, (Math.max(mk.r, 26) + 6) * 0.24, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = INK;
       ctx.lineWidth = 5;
@@ -775,7 +964,7 @@ export class ArenaView {
       ctx.setLineDash([]);
       // Footprints, and the arrow that says "here".
       ctx.fillStyle = done ? "#f2b705" : `${color}cc`;
-      for (const fx of [-mk.r * 0.35, mk.r * 0.35]) {
+      for (const fx of [-Math.max(mk.r, 26) * 0.35, Math.max(mk.r, 26) * 0.35]) {
         ctx.beginPath();
         ctx.ellipse(fx, 0, 6, 2.6, 0, 0, Math.PI * 2);
         ctx.fill();
@@ -1181,6 +1370,7 @@ export class ArenaView {
     const tick = arenaTick(s);
     const T = ARENA_TUNE.meteor;
     this.legGlow(ctx, s, tick);
+    this.reveal(ctx, s, now, reduce);
     for (const m of a.meteors) {
       const left = m.hit - tick;
       const p = Math.max(0, Math.min(1, 1 - left / T.warn));
@@ -1325,7 +1515,9 @@ export class ArenaView {
 
   // The camera for an arena fight: both fighters in frame, with room for their heads under the HUD, zoomed out when one is up
   // on a platform. A special's push-in or the KO (render.ts) override it.
-  camera(fighters: { x: number; y: number }[], cue?: Cue): { z: number; x: number; y: number } {
+  camera(fighters: { x: number; y: number }[], cue?: Cue, arena?: ArenaState): { z: number; x: number; y: number } {
+    // The ring (scene 5): the whole platform in frame, a little more sky for the stars; during the reveal looking up at them.
+    if (arena && arena.ring > 0) return cue?.id === "reveal" ? { z: 0.72, x: ARENA.w / 2, y: 160 } : { z: 0.8, x: ARENA.w / 2, y: 215 };
     // The ceremony looks up: the sky with its constellations above, the two fighters standing below.
     if (cue?.id === "open" || cue?.id === "pick" || cue?.id === "settle") return { z: 0.85, x: ARENA.w / 2, y: 215 };
     // A pause that sends them up somewhere keeps that spot in frame too.
@@ -1346,7 +1538,9 @@ export class ArenaView {
     const secs = Math.max(0, Math.ceil(s.timer / TICK_HZ));
     // The opening ceremony has no clock or health bars yet (Renderer.hud skips them): a title card instead.
     const opening = s.cue?.id === "open" || s.cue?.id === "pick";
-    if (opening) {
+    if (s.cue?.id === "reveal") {
+      // (no clock, no bars: the sky is the point)
+    } else if (opening) {
       const pop = Math.min(1, s.phaseT / 20);
       ctx.save();
       ctx.globalAlpha = pop;
@@ -1372,7 +1566,7 @@ export class ArenaView {
       ctx.fillStyle = "#6b6a66";
       ctx.fillText(`${scene + 1}/5 · ${SCENE_NAMES[scene]}`, ARENA.w / 2, 82 + 8 * (z - 1));
     }
-    if (s.cue) this.cueBanner(ctx, s.cue, now, z, opening ? (z > 1.25 ? 168 : 224) : undefined);
+    if (s.cue) this.cueBanner(ctx, s.cue, now, z, opening ? (z > 1.25 ? 168 : 224) : s.cue.id === "reveal" ? 62 : s.cue.id === "marks" ? 148 : undefined);
     if (s.cue?.id === "pick") this.pickUi(ctx, s, z, info);
     if (s.phase !== "fight") return;
 
@@ -1396,17 +1590,6 @@ export class ArenaView {
       ctx.fillStyle = "#e5482d";
       ctx.fillText(label, 0, 6);
       ctx.restore();
-    }
-
-    // The first seconds of scene 5: how to come down from a platform (hold block, press jump).
-    if (scene === 4 && into < 10 * TICK_HZ) {
-      ctx.font = `700 ${Math.round(12 * z)}px ${this.fontBody}`;
-      const tip = "On a platform: hold BLOCK and press JUMP to drop down";
-      const tw = ctx.measureText(tip).width + 20;
-      ctx.fillStyle = `rgba(15,13,18,${0.75 * Math.min(1, (10 * TICK_HZ - into) / 30)})`;
-      ctx.fillRect(ARENA.w / 2 - tw / 2, ARENA.h - 30 - 4 * (z - 1), tw, 20 + 4 * (z - 1));
-      ctx.fillStyle = "#fff9ed";
-      ctx.fillText(tip, ARENA.w / 2, ARENA.h - 15);
     }
 
     // Warnings: one or two short red tags under the clock for what is about to hurt.

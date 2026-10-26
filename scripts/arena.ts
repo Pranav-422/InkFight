@@ -4,12 +4,12 @@
 //   npx tsx scripts/arena.ts --tune [fights per pair]   find ARENA_TUNE.matchup (src/game/arena.ts): the arena's per-matchup damage trims
 //   npx tsx scripts/arena.ts --quick   only the layout and the climb (a minute), while developing
 // Prints the platform layout as ASCII at each stage, then the CPU numbers. Exits 1 on a failed assert or a missed target:
-// >= 95% of the fighters still fighting 10 s after the staircase stands reach the final platform, hazards deal 10-25% of all damage,
+// >= 95% of the fighters still fighting 10 s after the staircase stands reach the final platform, hazards deal 5-25% of all damage (scenes 2-4; scene 5 is a duel in the ring),
 // every class pair is 35-65%, every fight ends (KO or the clock), and the same seed gives the same fights.
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { ARENA_STORY_IDS, ARENA_TUNE, arenaTick, arenaWorld, lavaY, platformsAt, ROCK_DEFS, SCENE_NAMES, sceneAt, STAIRS_UP_TICK } from "../src/game/arena";
+import { ARENA_STORY_IDS, ARENA_TUNE, arenaTick, arenaWorld, lavaY, platformsAt, ringBounds, ringUp, ROCK_DEFS, SCENE_NAMES, sceneAt, STAIRS_UP_TICK } from "../src/game/arena";
 import { cpuThink, newBrain } from "../src/game/cpu";
 import { nextHop } from "../src/game/arenaNav";
 import { CLASS_ITEM, CLASS_SPECIAL, CLASS_STYLE, MOVES } from "../src/game/moves";
@@ -132,7 +132,9 @@ for (const side of [0, 1]) {
 // The final platform: wide enough for twice the longest melee reach plus a body (walking, sweeps, kicks, the hit-lock at LOCK.gap), 200-240 above the floor.
 const longest = Math.max(...Object.values(MOVES).map((mv) => mv.reach)) + TRAIT.SWORD_REACH; // a sword extends the punch chain
 const fightDist = BODY.w + longest;
-assert.ok(fin.w >= 420 && fin.w >= 2 * fightDist, `final platform ${fin.w} px (needs >= 420 and >= 2 x ${fightDist})`);
+assert.ok(fin.w >= 480 && fin.w >= 2 * fightDist, `final platform ${fin.w} px (needs >= 480 (it was 420: the ring walls need room) and >= 2 x ${fightDist})`);
+const ring = ringBounds();
+assert.ok(ring.hi - ring.lo >= fightDist + 60, `inside the ring walls a fighter's centre has ${ring.hi - ring.lo} px, a fight needs ${fightDist + 60}`);
 const height = ARENA.ground - fin.top;
 assert.ok(height >= 200 && height <= 240, `final platform ${height} px above the floor`);
 // Head room: no platform less than 150 px above another one's top (where they overlap in x).
@@ -179,8 +181,8 @@ function climb(stats: FighterStats, other: FighterStats, x: number, xo: number):
     cpuThink(m, 1, brains[1], ib);
     step(m, [ia, ib]);
     for (const e of m.events) if (e.id > seen) { seen = e.id; if (e.type === "arena" && e.kind === "warp") warps++; }
-    if (began < 0 && m.phase === "cue") began = t;
-    if (began >= 0 && m.phase !== "cue") return { ticks: t - began, warps };
+    if (began < 0 && m.cue?.id === "climb") began = t;
+    if (began >= 0 && m.cue?.id !== "climb") return { ticks: t - began, warps };
   }
   return null;
 }
@@ -209,20 +211,23 @@ if (QUICK) {
 
 // ------------------------------------------------------------------ CPU vs CPU
 
-type Result = { winner: number | null; ticks: number; by: "ko" | "time"; env: number; dmg: number; scene5: boolean[]; ready: boolean[]; final: boolean[]; warps: number; opening: number; picks: (string | null)[]; hash: string };
+type Result = { winner: number | null; ticks: number; by: "ko" | "time"; env: number; dmg: number; scene5: boolean[]; ready: boolean[]; final: boolean[]; warps: number; opening: number; picks: (string | null)[]; buff: number[]; entry: number; leftRing: number; hash: string };
 function play(a: FighterStats, b: FighterStats, level: "normal" | "hard" = "normal"): Result {
   const ia = { ...EMPTY_INPUT }, ib = { ...EMPTY_INPUT };
-  const m: Match = createMatch(a, b, [ia, ib], { arena: "inferno" });
+  const m: Match = createMatch(a, b, [ia, ib], { arena: "inferno", seed: Math.floor(Math.random() * 4294967296) }); // (the script's seeded Math.random: repeatable)
   const brains = [newBrain(level), newBrain(level)];
   const h = createHash("sha1");
   const scene5 = [false, false], ready = [false, false], final = [false, false];
-  let ticks = 0, warps = 0, seen = 0, opening = -1;
+  let ticks = 0, warps = 0, seen = 0, opening = -1, entryFrom = -1, entry = 0, leftRing = 0;
   while (m.phase !== "matchEnd" && ticks < 3 * T.matchTicks) {
     cpuThink(m, 0, brains[0], ia);
     cpuThink(m, 1, brains[1], ib);
     step(m, [ia, ib]);
     ticks++;
     if (opening < 0 && m.phase === "fight") opening = ticks; // the ceremony is over: the first blow can be struck
+    if (entryFrom < 0 && m.cue?.id === "climb") entryFrom = ticks; // scene 5's story: the climb, the marks, the stars answering...
+    if (entryFrom >= 0 && !entry && m.phase === "fight") entry = ticks - entryFrom; // ...and then the fight
+    if (m.phase === "fight" && ringUp(m)) for (const f of m.fighters) if (f.y > fin.top + 1) leftRing++; // nobody may be below the platform in the ring
     for (const e of m.events) if (e.id > seen) { seen = e.id; if (e.type === "arena" && e.kind === "warp") warps++; }
     if (m.phase === "fight" && sceneAt(arenaTick(m)) === 4) {
       for (const f of m.fighters) {
@@ -236,7 +241,7 @@ function play(a: FighterStats, b: FighterStats, level: "normal" | "hard" = "norm
   }
   assert.equal(m.phase, "matchEnd", "an arena fight must end (KO or the clock)");
   h.update(`${m.matchWinner}:${ticks}:${m.fighters.map((f) => f.hp)}`);
-  return { winner: m.matchWinner, ticks, by: m.roundReason ?? "time", env: m.arena!.envDmg[0] + m.arena!.envDmg[1], dmg: m.damage[0] + m.damage[1], scene5, ready, final, warps, opening, picks: [...m.arena!.pick], hash: h.digest("hex") };
+  return { winner: m.matchWinner, ticks, by: m.roundReason ?? "time", env: m.arena!.envDmg[0] + m.arena!.envDmg[1], dmg: m.damage[0] + m.damage[1], scene5, ready, final, warps, opening, picks: [...m.arena!.pick], buff: [...m.arena!.buff], entry, leftRing, hash: h.digest("hex") };
 }
 
 const pairs: [string, string][] = [];
@@ -276,7 +281,8 @@ if (TUNING) {
   seedRandom(20261025);
   const started = Date.now();
   let ko = 0, timeout = 0, draws = 0, reached = 0, ready = 0, readyFinal = 0, envSum = 0, dmgSum = 0, ticksSum = 0, total = 0, bothReady = 0, bothFinal = 0, warpSum = 0;
-  let openSum = 0, openMax = 0, dupes = 0;
+  let openSum = 0, openMax = 0, dupes = 0, entrySum = 0, entryMax = 0, entryN = 0, leftRings = 0, bigger = 0, biggerWon = 0;
+  const buffs: number[] = [];
   const picked: Record<string, number> = {};
   for (const [A, B] of pairs) {
     for (let g = 0; g < per(A, B); g++) {
@@ -287,6 +293,17 @@ if (TUNING) {
       else timeout++;
       if (r.winner === null) draws++;
       warpSum += r.warps;
+      if (r.entry) {
+        entrySum += r.entry;
+        entryMax = Math.max(entryMax, r.entry);
+        entryN++;
+        buffs.push(...r.buff);
+        if (r.buff[0] !== r.buff[1] && r.winner !== null) {
+          bigger++;
+          if (r.winner === (r.buff[0] > r.buff[1] ? 0 : 1)) biggerWon++;
+        }
+      }
+      leftRings += r.leftRing;
       openSum += r.opening;
       openMax = Math.max(openMax, r.opening);
       if (r.picks[0] === r.picks[1]) dupes++;
@@ -309,13 +326,18 @@ if (TUNING) {
   if (openMax > 16 * TICK_HZ) fail(`the opening ceremony took ${(openMax / TICK_HZ).toFixed(1)} s`);
   if (dupes > 0) fail(`${dupes} fights where both fighters chose the same constellation`);
   if (names.length !== 5 || names.some((n) => picked[n] < 0.1 * 2 * total || picked[n] > 0.3 * 2 * total)) fail(`the computer's constellation picks are not spread out: ${JSON.stringify(picked)}`);
+  console.log(`  ring entry (the climb, the marks, the stars answering): ${(entrySum / Math.max(1, entryN) / TICK_HZ).toFixed(1)} s on average, ${(entryMax / TICK_HZ).toFixed(1)} s at the most, over ${entryN} fights`);
+  const meanBuff = buffs.reduce((a, b) => a + b, 0) / Math.max(1, buffs.length);
+  console.log(`  plausibility buffs: ${Math.min(...buffs)}-${Math.max(...buffs)}%, mean ${meanBuff.toFixed(1)}%; the fighter with the bigger buff won ${bigger ? Math.round((biggerWon / bigger) * 100) : 0}% of ${bigger} decided fights (swingy by design); fighters seen below the ring in a fight: ${leftRings}`);
+  if (leftRings > 0) fail(`${leftRings} fighter-ticks below the ring platform in a fight: the walls leak`);
+  if (buffs.length && (Math.min(...buffs) < ARENA_TUNE.buff.min || Math.max(...buffs) > ARENA_TUNE.buff.max)) fail("a buff outside 10-50%");
   console.log(`  fighters lifted onto the final platform by a pause timeout: ${warpSum}`);
   if (warpSum > 0) fail(`${warpSum} fighters had to be lifted by the climb pause's timeout: the computer should climb by itself`);
   const share = envSum / (envSum + dmgSum);
   console.log(`  hazards dealt ${(share * 100).toFixed(1)}% of all damage (${envSum} of ${envSum + dmgSum})`);
   if (ready === 0) fail("no fighter was still fighting 10 s after the staircase stood: the pool is too small");
   if (reachRate < 0.95) fail(`only ${(reachRate * 100).toFixed(1)}% of the fighters in scene 5 reach the final platform (need 95%)`);
-  if (share < 0.1 || share > 0.25) fail(`hazards deal ${(share * 100).toFixed(1)}% of the damage (need 10-25%)`);
+  if (share < 0.05 || share > 0.25) fail(`hazards deal ${(share * 100).toFixed(1)}% of the damage (need 5-25%: scene 5 is a duel in the ring, with no hazard that can reach the fighters)`);
 }
 
 // Class balance in the arena: the hard CPU (the one scripts/balance.ts calibrates on), N fights per pair, half in each seat.

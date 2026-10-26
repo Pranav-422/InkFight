@@ -178,6 +178,66 @@ Phone:
 ![](sprint-7b/d-lava-leak-phone.png)
 ![](sprint-7b/d-leak-near-fighter-phone.png)
 
+### E. Scene 4 to 5: the climb, the ring, the stars answer
+
+Scene 5's story is now three guided pauses in a row, then the fight:
+
+1. **`climb`, "GET UP THERE!"** (part A): the staircase rises, the fight is paused, nobody fights on the stairs.
+2. **`marks`, "TAKE YOUR MARKS"**: the ring rises and each fighter walks to a stand-here mark. **The fighter standing further left takes the left mark**, 95 px either side of the centre, so they face each other from
+   opposite sides (a tie goes to P1 on the left). A small mark is 28 px wide (`ARENA_TUNE.marks.r` 14); the pad is drawn a little wider so it is easy to see. The pause lingers 80 ticks once both are in place, which is how long
+   the ring needs to rise; whoever isn't there after 10 s is put on their mark.
+3. **`reveal`, "THE STARS ANSWER"** (4.5 s): each fighter's constellation flares bright in the sky and the **plausibility roll** is shown, one fighter at a time (P1 at 1 s, P2 at 2.5 s): a beam of light comes down
+   from the constellation, rings spread, the roll floats up over the fighter ("COMET BLESSES P1, +42%"), the fighter grows and a glow in the constellation's colour circles them. The HUD hides for these 4.5 s (the sky is the point) and
+   comes back with a gold **+N%** chip beside each name.
+
+**The roll** is 10-50% (an integer, `ARENA_TUNE.buff`), **one per fighter, seeded: `roll(m, 700 + slot)`** (the sim's own `roll`, with the match's seed mixed in). It becomes a buff the way the admin buff works, in its two halves:
+what the fighter **deals is multiplied by (1 + p)** and what they **take is divided by (1 + p)** (the admin buff's 1.3 / 0.75 for p = 30%). The two halves are applied in `arenaDamageFactor` (called from `applyHit`, so every
+blow, special and ultimate carries them) instead of by rewriting `FighterDef`, so a resumed match has them too. Environment damage is not touched. `ArenaState.buff` holds the two percentages.
+
+**The seed (new):** `roll(m, salt)` is a function of the round, the match clock and the salt, and the clock is the same at the same moment of every match, so every arena match would have rolled the same buffs (and put every
+crack in the same place). `createMatch(..., { arena, seed })` takes a seed, which goes into `ArenaState` (and every snapshot) and is mixed into every arena roll. The sim still never calls `Math.random`; the two places that start a
+match (`useCpuMatch`, and the host in `useGameRoom`, one argument on the line that already passed the mode) pick it with `Math.random()`, as the CPU already does. Without a seed (tests, tools) every roll repeats.
+
+**A bigger final platform** (it was 420 px wide, now **480**) so two fighters have room between the walls, and the steps moved out to make space (step 1 at x 65-145, step 2 at 160-230, mirrored; the gaps and the rises are as
+before, so the weakest jumper still climbs it: `scripts/arena.ts` checks with the real sim). Inside the walls a fighter's centre has 374 px.
+
+**The ring:** a stone post at each end of the platform with three ropes between them (red, white, blue) that rise over 1 s; **the walls are solid from 2 s after they start to rise** (`ARENA_TUNE.ring`: inset 18 px, lock 120 ticks).
+Anyone at or above the platform is held inside them: a held walk, a shove, a launch, an ultimate's hit-lock pin and the 'drop through' (hold block + jump) all stop at the walls, so **nobody falls off mid-fight**
+(`arenaRingClamp`, `arenaCanDrop`, asserted over 40 s of a random masher and in 440 computer fights). The tip about dropping down from a platform is gone with the free-for-all stairs.
+
+**Scale and camera:** in the ring the camera frames the whole platform (zoom 0.8) and **the fighters are drawn 12% smaller** (a drawing change: `ctx.scale` about the feet in `render.ts`; **the hitboxes in the sim are unchanged**, and the
+shadows now fall on the platform they stand on). A buffed fighter is drawn **1.10x-1.20x bigger** by the roll (10% -> 1.10, 50% -> 1.20, `buffScale`).
+
+**Class balance with the ring:** a solid ring changes the fight (a long duel, no way to be shoved into the lava), and the fighters who live on space suffered (Tank-Attacker 79%, Sword-Fighter 32% in the first run). Two fixes:
+the computer's "cornered" test (an Attacker jumps over a Tank that has pinned it, a Sword stops stepping back into a wall) now uses the ring's walls instead of the arena's, which are 230 px further out (`fightBounds`; the
+numbers for a normal fight are the same, asserted by the unchanged `balance.ts 200`); and `ARENA_TUNE.matchup` was re-fitted with `npx tsx scripts/arena.ts --tune 100` (Sword-Attacker 1.069 -> 1.1, Sword-Tank 0.96 -> 1,
+Sword-Fighter 0.991 -> 1.033, Tank-Fighter 0.928 -> 0.939, the rest within 1.5%). The random buff pulls every pair towards 50% (the fighter with the bigger roll won 63% of the decided fights).
+
+`src/game/arena.ts` (the beats, `ringBounds` / `arenaRingClamp` / `arenaCanDrop`, `buffScale`, the seed, `ARENA_TUNE.ring / marks / buff`), `src/game/sim.ts` (the seed, the clamp, the drop rule), `src/game/cpu.ts`,
+`src/game/arenaNav.ts` (`fightBounds`), `src/game/arenaRender.ts` (`ring`, `reveal`, `fighterScales`, `buffShown`, the camera, the stars over the side a fighter stands on), `src/game/render.ts` (the scale, the glow, the circling
+stars, the chips, the dust and the sound when the walls rise), `src/game/sound.ts` (`aura`), `src/game/useCpuMatch.ts` and `src/game/useGameRoom.ts` (the seed argument).
+
+**Tests (`check-sim`):** the final platform is 480; the climb leads into the marks, the walls start with them and aren't solid yet; the fighter standing further left gets the left mark; the pause ends after the linger; the
+reveal rolls two integers in 10-50 and announces them; the clock is held through the whole entry and resumes where it stopped; nothing pressed during the entry fires when the fight starts; the walls hold against a walk,
+a launch and a drop attempt; a 40 s masher never leaves the ring; the roll over 500 seeds covers 10 and 50, averages 30%, is independent between the two fighters and repeatable for a seed; `buffScale`; the damage
+factors (+50% dealt x1.5, +50% taken /1.5, 50/10 -> x1.5/1.1, equal buffs cancel, either seat); a snapshot mid-entry survives JSON and a resumed match carries on identically; two seeds put the cracks in different places.
+
+![The final platform is up, bigger, the fighters arriving](sprint-7b/e-climb-bigger-platform.png)
+![The ring rises while they walk to their marks](sprint-7b/e-marks-ring-rising.png)
+![The ring is up, each fighter on a mark](sprint-7b/e-marks-ring-up.png)
+![The stars answer: P1's roll](sprint-7b/e-reveal-p1.png)
+![P2's roll](sprint-7b/e-reveal-p2.png)
+![The fight in the ring: the buffs as chips, the buffed fighters bigger, the walls solid](sprint-7b/e-fight-in-the-ring.png)
+
+Phone:
+
+![](sprint-7b/e-climb-bigger-platform-phone.png)
+![](sprint-7b/e-marks-ring-rising-phone.png)
+![](sprint-7b/e-marks-ring-up-phone.png)
+![](sprint-7b/e-reveal-p1-phone.png)
+![](sprint-7b/e-reveal-p2-phone.png)
+![](sprint-7b/e-fight-in-the-ring-phone.png)
+
 ## 2. Decisions (everything the sheet left open, with the values chosen)
 
 All numbers are in `ARENA_TUNE` (`src/game/arena.ts`).
@@ -211,6 +271,16 @@ C4. **The warp redraws a band of the backdrop in slices** instead of distorting 
 D1. **The lava falls over the slab's front face**, not just "streams": the slab is a 52 px wall above the lake, so a fall that spreads into the lake reads as molten rock spilling off the edge of the arena.
 D2. **The pool is no wider than the zone.** Bigger pools were asked for; making the drawing bigger than the hurt zone would have made players avoid safe floor (or worse, trust a wrong edge). The extra size is in the glow and the fall.
 D3. **Stateless drawing** (the spray, the droplets, the flecks and the ripples are all functions of the clock), so a relayed snapshot that skips frames can't leave anything behind and nothing allocates per frame.
+
+E1. **The final platform is 480 wide, not "bigger" by an unspecified amount:** the stairs and the walls of the screen leave room for 60 px, and 374 px of travel inside the walls is what a fight needs (two reaches and a body).
+E2. **The seed.** Without it every match rolls the same buffs; the alternative (Math.random in the sim) is forbidden. The caller picks it. Tests and tools that don't pass one get repeatable rolls.
+E3. **The buff is applied as damage factors, not by editing `FighterDef`** (`deriveDef`'s admin buff is baked in at match creation; this one arrives mid-match). Same two halves, and nothing to re-apply after `resumeMatch`.
+E4. **The walls are solid 2 s after they start to rise, not at once,** so nobody is snapped sideways while still walking to a mark. The marks' pause lingers 80 ticks, long enough for them to be up.
+E5. **Scene 5 has no hazard that can reach a fighter once the ring is up** (the lava rises below it as a picture and as the ending's prop; the rescue is still there if anything ever got someone in it). So hazards are now 8-9% of all damage, not 15-17%:
+    `scripts/arena.ts` accepts 5-25% (the 10% floor was this sprint's own pass-1 number, not the sheet's).
+E6. **Fighters are 12% smaller in the ring, and the platform's shadow is drawn on the platform** (before it fell on the floor far below). Hitboxes unchanged, as asked.
+E7. **The ring entry takes about 15 s** (14.5 on average, 17.1 at the most with the computer: the climb 7.5-10 s, the marks 3 s, the stars 4.5 s). The match clock is held through all of it.
+E8. **P1 isn't always on the left in the ring** (the one standing further left takes the left mark), so the stars, the beams and the camera follow the side a fighter stands on, while the HUD keeps P1 on the left.
 
 
 ## 3. Gate output
@@ -901,6 +971,185 @@ CPU vs CPU, normal level: 220 arena fights over 15 class pairs, both seats
 CPU vs CPU, hard level: 300 fights per class pair (±6%)
   256 s. Sword-Mace 54%, Sword-Tank 48%, Sword-Attacker 50%, Sword-Fighter 54%, Mace-Tank 41%, Mace-Attacker 55%, Mace-Fighter 44%, Tank-Attacker 52%, Tank-Fighter 54%, Attacker-Fighter 47%
   fair: every pair within 41-55% (target 35-65%)
+
+determinism: the first 6 fights replay identically
+
+ok: all arena checks passed (scenes: ARRIVAL > HEATWAVE > GROUND FRACTURE > VOLCANIC WARNING > ELEVATED FINAL ARENA)
+exit 0
+
+$ npx tsx scripts/balance.ts 200
+win rate of row vs column (hard CPU, default kits, 200 matches each) · avg round length
+         Sword     | Mace      | Tank      | Attacker  | Fighter  
+Sword     51% 23s |  55% 23s |  59% 29s |  39% 18s |  51% 25s
+Mace      49% 22s |  55% 23s |  56% 28s |  44% 19s |  51% 24s
+Tank      40% 29s |  44% 29s |  51% 40s |  56% 26s |  58% 30s
+Attacker  58% 19s |  54% 19s |  45% 26s |  51% 16s |  43% 20s
+Fighter   56% 24s |  55% 24s |  39% 30s |  59% 20s |  41% 25s
+pairs (400 matches each, ±2.5%): Sword-Mace 53%, Sword-Tank 60%, Sword-Attacker 41%, Sword-Fighter 48%, Mace-Tank 56%, Mace-Attacker 45%, Mace-Fighter 48%, Tank-Attacker 56%, Tank-Fighter 60%, Attacker-Fighter 42%
+fair: every pair within 41-60%
+
+stat line vs all-70 (200 kits, 2 matches each): one stat at 100, the other four ~62
+STR 53%  ·  DUR 52%  ·  SPD 55%  ·  AGI 50%  ·  IQ 50%
+ok: every stat line within 45-62%
+exit 0
+
+balance diff vs main: empty (identical)
+```
+
+### Part E
+
+```
+$ npx tsc --noEmit
+exit 0
+
+$ npm run lint
+
+> inkfight@0.1.0 lint
+> eslint
+
+exit 0
+
+$ npx tsx scripts/check-sim.ts
+check-sim: all good
+exit 0
+
+$ npx tsx scripts/arena.ts
+weakest fighter (AGI 40, SPD 40): jump apex 106.3 px, 34 ticks in the air, 102 px sideways at walking speed
+
+scene 1-4: the floor (tick 0, 0 s, lava y 540)
+200 |||                                                                                          |||
+220 |||                                                                                          |||
+240 |||                                                                                          |||
+260 |||                                                                                          |||
+280 |||                                                                                          |||
+300 |||                                                                                          |||
+320 |||                                                                                          |||
+340 |||                                                                                          |||
+360 |||                                                                                          |||
+380 |||                                                                                          |||
+400 |||                                                                                          |||
+420 |||                                                                                          |||
+440 |||                                                                                          |||
+460 |||                                                                                          |||
+480 |||##########################################################################################|||
+500 |||                                                                                          |||
+520 |||                                                                                          |||
+
+scene 4, 5 s before the stairs: dust where they will rise (tick 8760, 146 s, lava y 540)
+200 |||                                                                                          |||
+220 |||                                                                                          |||
+240 |||                                                                                          |||
+260 |||                                                                                          |||
+280 |||                                                                                          |||
+300 |||                                                                                          |||
+320 |||                                                                                          |||
+340 |||                                                                                          |||
+360 |||                                                                                          |||
+380 |||                                                                                          |||
+400 |||                                                                                          |||
+420 |||                                                                                          |||
+440 |||                                                                                          |||
+460 |||                                                                                          |||
+480 |||###::::::::###################################################################::::::::####|||
+500 |||       1                                                                          2       |||
+520 |||                                                                                          |||
+
+scene 5, step 1 rising (tick 9030, 151 s, lava y 539)
+200 |||                                                                                          |||
+220 |||                                                                                          |||
+240 |||                                                                                          |||
+260 |||                                                                                          |||
+280 |||                                                                                          |||
+300 |||                                                                                          |||
+320 |||                                                                                          |||
+340 |||                                                                                          |||
+360 |||                                                                                          |||
+380 |||                                                                                          |||
+400 |||                                                                                          |||
+420 |||                                                                                          |||
+440 |||   ========                                                                   ========    |||
+460 |||       1                                                                          2       |||
+480 |||#############:::::::##################################################:::::::#############|||
+500 |||                3                                                        4                |||
+520 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+
+scene 5, steps 1 up, 2 and the final platform warn (tick 9200, 153 s, lava y 535)
+200 |||                                                                                          |||
+220 |||                                                                                          |||
+240 |||                                                                                          |||
+260 |||                                                                                          |||
+280 |||                                                                                          |||
+300 |||                                                                                          |||
+320 |||                                                                                          |||
+340 |||             =======                                                  =======             |||
+360 |||                3                                                        4                |||
+380 |||                                                                                          |||
+400 |||   ========                                                                   ========    |||
+420 |||       1                                                                          2       |||
+440 |||                                                                                          |||
+460 |||                                                                                          |||
+480 |||#####################::::::::::::::::::::::::::::::::::::::::::::::::#####################|||
+500 |||                                             5                                            |||
+520 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+
+scene 5, everything up (tick 9420, 157 s, lava y 530)
+200 |||                                                                                          |||
+220 |||                                                                                          |||
+240 |||                                                                                          |||
+260 |||                                                                                          |||
+280 |||                     ================================================                     |||
+300 |||                                             5                                            |||
+320 |||                                                                                          |||
+340 |||             =======                                                  =======             |||
+360 |||                3                                                        4                |||
+380 |||                                                                                          |||
+400 |||   ========                                                                   ========    |||
+420 |||       1                                                                          2       |||
+440 |||                                                                                          |||
+460 |||                                                                                          |||
+480 |||##########################################################################################|||
+500 |||                                                                                          |||
+520 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+
+5:00, lava at its highest (tick 18000, 300 s, lava y 315)
+200 |||                                                                                          |||
+220 |||                                                                                          |||
+240 |||                                                                                          |||
+260 |||                                                                                          |||
+280 |||                     ================================================                     |||
+300 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~5~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+320 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+340 |||~~~~~~~~~~~~~=======~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~=======~~~~~~~~~~~~~|||
+360 |||~~~~~~~~~~~~~~~~3~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~4~~~~~~~~~~~~~~~~|||
+380 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+400 |||~~~========~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~========~~~~|||
+420 |||~~~~~~~1~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~2~~~~~~~|||
+440 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+460 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+480 |||##########################################################################################|||
+500 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+520 |||~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|||
+
+layout asserts
+  rises <= 69.1 (staircase: 66, 66, 133, 133), gaps <= 70.0, final platform 480 px wide (380 needed), 200 px up. ok
+
+the climb pause with the real sim (nobody fights; both fighters are computer-driven):
+  AGI 40 / SPD 40: 65:8.1s 100:8.1s 150:7.5s 230:10.4s 300:10.0s 480:9.5s 650:10.0s 740:10.5s 810:7.5s 895:8.1s
+  AGI 100 / SPD 100: 65:7.8s 100:7.9s 150:7.9s 230:7.7s 300:7.7s 480:7.7s 650:7.7s 740:7.7s 810:7.9s 895:7.8s
+  AGI 70 / SPD 40: 65:7.8s 100:7.6s 150:7.7s 230:7.5s 300:7.5s 480:7.5s 650:7.5s 740:7.5s 810:7.7s 895:7.8s
+
+CPU vs CPU, normal level: 220 arena fights over 15 class pairs, both seats
+  24 s. ended by KO 166, by the clock 54 (draws 0); average 339 s of play (the clock holds during hit-stop)
+  fighters in scene 5: 432/440; still fighting 10 s after the stairs stood: 432; of those on the final platform at some point: 100.0% (both fighters of a fight: 100.0% of 216)
+  opening ceremony: 8.6 s on average, 9.4 s at the most (the sheet: first 15 s); the computer picked comet 20%, hare 20%, phoenix 19%, serpent 21%, tortoise 20%; two fighters on one constellation: 0
+  ring entry (the climb, the marks, the stars answering): 14.5 s on average, 17.1 s at the most, over 216 fights
+  plausibility buffs: 10-50%, mean 29.9%; the fighter with the bigger buff won 63% of 207 decided fights (swingy by design); fighters seen below the ring in a fight: 0
+  fighters lifted onto the final platform by a pause timeout: 0
+  hazards dealt 8.4% of all damage (118249 of 1407444)
+
+CPU vs CPU, hard level: 300 fights per class pair (±6%)
+  302 s. Sword-Mace 52%, Sword-Tank 51%, Sword-Attacker 44%, Sword-Fighter 48%, Mace-Tank 50%, Mace-Attacker 49%, Mace-Fighter 50%, Tank-Attacker 50%, Tank-Fighter 45%, Attacker-Fighter 45%
+  fair: every pair within 44-52% (target 35-65%)
 
 determinism: the first 6 fights replay identically
 

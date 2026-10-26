@@ -24,7 +24,7 @@ export function useCpuMatch(me: PublicFighter, cpu: PublicFighter, level: Level,
   useEffect(() => {
     const cpuInput: Input = { ...EMPTY_INPUT };
     const brain = newBrain(level, boss?.cpu);
-    const m: Match = createMatch({ ...me }, { ...cpu }, [myInput.current, cpuInput], { ...(boss && { boss: boss.spec }), ...(arena && { arena }) });
+    const m: Match = createMatch({ ...me }, { ...cpu }, [myInput.current, cpuInput], { ...(boss && { boss: boss.spec }), ...(arena && { arena, seed: Math.floor(Math.random() * 4294967296) }) }); // (an arena fight rolls its own luck: the seed)
     snaps.current = { prev: null, cur: null, at: 0 };
     let last = performance.now();
     let acc = 0;

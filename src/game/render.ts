@@ -3,7 +3,8 @@
 // impact FX (smears, rings, ink splats, hit-stop shake) and the HUD.
 
 import { normClass } from "../lib/stats";
-import { starInfo } from "./arena";
+import { ARENA_TUNE, starInfo } from "./arena";
+import { starColor } from "./arenaStars";
 import { ArenaView, ROW } from "./arenaRender";
 import { getReduceFlashes } from "./flashes";
 import { play, type Sfx } from "./sound";
@@ -130,6 +131,11 @@ export class Renderer {
   private swing: [string, string] = ["", ""]; // the swing each fighter's whiff sound was last played for
   private cursor = -1; // the local player's cursor in the ceremony, to tick when it moves
   private heat = 0; // 0..1: how hot the arena's air looks right now (sweat and steam on the fighters)
+  private scales: [number, number] = [1, 1]; // how big each fighter is drawn (the ring shrinks them a little, a buff grows them)
+  private buffs: [number, number] = [0, 0]; // each fighter's plausibility buff in percent, once shown
+  private auras: [string | null, string | null] = [null, null]; // the colour of a buffed fighter's constellation
+  private onStage = false; // an arena fight: fighters stand on platforms, so their shadows fall on what they stand on
+  private revealed: [boolean, boolean] = [false, false]; // the reveal's two moments already sounded
 
   // Sound for the effect being shown (silent while catching up on events from before this renderer existed).
   private sfx(name: Sfx, power?: number) {
@@ -148,6 +154,15 @@ export class Renderer {
       this.effect(e, hud, s);
     }
     this.quiet = false;
+    // The stars answering: a sound as each fighter's roll is shown.
+    if (s.cue?.id === "reveal" && s.arena) {
+      for (const o of [0, 1] as const) {
+        if (!this.revealed[o] && s.phaseT >= ARENA_TUNE.buff.at[o]) {
+          this.revealed[o] = true;
+          if (!first) play("aura", Math.min(1, s.arena.buff[o] / 50));
+        }
+      }
+    } else this.revealed = [false, false];
     // The ceremony's cursor: a tick for the local player each time it moves.
     if (s.cue?.id === "pick" && s.arena) {
       const c = s.arena.cur[hud.you];
@@ -316,6 +331,11 @@ export class Renderer {
         const an = Math.random() * Math.PI * 2, sp = 1.5 + Math.random() * 4;
         this.particles.push({ x: at.x, y: at.y, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, life: 0, max: 30 + Math.random() * 16, color: i % 2 ? C.gold : "#ffffff", size: 2 + Math.random() * 3 });
       }
+    } else if (e.kind === "ring") {
+      // The walls start to rise: stone grinding, dust off the two posts.
+      this.sfx("grind");
+      this.shake = Math.max(this.shake, reduce ? 3 : 8);
+      for (const px of [258, 702]) for (let i = 0; i < 10; i++) this.particles.push({ x: px + (Math.random() - 0.5) * 24, y: e.y - 6, vx: (Math.random() - 0.5) * 3, vy: -1 - Math.random() * 2.5, life: 0, max: 30 + Math.random() * 14, color: "#b9a47c", size: 3 + Math.random() * 4 });
     } else if (e.kind === "cue") {
       this.sfx(s.cue?.id === "open" ? "shimmer" : "round"); // a guided pause begins (the stars waking has its own sound)
       this.banner = null; // (a special's name from the last moment of the fight must not sit on the headline)
@@ -374,7 +394,7 @@ export class Renderer {
     // An arena fight: keep both fighters in frame (zoomed out and looking up when one is on a platform), unless a special or the KO has the camera.
     if (cur.arena && !this.arenaView) this.arenaView = new ArenaView(this.fontDisplay, this.fontBody);
     if (cur.arena && this.arenaView && !this.preview && tz === 1) {
-      const w = this.arenaView.camera(fighters, cur.cue);
+      const w = this.arenaView.camera(fighters, cur.cue, cur.arena);
       tz = w.z;
       tx = w.x;
       ty = w.y;
@@ -406,6 +426,10 @@ export class Renderer {
     if (cur.arena && this.arenaView) {
       this.arenaView.back(ctx, cur, now, this.view, getReduceFlashes());
       this.heat = this.arenaView.heat(cur);
+      this.scales = this.arenaView.fighterScales(cur);
+      this.buffs = this.arenaView.buffShown(cur);
+      this.auras = [0, 1].map((i) => (this.buffs[i] > 0 && cur.arena?.pick[i] ? starColor(cur.arena.pick[i]!) : null)) as [string | null, string | null];
+      this.onStage = true;
       this.dimOverlay();
       this.arenaView.mid(ctx, cur, now, getReduceFlashes());
     } else this.background();
@@ -772,11 +796,13 @@ export class Renderer {
     const sprite = this.sprites[f.slot];
     const cls = this.classes[f.slot];
 
-    // Shadow shrinks while airborne.
-    const air = Math.min(1, (ARENA.ground - f.y) / 200);
+    // Shadow shrinks while airborne. In an arena fight a fighter on a platform casts it on the platform.
+    const sc = this.scales[f.slot];
+    const shy = this.onStage && f.grounded ? f.y : ARENA.ground;
+    const air = this.onStage && f.grounded ? 0 : Math.min(1, (ARENA.ground - f.y) / 200);
     ctx.fillStyle = `rgba(23,23,26,${0.12 * (1 - air * 0.6)})`;
     ctx.beginPath();
-    ctx.ellipse(f.x, ARENA.ground + 4, 46 * (1 - air * 0.4), 7, 0, 0, Math.PI * 2);
+    ctx.ellipse(f.x, shy + 4, 46 * (1 - air * 0.4) * sc, 7 * sc, 0, 0, Math.PI * 2);
     ctx.fill();
 
     // Round intro: taunts. After a KO / time-out: the winner celebrates.
@@ -803,7 +829,7 @@ export class Renderer {
     // Keep the lowest foot on the floor: bent legs crouch the body instead of sinking it.
     const lift = (f.grounded && f.action !== "ko" ? -Math.max(pose.joints.footF.y, pose.joints.footB.y) : 0) - (motion.hover ?? 0);
     const dir = motion.flip ? -f.facing : f.facing;
-    const toWorld = (v: Vec): Vec => ({ x: f.x + dx + dir * v.x, y: f.y + lift + v.y });
+    const toWorld = (v: Vec): Vec => ({ x: f.x + dx + dir * v.x * sc, y: f.y + (lift + v.y) * sc });
 
     // Smear trail on the striking limb, like the swoosh in hand-drawn fight animation.
     const smear = this.smears[f.slot];
@@ -853,7 +879,9 @@ export class Renderer {
     const look = { ink: hurt ? C.hit : (sprite?.ink ?? C.ink), head: sprite?.head ?? null, prop: sprite?.prop ?? null, cls, item: passive === "pencil-case" ? ["mace", "sword", "shield"][f.pv?.weapon ?? 0] : this.items[f.slot], accent, width: sprite?.width ?? 7, build: this.builds[f.slot], now };
 
     ctx.save();
-    ctx.translate(f.x + dx, f.y + lift);
+    ctx.translate(f.x + dx, f.y);
+    ctx.scale(sc, sc); // (the ring shrinks a fighter a little and a buff grows one; about the feet, so they stay on the floor)
+    ctx.translate(0, lift);
     ctx.scale(dir, 1);
     if (motion.fall) {
       // Fall backwards, unless that would land outside the arena. Lift a little so
@@ -882,6 +910,9 @@ export class Renderer {
       const g = this.bossGlow(f, passive, now)!;
       ctx.shadowColor = g.color;
       ctx.shadowBlur = g.blur;
+    } else if (this.auras[f.slot] && f.action !== "ko") {
+      ctx.shadowColor = this.auras[f.slot]!; // the constellation's blessing: a glow in its colour
+      ctx.shadowBlur = 13 + Math.sin(now / 240) * 3;
     } else if (f.tension > 0.1 && f.action !== "ko") {
       ctx.shadowColor = C.hit; // tension: a red aura that swells with it and pulses
       ctx.shadowBlur = 5 + f.tension * 10 + Math.sin(now / 90) * 2 * f.tension;
@@ -891,7 +922,27 @@ export class Renderer {
     ctx.globalAlpha = 1;
 
     if (f.action === "special") this.specialFx(f, special, pose, toWorld, now);
-    if (skillOn) this.skillFx(f, skillOn, f.x + dx, f.y + lift, now);
+    if (skillOn) this.skillFx(f, skillOn, f.x + dx, f.y + lift * sc, now);
+    // A blessed fighter: little stars of its constellation circle it.
+    if (this.auras[f.slot] && f.action !== "ko") {
+      const col = this.auras[f.slot]!;
+      for (let k = 0; k < 3; k++) {
+        const ang = now / 800 + (k * Math.PI * 2) / 3, r = 52 * sc;
+        const px = f.x + dx + Math.cos(ang) * r, py = f.y + lift * sc - 78 * sc + Math.sin(ang) * r * 0.75;
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        ctx.fillStyle = col;
+        ctx.globalAlpha = 0.8;
+        ctx.beginPath();
+        for (let q = 0; q < 8; q++) {
+          const a2 = (q * Math.PI) / 4, rr = q % 2 ? 2.2 : 6.5;
+          ctx.lineTo(px + Math.cos(a2) * rr, py + Math.sin(a2) * rr);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+    }
     // Embers rising off a fighter whose tension is up.
     if (f.tension > 0.3 && f.action !== "ko" && Math.random() < f.tension * 0.3) {
       this.particles.push({ x: f.x + dx + (Math.random() - 0.5) * 50, y: f.y + lift - Math.random() * BODY.h * 0.6, vx: (Math.random() - 0.5) * 0.8, vy: -1.4 - Math.random(), life: 0, max: 26, color: Math.random() < 0.5 ? C.hit : C.gold, size: 3 + Math.random() * 3 });
@@ -902,7 +953,7 @@ export class Renderer {
       if (Math.random() < 0.09 * k) this.particles.push({ x: f.x + dx + (Math.random() - 0.5) * 26, y: f.y + lift - BODY.h * (0.9 + Math.random() * 0.1), vx: (Math.random() - 0.5) * 1.4, vy: -1 - Math.random(), life: 0, max: 26, color: "#bfe6ff", size: 3.5 });
       if (Math.random() < 0.11 * k) this.particles.push({ x: f.x + dx + (Math.random() - 0.5) * 44, y: f.y + lift - BODY.h * (0.45 + Math.random() * 0.45), vx: (Math.random() - 0.3) * 0.5, vy: -0.6 - Math.random() * 0.5, life: 0, max: 50, color: "#fff3e6", size: 9 + Math.random() * 8, g: -0.012 });
     }
-    if (f.status && f.action !== "ko") this.statusFx(f.status.kind, f.x + dx - f.facing * 38, f.y + lift - 150, now);
+    if (f.status && f.action !== "ko") this.statusFx(f.status.kind, f.x + dx - f.facing * 38, f.y + (lift - 150) * sc, now);
     if (passive && f.action !== "ko") this.bossFx(f, passive, f.x + dx, f.y + lift, toWorld(pose.joints.handF));
     if (f.marks > 0 && f.action !== "ko") this.marksFx(f, f.x + dx, f.y + lift, now);
 
@@ -917,7 +968,7 @@ export class Renderer {
     }
 
     if (isYou && f.action !== "ko" && motion.alpha > 0.5) {
-      const top = f.y + lift - h - 16;
+      const top = f.y + (lift - h) * sc - 16;
       ctx.fillStyle = C.hit;
       ctx.beginPath();
       ctx.moveTo(f.x - 8, top - 10);
@@ -1345,7 +1396,7 @@ export class Renderer {
   private hud(s: Snapshot, hud: HudInfo, now: number) {
     const { ctx } = this;
     // The opening ceremony shows no health bars or clock yet: its title, the constellations and the pop-ups (src/game/arenaRender.ts).
-    if (s.arena && this.arenaView && (s.cue?.id === "open" || s.cue?.id === "pick")) {
+    if (s.arena && this.arenaView && (s.cue?.id === "open" || s.cue?.id === "pick" || s.cue?.id === "reveal")) {
       this.arenaView.hud(ctx, s, now, Math.min(1.9, Math.max(1, 560 / this.canvas.clientWidth)), { names: hud.names, you: hud.you });
       return;
     }
@@ -1382,6 +1433,24 @@ export class Renderer {
         ctx.font = `800 ${Math.round(12 * z)}px ${this.fontDisplay}`;
         ctx.fillStyle = C.gold;
         ctx.fillText("BUFF", left ? x + w : x + barW - w, 40);
+      }
+      // The stars' blessing, once it is shown: a gold chip with the roll ("+32%") beside the name.
+      if (this.buffs[slot] > 0) {
+        ctx.font = `800 ${Math.round(22 * z)}px ${this.fontDisplay}`;
+        const nameW = Math.min(barW - 70, ctx.measureText(name).width) + 8 + (hud.buffs?.[slot] ? Math.round(44 * z * 0.8) : 0);
+        const label = `+${this.buffs[slot]}%`;
+        ctx.font = `800 ${Math.round(13 * z)}px ${this.fontDisplay}`;
+        const tw = ctx.measureText(label).width + 12, th = Math.round(18 * z);
+        const cx = left ? x + nameW : x + barW - nameW - tw;
+        ctx.fillStyle = C.gold;
+        ctx.fillRect(cx, 40 - th + 4, tw, th);
+        ctx.strokeStyle = C.ink;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(cx, 40 - th + 4, tw, th);
+        ctx.fillStyle = C.ink;
+        ctx.textAlign = "center";
+        ctx.fillText(label, cx + tw / 2, 40 - 1);
+        ctx.textAlign = left ? "left" : "right";
       }
 
       // Round wins as dots next to the name (an arena fight is one round: no dots)

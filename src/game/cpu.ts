@@ -1,9 +1,9 @@
 // Computer opponent. Reads the match like a player would (with a reaction delay,
 // so it isn't frame-perfect) and drives the same Input a human would send.
 
-import { arenaNav, cueNav, guardEdges, type NavMemory } from "./arenaNav";
+import { arenaNav, cueNav, fightBounds, guardEdges, type NavMemory } from "./arenaNav";
 import { MOVES, SLOT1_COST, SPECIAL_INFO, ULT_COST, type SpecialKind } from "./moves";
-import { ARENA, BLAST_REACH, BODY, holds, moveReach, type Input, type Match, type Slot } from "./sim";
+import { BLAST_REACH, BODY, holds, moveReach, type Input, type Match, type Slot } from "./sim";
 
 export type Level = "easy" | "normal" | "hard";
 
@@ -164,7 +164,9 @@ function fight(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
     input[toward] = !retreat;
     return;
   }
-  const cornered = away === "left" ? me.x < ARENA.wall + 90 : me.x > ARENA.w - ARENA.wall - 90;
+  // Cornered: 55 px from the nearest thing that stops it (the arena's wall, or in an arena fight's ring the ring's walls, which are much nearer).
+  const bounds = fightBounds(m, me);
+  const cornered = away === "left" ? me.x < bounds.lo + 55 : me.x > bounds.hi - 55;
   // Attacker: a zoner. Holds just inside its blast's reach, backs off from anyone who closes in,
   // and when cornered jumps over the opponent instead of trading weak punches.
   if (myDef.cls === "Attacker" && !retreat) {
@@ -178,7 +180,7 @@ function fight(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
   }
   // Sword: step back out of range after a chain so the answer whiffs (only if it would: a blast outranges the sword).
   const answerReach = opDef.cls === "Attacker" ? BLAST_REACH : opReach - 40;
-  if (myDef.cls === "Sword" && brain.stepBack && me.action === "idle" && dist < reach && answerReach < reach) {
+  if (myDef.cls === "Sword" && brain.stepBack && me.action === "idle" && dist < reach && answerReach < reach && !(m.arena && cornered)) {
     input[away] = true;
     return;
   }

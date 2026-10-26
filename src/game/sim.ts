@@ -6,7 +6,7 @@ import { CLASS_CHAIN, CLASS_CHAIN_POWER, CLASS_TUNE, COMBO_WINDOW, ELEMENT_TUNE,
 
 export type { SpecialKind } from "./moves";
 
-import { ARENA_TUNE, arenaBeat, arenaBoost, arenaClampX, arenaCueEnd, arenaCueInput, arenaCueTick, arenaDamageFactor, arenaEnergyMul, arenaOpen, arenaStep, arenaSurface, cloneArena, newArena, standingOn, type ArenaGameEvent, type ArenaId, type ArenaState } from "./arena";
+import { ARENA_TUNE, arenaBeat, arenaBoost, arenaClampX, arenaCueEnd, arenaCueInput, arenaCueTick, arenaCanDrop, arenaDamageFactor, arenaEnergyMul, arenaOpen, arenaRingClamp, arenaStep, arenaSurface, cloneArena, newArena, type ArenaGameEvent, type ArenaId, type ArenaState } from "./arena";
 import { ARENA, BODY, TICK_HZ } from "./space";
 
 export { ARENA, BODY, TICK_HZ };
@@ -282,7 +282,9 @@ function spawn(slot: Slot, def: FighterDef, seen: Fighter["seen"]): Fighter {
   };
 }
 
-export function createMatch(a: FighterStats, b: FighterStats, inputs: [Input, Input], opts: { boss?: BossSpec; arena?: ArenaId } = {}): Match {
+// seed: an arena fight's seed (the host picks one, e.g. from Math.random: the sim itself never does). Every roll of the fight mixes it in, so two
+// matches don't roll alike; without one every roll is the same each match (tests and scripts that need that).
+export function createMatch(a: FighterStats, b: FighterStats, inputs: [Input, Input], opts: { boss?: BossSpec; arena?: ArenaId; seed?: number } = {}): Match {
   const defs: [FighterDef, FighterDef] = [deriveDef(a), deriveDef(b)];
   // Arena fight: a bigger health pool, so a fight lasts minutes and the scenes get played (ARENA_TUNE.hpMul).
   if (opts.arena) for (const d of defs) d.maxHp *= ARENA_TUNE.hpMul;
@@ -301,7 +303,7 @@ export function createMatch(a: FighterStats, b: FighterStats, inputs: [Input, In
     projectiles: [],
     hazards: [],
     ...(opts.boss && { boss: { slot: opts.boss.slot, phase: 1 as const, base: defs[opts.boss.slot], spec: opts.boss } }),
-    ...(opts.arena && { arena: newArena(opts.arena) }),
+    ...(opts.arena && { arena: newArena(opts.arena, opts.seed ?? 0) }),
     events: [],
     nextId: 1,
     defs,
@@ -335,7 +337,7 @@ function roll(m: Match, salt: number) {
 }
 
 // What the arena (src/game/arena.ts) may call back into: the sim's own roll and event list.
-const ARENA_HOOKS = { roll, emit: (m: Match, e: Omit<ArenaGameEvent, "id">) => emit(m, e as NewEvent) };
+const ARENA_HOOKS = { roll: (m: Match, salt: number) => roll(m, m.arena ? salt ^ m.arena.seed : salt), emit: (m: Match, e: Omit<ArenaGameEvent, "id">) => emit(m, e as NewEvent) };
 
 // Element effects (strength × ELEMENT_TUNE[kind]). ELECTRIC and GRAVITY act once on the hit and
 // their status only lingers for the renderer. The rest act every tick: burn and bleed in
@@ -1156,7 +1158,7 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
       if (jumpP && f.grounded && !f.blocking) {
         f.vy = -def.jump * boost.jump;
         f.grounded = false;
-      } else if (jumpP && f.grounded && f.blocking && m.arena && standingOn(m, f)) {
+      } else if (jumpP && f.grounded && f.blocking && m.arena && arenaCanDrop(m, f)) {
         m.arena.drop[f.slot] = ARENA_TUNE.dropTicks; // S + jump on a platform: fall through it
         f.vy = 1;
         f.grounded = false;
@@ -1182,6 +1184,7 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
     f.grounded = false;
   }
   f.x = Math.min(ARENA.w - ARENA.wall - BODY.w / 2, Math.max(ARENA.wall + BODY.w / 2, f.x));
+  if (m.arena) arenaRingClamp(m, f); // the ring's walls (scene 5): nobody leaves the platform
   if (f.locked) {
     f.x = pinned(opp, m);
     f.vx = 0;
@@ -1330,6 +1333,7 @@ export function step(m: Match, inputs: [Input, Input]) {
     if (v.locked && !(f.action === "special" && f.ult)) releaseLock(m, f, v, null);
   }
   separate(m, a, b);
+  if (m.arena) for (const f of m.fighters) arenaRingClamp(m, f); // (a shove apart must not push one through a wall)
 
   for (const p of m.projectiles) {
     if (p.delay) {

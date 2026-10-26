@@ -215,7 +215,7 @@ export function useGameRoom(code: string, fighterId: string | null, userId?: str
           match = resumeMatch(resumeSnap, { ...seats[0].fighter }, { ...guestSeat.fighter }, [seats[0].input, guestSeat.input]);
           aiPlayed = true;
         } else {
-          match = createMatch({ ...seats[0].fighter }, { ...guestSeat.fighter }, [seats[0].input, guestSeat.input], mode ? { arena: mode } : {});
+          match = createMatch({ ...seats[0].fighter }, { ...guestSeat.fighter }, [seats[0].input, guestSeat.input], mode ? { arena: mode, seed: Math.floor(Math.random() * 4294967296) } : {});
           aiPlayed = false;
         }
         seats[0].rematch = guestSeat.rematch = false;

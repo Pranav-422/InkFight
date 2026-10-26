@@ -3,7 +3,7 @@
 // A → B exists if a jump planned with this fighter's own numbers (deriveDef jump / speed / air control, the scene-5 boost)
 // lands on B. The plan is found by replaying the sim's jump physics, so it is right for an AGI-40 fighter and for an AGI-100 one.
 
-import { ARENA_TUNE, arenaBoost, arenaWorld, CONSTELLATIONS, platformsAt, ROCK_DEFS, standingOn, type Platform } from "./arena";
+import { ARENA_TUNE, arenaBoost, arenaWorld, CONSTELLATIONS, platformsAt, ringBounds, ringUp, ROCK_DEFS, standingOn, type Platform } from "./arena";
 import { ARENA, BODY } from "./space";
 import { GRAVITY, type FighterDef, type Input, type Match, type Slot } from "./sim";
 
@@ -268,4 +268,10 @@ function pickNav(m: Match, slot: Slot, mem: NavMemory, input: Input) {
     return;
   }
   if (mem.pickT % 8 === 0) input.attack++;
+}
+
+// Where a fighter's centre can go: the ring's walls when it stands in the ring (scene 5), otherwise the arena's own walls.
+export function fightBounds(m: Match, f: { y: number }): { lo: number; hi: number } {
+  if (m.arena && ringUp(m) && f.y <= ROCK_DEFS[ROCK_DEFS.length - 1].top + 1) return ringBounds();
+  return { lo: ARENA.wall + BODY.w / 2, hi: ARENA.w - ARENA.wall - BODY.w / 2 };
 }

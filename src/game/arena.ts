@@ -9,7 +9,7 @@
 import { CLASSES } from "../lib/stats";
 import type { ConstellationId } from "./protocol";
 import { ARENA, BODY, TICK_HZ } from "./space";
-import type { Cue, Fighter, Input, Match, Slot } from "./sim";
+import type { Cue, Fighter, Input, Mark, Match, Slot } from "./sim";
 
 export const ARENAS = ["inferno"] as const;
 export type ArenaId = (typeof ARENAS)[number];
@@ -34,7 +34,7 @@ export const ARENA_TUNE = {
   // over a long pool), and class factors alone can't fix a matchup that goes in a circle. So the arena trims damage per
   // matchup: "A-B" (in CLASSES order) is the factor on what A deals to B; B deals to A the inverse. Found with
   // `npx tsx scripts/arena.ts --tune`; 1 = no change. Normal fights have no trims.
-  matchup: { "Sword-Mace": 0.989, "Sword-Tank": 0.96, "Sword-Attacker": 1.069, "Sword-Fighter": 0.991, "Mace-Tank": 1.006, "Mace-Attacker": 1.023, "Mace-Fighter": 0.989, "Tank-Attacker": 0.946, "Tank-Fighter": 0.928, "Attacker-Fighter": 1.012 } as Record<string, number>,
+  matchup: { "Sword-Mace": 1.022, "Sword-Tank": 1, "Sword-Attacker": 1.1, "Sword-Fighter": 1.033, "Mace-Tank": 0.995, "Mace-Attacker": 1.037, "Mace-Fighter": 1.004, "Tank-Attacker": 0.95, "Tank-Fighter": 0.939, "Attacker-Fighter": 0.987 } as Record<string, number>,
   // Scene 2, Heatwave: both fighters lose a sliver of health on a slow beat. Small, symmetrical, capped like every hazard.
   heat: { every: 150, dmg: 0.004 },
   // Scene 3, Ground Fracture: crack zones on the floor. A zone glows `glow` ticks (harmless) before it leaks, then leaks
@@ -65,6 +65,15 @@ export const ARENA_TUNE = {
   cue: { climb: 25 * S, hold: 30 },
   // Weather: the sky, light and ash change over `fade` ticks (9 s) when a scene begins, not in a cut (the drawing reads it: arenaRender.ts).
   weather: { fade: 9 * S },
+  // The ring (scene 5): once both fighters are up, walls rise `inset` px inside the final platform's edges over `rise` ticks and become solid
+  // `lock` ticks after they start (nobody falls off mid-fight); the fighters are drawn `scale` times their size there (a drawing change only:
+  // the hitboxes stay) so the platform reads as an arena. `marks`: the stand-here marks, `gap` px either side of the centre, `r` wide.
+  ring: { inset: 18, rise: 60, lock: 120, scale: 0.88 },
+  marks: { gap: 95, r: 14, until: 10 * S, hold: 80 },
+  // The stars answer (scene 5, after the marks): each fighter's plausibility roll, `min`..`max` percent, becomes a damage buff: what they deal
+  // x(1 + p), what they take / (1 + p) (the admin buff's two halves, 1.3 and 0.75, for p = 30%). The buffed fighter is drawn `look` (at the
+  // smallest roll .. at the biggest) times bigger. `until`: how long the pause lasts, `at`: when each fighter's roll is shown inside it.
+  buff: { min: 10, max: 50, look: [1.1, 1.2] as [number, number], until: 270, at: [60, 150] as [number, number] },
   // The opening ceremony, before any fighting (about 15 s at the longest): the arena's title card (`intro`), the stars waking
   // (`open`), each fighter locking a constellation (`pick`, then `lock` ticks to read the stamp once both have), and the two
   // chosen ones settling in the sky (`settle`). A fighter who hasn't locked when `pick` runs out gets the one under the cursor.
@@ -125,17 +134,18 @@ export type Platform = { id: number; kind: "step" | "final"; x: number; w: numbe
 
 const HIDDEN_TOP = ARENA.ground + 70; // below the floor: nothing can stand on it yet
 // The staircase, mirrored around the centre. Each rise is 66-67 px (the weakest jumper clears 69), each gap 10-15 px,
-// every step 70+ px wide, and the final platform is 420 px wide with its top 200 px above the old floor.
+// every step 70+ px wide, and the final platform is 480 px wide (it was 420: the ring needs room) with its top 200 px above the old floor.
 // warn: the dust ring and rumble start (telegraph, at least 2 s); rise: it starts to come up; dur: how long it takes.
 // Times are on the world clock (arenaWorld): the match clock plus the ticks spent in guided pauses, because the stairs
 // rise while the "Get up there!" pause holds the match clock still. The whole staircase stands 6.5 s after scene 5 begins.
 const ROCKS = [
-  { id: 1, kind: "step", x: 95, w: 80, top: 414, warn: 8700, rise: 9000, dur: 60 },
-  { id: 2, kind: "step", x: 785, w: 80, top: 414, warn: 8700, rise: 9000, dur: 60 },
-  { id: 3, kind: "step", x: 190, w: 70, top: 347, warn: 9000, rise: 9150, dur: 60 },
-  { id: 4, kind: "step", x: 700, w: 70, top: 347, warn: 9000, rise: 9150, dur: 60 },
-  { id: 5, kind: "final", x: 270, w: 420, top: 280, warn: 9150, rise: 9300, dur: 90 },
+  { id: 1, kind: "step", x: 65, w: 80, top: 414, warn: 8700, rise: 9000, dur: 60 },
+  { id: 2, kind: "step", x: 815, w: 80, top: 414, warn: 8700, rise: 9000, dur: 60 },
+  { id: 3, kind: "step", x: 160, w: 70, top: 347, warn: 9000, rise: 9150, dur: 60 },
+  { id: 4, kind: "step", x: 730, w: 70, top: 347, warn: 9000, rise: 9150, dur: 60 },
+  { id: 5, kind: "final", x: 240, w: 480, top: 280, warn: 9150, rise: 9300, dur: 90 },
 ] as const;
+const FINAL = ROCKS[ROCKS.length - 1];
 export const ROCK_DEFS = ROCKS;
 export const STAIRS_UP_TICK = Math.max(...ROCKS.map((r) => r.rise + r.dur)); // the whole staircase stands from here
 
@@ -167,7 +177,7 @@ export const landable = (p: Platform) => p.state === "up" || (p.state === "risin
 
 // The lava surface (y, grows downward) at a world tick. Below the floor until scene 5, then it rises; it stops 35 px under the
 // final platform, which it never reaches however long the pauses were.
-const FINAL_TOP = ROCKS[ROCKS.length - 1].top;
+const FINAL_TOP = FINAL.top;
 export const lavaY = (world: number) => Math.max(FINAL_TOP + 35, world < ARENA_TUNE.scenes[4] ? ARENA_TUNE.lava.start : ARENA_TUNE.lava.start - ARENA_TUNE.lava.rate * (world - ARENA_TUNE.scenes[4]));
 
 // A platform a fighter can be sent to: standing, with its top clear of the lava.
@@ -203,9 +213,12 @@ export type ArenaState = {
   pick: [ConstellationId | null, ConstellationId | null]; // each fighter's locked constellation (null until they lock one)
   cur: [number, number]; // each fighter's cursor in the ceremony's list (index into CONSTELLATIONS)
   dir: [number, number]; // the direction each fighter held last tick (a press moves the cursor once)
+  seed: number; // the match's seed (a number the host picks): every roll of the arena mixes it in, so no two matches roll alike
+  ring: number; // ticks since the ring began to rise (0: no ring yet); the walls are solid from ARENA_TUNE.ring.lock
+  buff: [number, number]; // each fighter's plausibility buff in percent (0 until the stars answer)
 };
 
-export function newArena(id: ArenaId): ArenaState {
+export function newArena(id: ArenaId, seed = 0): ArenaState {
   const T = ARENA_TUNE;
   return {
     id,
@@ -226,6 +239,9 @@ export function newArena(id: ArenaId): ArenaState {
     pick: [null, null],
     cur: [0, 2],
     dir: [0, 0],
+    seed,
+    ring: 0,
+    buff: [0, 0],
   };
 }
 
@@ -246,6 +262,7 @@ export const cloneArena = (a: ArenaState): ArenaState => ({
   pick: [a.pick[0], a.pick[1]],
   cur: [...a.cur],
   dir: [...a.dir],
+  buff: [a.buff[0], a.buff[1]],
 });
 
 // The arena's damage trim for a class hitting another (ARENA_TUNE.matchup).
@@ -263,11 +280,12 @@ export function arenaBoost(m: Match, slot: Slot): { jump: number; air: number } 
 }
 
 // The arena's say in how hard a hit lands: the attacker's scorch weakness (lava and cracks), the class matchup trim, the
-// Serpent's bonus on a scorched foe. Everything is 1 when nothing applies.
+// Serpent's bonus on a scorched foe, the plausibility buffs. Everything is 1 when nothing applies.
 export function arenaDamageFactor(m: Match, att: Fighter, vic: Fighter): number {
   const a = m.arena!;
   const serpent = a.pick[att.slot] === "serpent" && a.weak[vic.slot] > 0 ? ARENA_TUNE.stars.serpent.scorched : 1;
-  return (1 - a.weak[att.slot]) * matchupFactor(m.defs[att.slot].cls, m.defs[vic.slot].cls) * serpent;
+  const buff = (1 + a.buff[att.slot] / 100) / (1 + a.buff[vic.slot] / 100); // what the stars gave each: dealt up, taken down
+  return (1 - a.weak[att.slot]) * matchupFactor(m.defs[att.slot].cls, m.defs[vic.slot].cls) * serpent * buff;
 }
 
 // The Comet's faster special meter (1 for everyone else and outside an arena).
@@ -291,19 +309,44 @@ export function arenaSurface(m: Match, f: Fighter, prevY: number): number | null
   return top;
 }
 
-// A held fighter is pinned in front of the attacker (LOCK.gap): on a platform that must stay on the platform.
+// The ring on the final platform: walls inside its edges, solid once they have risen. A fighter at or above the platform can't cross them
+// (so nobody is knocked off mid-fight), and can't drop through the platform either.
+export const ringUp = (m: Pick<Match, "arena">) => !!m.arena && m.arena.ring >= ARENA_TUNE.ring.lock;
+// Where a fighter's centre may be inside the ring (and the posts' x for the drawing: `lo - BODY.w / 2` and `hi + BODY.w / 2`).
+export const ringBounds = () => ({ lo: FINAL.x + ARENA_TUNE.ring.inset + BODY.w / 2, hi: FINAL.x + FINAL.w - ARENA_TUNE.ring.inset - BODY.w / 2 });
+export function arenaRingClamp(m: Match, f: Fighter) {
+  if (!ringUp(m) || f.y > FINAL.top + 1) return;
+  const { lo, hi } = ringBounds();
+  if (f.x < lo) {
+    f.x = lo;
+    if (f.vx < 0) f.vx = 0;
+  } else if (f.x > hi) {
+    f.x = hi;
+    if (f.vx > 0) f.vx = 0;
+  }
+}
+export const arenaCanDrop = (m: Match, f: Fighter) => {
+  const p = standingOn(m, f);
+  return !!p && !(ringUp(m) && p.kind === "final");
+};
+
+// A held fighter is pinned in front of the attacker (LOCK.gap): on a platform that must stay on the platform (in the ring, inside its walls).
 export function arenaClampX(m: Match, att: Fighter, x: number): number {
   const p = standingOn(m, att);
+  if (p && ringUp(m) && p.kind === "final") {
+    const { lo, hi } = ringBounds();
+    return Math.min(hi, Math.max(lo, x));
+  }
   return p ? Math.min(p.x + p.w - 12, Math.max(p.x + 12, x)) : x;
 }
 
 // ------------------------------------------------------------------ per-tick update
 
 type Hooks = { roll: (m: Match, salt: number) => number; emit: (m: Match, e: ArenaEvent) => void };
-export type ArenaEventKind = "scene" | "crack" | "meteor" | "impact" | "rumble" | "rise" | "burn" | "rescue" | "cue" | "warp" | "star";
+export type ArenaEventKind = "scene" | "crack" | "meteor" | "impact" | "rumble" | "rise" | "burn" | "rescue" | "cue" | "warp" | "star" | "ring" | "buff";
 // What the renderer and the sound get through the sim's event list (it keeps the last 16, so a skipped relay snapshot loses nothing).
 // scene: n = 1-5. burn: n = damage, slot. rescue / warp: slot. cue: a guided pause began (its text is in the snapshot). star: slot locked
-// constellation n (index into CONSTELLATIONS). The rest: x is where.
+// constellation n (index into CONSTELLATIONS). ring: the walls start to rise. buff: slot's roll n percent (the stars answered). The rest: x is where.
 export type ArenaGameEvent = { id: number; type: "arena"; kind: ArenaEventKind; x: number; y: number; n?: number; slot?: Slot };
 type ArenaEvent = Omit<ArenaGameEvent, "id">;
 
@@ -393,6 +436,7 @@ function worldStep(m: Match, h: Hooks) {
     a.scene = scene;
     h.emit(m, ev("scene", 0, 0, { n: scene + 1 }));
   }
+  if (a.ring > 0 && a.ring < 60000) a.ring++;
   const world = arenaWorld(m);
   for (const r of ROCKS) {
     if (world === r.warn) h.emit(m, ev("rumble", r.x + r.w / 2, ARENA.ground));
@@ -485,8 +529,6 @@ function warp(m: Match, h: Hooks, f: Fighter, mk: { x: number; y: number; r: num
   h.emit(m, ev("warp", f.x, f.y, { slot: f.slot }));
 }
 
-const FINAL = ROCKS[ROCKS.length - 1];
-
 // Lock a constellation for a fighter. The other fighter's cursor moves on if it was resting there (and that is returned: a press the
 // other fighter made on the same tick was for the one just taken, so it must not lock the next one).
 function lockStar(m: Match, h: Hooks, slot: Slot, id: ConstellationId): boolean {
@@ -526,6 +568,19 @@ export function arenaCueInput(m: Match, inputs: [Input, Input], h: Hooks) {
   }
 }
 
+// How much bigger a fighter with this plausibility buff (percent) is drawn: ARENA_TUNE.buff.look, by where the roll falls between min and max.
+export function buffScale(p: number): number {
+  const B = ARENA_TUNE.buff;
+  if (p <= 0) return 1;
+  return B.look[0] + (B.look[1] - B.look[0]) * Math.min(1, Math.max(0, (p - B.min) / (B.max - B.min)));
+}
+
+// A pause that sent the fighters to marks and timed out: whoever isn't on theirs is put there.
+function liftStragglers(m: Match, h: Hooks, cue: Cue, timedOut: boolean) {
+  if (!timedOut || !cue.target) return;
+  for (const f of m.fighters) if (!cue.done[f.slot]) warp(m, h, f, cue.target[f.slot]);
+}
+
 const STORY: Beat[] = [
   // The opening ceremony. The stars wake in the sky...
   { id: "open", make: () => ({ id: "open", text: "THE STARS WAKE", until: ARENA_TUNE.ceremony.open, hold: 0, done: [false, false] }) },
@@ -553,9 +608,35 @@ const STORY: Beat[] = [
       const mark = { x: FINAL.x + FINAL.w / 2, y: FINAL.top, r: FINAL.w / 2 - 20 };
       return { id: "climb", text: "GET UP THERE!", until: ARENA_TUNE.cue.climb, hold: ARENA_TUNE.cue.hold, target: [mark, mark], done: [false, false] };
     },
-    end: (m, h, cue, timedOut) => {
-      if (!timedOut || !cue.target) return;
-      for (const f of m.fighters) if (!cue.done[f.slot]) warp(m, h, f, cue.target[f.slot]);
+    end: (m, h, cue, timedOut) => liftStragglers(m, h, cue, timedOut),
+  },
+  // The ring: the walls rise and each fighter walks to a mark, the one standing further left to the left mark (so they face each other from
+  // opposite sides). Whoever isn't on theirs at the timeout is put there.
+  {
+    id: "marks",
+    make: (m, h) => {
+      m.arena!.ring = 1;
+      h.emit(m, ev("ring", FINAL.x + FINAL.w / 2, FINAL.top));
+      const T = ARENA_TUNE.marks, cx = FINAL.x + FINAL.w / 2;
+      const left = m.fighters[0].x <= m.fighters[1].x ? 0 : 1;
+      const at = (x: number): Mark => ({ x, y: FINAL.top, r: T.r });
+      const target: [Mark, Mark] = left === 0 ? [at(cx - T.gap), at(cx + T.gap)] : [at(cx + T.gap), at(cx - T.gap)];
+      return { id: "marks", text: "TAKE YOUR MARKS", until: T.until, hold: T.hold, target, done: [false, false] };
+    },
+    end: (m, h, cue, timedOut) => liftStragglers(m, h, cue, timedOut),
+  },
+  // The stars answer: each fighter's constellation glows bright and the plausibility roll (one per fighter, seeded) becomes their buff. The roll is
+  // taken here; the drawing shows each one a moment apart (ARENA_TUNE.buff.at).
+  {
+    id: "reveal",
+    make: (m, h) => {
+      const B = ARENA_TUNE.buff;
+      for (const f of m.fighters) {
+        const p = B.min + Math.floor(h.roll(m, 700 + f.slot) * (B.max - B.min + 1));
+        m.arena!.buff[f.slot] = p;
+        h.emit(m, ev("buff", f.x, f.y, { n: p, slot: f.slot }));
+      }
+      return { id: "reveal", text: "THE STARS ANSWER", until: B.until, hold: 0, done: [false, false] };
     },
   },
 ];
