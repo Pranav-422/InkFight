@@ -14,8 +14,8 @@ const kit = (cls: string) => ({ ...ruleStats(cls, { ...neutral, dominant_colors:
 // A moment to draw: every field given must hold. phase / cue: the sim's; phaseT: ticks into the phase; tick: the match clock;
 // world: the world clock; scene: 1-5; settle: frames to draw first (the camera and the fades ease in real time).
 // locked: constellations locked so far (the ceremony). ko: let the fight end (otherwise nobody dies).
-// calm: no special, hit or knockout in progress (the camera is at rest).
-export type Spec = { name: string; phase?: string; cue?: string; phaseT?: number; tick?: number; world?: number; scene?: number; settle?: number; ko?: boolean; locked?: number; calm?: boolean };
+// calm: no special, hit or knockout in progress (the camera is at rest). nearCrack: a fighter within that many px of a leaking crack's edge.
+export type Spec = { name: string; phase?: string; cue?: string; phaseT?: number; tick?: number; world?: number; scene?: number; settle?: number; ko?: boolean; locked?: number; calm?: boolean; nearCrack?: number };
 export type Opts = { seed?: number; a?: string; b?: string; protect?: boolean; skipTo?: number };
 
 declare global {
@@ -33,6 +33,7 @@ const holds = (m: Match, s: Spec) =>
   (s.world === undefined || arenaWorld(m) >= s.world) &&
   (s.scene === undefined || (m.arena?.scene ?? -1) + 1 >= s.scene) &&
   (s.locked === undefined || (m.arena?.pick.filter(Boolean).length ?? 0) >= s.locked) &&
+  (s.nearCrack === undefined || (m.arena?.cracks ?? []).some((c) => arenaTick(m) >= c.born + c.glow && m.fighters.some((f) => f.grounded && f.y >= 479 && Math.abs(f.x - c.x) - c.w / 2 < s.nearCrack!))) &&
   (!s.calm || (m.slow === 0 && m.freeze === 0 && m.fighters.every((f) => f.action !== "special" && f.action !== "hit" && f.action !== "ko")));
 
 window.capture = (specs, opts = {}) => {

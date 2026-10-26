@@ -12,7 +12,7 @@ import type { Cue, Slot } from "./sim";
 import { ARENA, TICK_HZ } from "./space";
 
 // What the stage drawing reads from a snapshot.
-type StageState = { arena?: ArenaState; timer: number; phase: string; phaseT: number; cue?: Cue };
+type StageState = { arena?: ArenaState; timer: number; phase: string; phaseT: number; cue?: Cue; fighters?: { x: number; y: number; grounded: boolean }[] };
 
 // Where the constellations hang: in a row across the sky while they are being chosen, then one over each fighter's side.
 const STAR_SIZE = 140;
@@ -693,10 +693,10 @@ export class ArenaView {
   }
 
   // The floor's live state: crack zones, the dust and cracks of boulders about to rise, the boulders, the lava.
-  mid(ctx: CanvasRenderingContext2D, s: { arena?: ArenaState; timer: number; cue?: Cue }, now: number) {
+  mid(ctx: CanvasRenderingContext2D, s: { arena?: ArenaState; timer: number; cue?: Cue }, now: number, reduce = false) {
     const a = s.arena!;
     const tick = arenaTick(s);
-    for (const c of a.cracks) this.crack(ctx, c, tick, now);
+    for (const c of a.cracks) this.crack(ctx, c, tick, now, reduce);
     for (const d of this.craters) {
       const age = (now - d.born) / 1000;
       if (age > 7) continue;
@@ -807,18 +807,19 @@ export class ArenaView {
     });
   }
 
-  private crack(ctx: CanvasRenderingContext2D, c: ArenaState["cracks"][number], tick: number, now: number) {
+  private crack(ctx: CanvasRenderingContext2D, c: ArenaState["cracks"][number], tick: number, now: number, reduce: boolean) {
     const live = tick >= c.born + c.glow;
     const y = ARENA.ground;
     const grow = Math.min(1, (tick - c.born) / 24); // the fissure opens over the first 0.4 s
     const w = c.w * grow, x0 = c.x - w / 2;
     const pulse = 0.5 + 0.5 * Math.sin(now / (live ? 90 : 160));
     // Glow on the floor strip.
-    const glow = ctx.createRadialGradient(c.x, y - 6, 4, c.x, y - 6, c.w * 0.9);
-    glow.addColorStop(0, `rgba(255,150,40,${live ? 0.65 : 0.18 + 0.3 * Math.min(1, (tick - c.born) / c.glow)})`);
+    const reach = live ? c.w * 1.5 : c.w * 0.9; // a leaking crack lights the floor and the air round it much further
+    const glow = ctx.createRadialGradient(c.x, y - 6, 4, c.x, y - 6, reach);
+    glow.addColorStop(0, `rgba(255,150,40,${live ? 0.75 : 0.18 + 0.3 * Math.min(1, (tick - c.born) / c.glow)})`);
     glow.addColorStop(1, "rgba(255,80,20,0)");
     ctx.fillStyle = glow;
-    ctx.fillRect(c.x - c.w, y - c.w * 0.9, c.w * 2, c.w * 1.1);
+    ctx.fillRect(c.x - reach, y - reach, reach * 2, reach * 1.2);
     // The fissure: the floor strip is seen at a grazing angle, so a crack zone is a flat glowing patch with a jagged edge, and the
     // crack runs on down the front of the slab.
     const R = rng(c.id * 17 + 3);
@@ -848,8 +849,8 @@ export class ArenaView {
     ctx.strokeStyle = INK;
     ctx.lineWidth = 3.5;
     ctx.stroke();
-    // Fissures down the front of the slab, lit from within.
-    for (let f = 0; f < 3; f++) {
+    // Fissures down the front of the slab, lit from within (once it leaks they are replaced by streams of lava).
+    for (let f = 0; f < (live ? 0 : 3); f++) {
       let fx = x0 + w * (0.18 + 0.32 * f), fy = botY;
       const pts: [number, number][] = [[fx, fy]];
       for (let k = 0; k < 4; k++) {
@@ -865,22 +866,152 @@ export class ArenaView {
         ctx.stroke();
       }
     }
-    if (live) {
-      // Leaking: bubbles popping on the surface, a drip down the face.
-      for (let b = 0; b < 4; b++) {
-        const t = ((now / 700 + b * 0.27 + c.x * 0.013) % 1);
-        const bx = x0 + w * (0.15 + 0.7 * ((b * 0.37 + c.x * 0.01) % 1));
-        ctx.fillStyle = "#ffe07a";
-        ctx.strokeStyle = INK;
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.arc(bx, topY + 4 - t * 16, 2 + (1 - t) * 4, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
+    if (live) this.leak(ctx, c, tick, now, reduce, w, x0, y);
+  }
+
+  // A crack that leaks (scene 3): the zone is a pool of lava on the floor strip (as wide as the zone that hurts, give or take its rim), bubbles
+  // popping on it, and a lava fall pours over the lip of the slab: a wavering sheet of streaks with bright flecks running down it, into the
+  // lake below, where it flares, ripples and throws up droplets. When it first opens a spray leaps off the pool. Everything is a function of
+  // the clock (no particle list); "Reduce flashes" leaves out the spray and the droplets.
+  private leak(ctx: CanvasRenderingContext2D, c: ArenaState["cracks"][number], tick: number, now: number, reduce: boolean, w: number, x0: number, y: number) {
+    const x1 = x0 + w, lake = y + 52, since = tick - (c.born + c.glow);
+    ctx.lineJoin = "round"; // (the default miter spikes the corners of the rims)
+    const lerp = (p: number, q: number, t: number) => p + (q - p) * t;
+    const wob = (yy: number, k: number) => Math.sin(yy * 0.12 + now / 300 + k * 1.7 + c.id) * 1.9;
+    const top = y - 2, run = lake - top;
+    // The lava fall: it leaves the pool narrower than the pool and spreads as it falls, like water at the foot of a cascade.
+    const edge = (side: 0 | 1, t: number) => (side === 0 ? lerp(x0 + w * 0.14, x0 - w * 0.05, t) : lerp(x1 - w * 0.14, x1 + w * 0.05, t)) + wob(top + t * run, side);
+    ctx.beginPath();
+    for (let yy = top; yy <= lake; yy += 6) ctx[yy === top ? "moveTo" : "lineTo"](edge(0, (yy - top) / run), yy);
+    for (let yy = lake; yy >= top; yy -= 6) ctx.lineTo(edge(1, (yy - top) / run), yy);
+    ctx.closePath();
+    const fall = ctx.createLinearGradient(0, top, 0, lake);
+    fall.addColorStop(0, "#ffd75a");
+    fall.addColorStop(0.5, "#ff8a22");
+    fall.addColorStop(1, "#e04a10");
+    ctx.fillStyle = fall;
+    ctx.fill();
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
+    // Streaks running down it, and bright flecks carried along.
+    ctx.save();
+    ctx.clip();
+    ctx.strokeStyle = "rgba(255,246,180,.75)";
+    ctx.lineWidth = 1.7;
+    ctx.setLineDash([11, 9]);
+    for (let i = 0; i < 5; i++) {
+      ctx.lineDashOffset = -(now / 38) - i * 7;
+      ctx.beginPath();
+      for (let yy = top; yy <= lake; yy += 6) {
+        const t = (yy - top) / run, f = (i + 0.5) / 5;
+        ctx[yy === top ? "moveTo" : "lineTo"](lerp(edge(0, t), edge(1, t), f) + wob(yy, i + 2) * 0.5, yy);
       }
-      ctx.fillStyle = "#ff8a22";
-      ctx.fillRect(c.x - 2, y, 4, 40 + pulse * 6);
+      ctx.stroke();
     }
+    ctx.setLineDash([]);
+    for (let j = 0; j < 6; j++) {
+      const f = (now / 640 + j / 6) % 1, t = f, yy = top + t * run;
+      ctx.fillStyle = "#fff6c0";
+      ctx.beginPath();
+      ctx.ellipse(lerp(edge(0, t), edge(1, t), ((j * 0.37) % 1) * 0.8 + 0.1), yy, 2.4, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+    // Where it lands in the lake: a flare, ripples, droplets thrown up.
+    const bx = c.x;
+    ctx.fillStyle = "#ffb13a";
+    ctx.beginPath();
+    ctx.ellipse(bx, lake + 1, w * 0.55 + 4, 4.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    for (let k = 0; k < 2; k++) {
+      const p = (now / 800 + k * 0.5) % 1;
+      ctx.strokeStyle = `rgba(255,214,90,${0.75 * (1 - p)})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(bx, lake + 2, w * 0.55 + 26 * p, 2.5 + 7 * p, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    if (!reduce) {
+      for (let j = 0; j < 7; j++) {
+        const p = (now / 640 + j / 7) % 1, dir = j % 2 ? 1 : -1;
+        ctx.fillStyle = `rgba(255,${170 + 50 * p},60,${1 - p})`;
+        ctx.beginPath();
+        ctx.arc(bx + dir * ((j % 4) * 7 + 4 + 18 * p), lake - 4 * Math.sin(Math.PI * p) * (9 + 4 * (j % 3)), 2.8 - 1.5 * p, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    // The pool on the floor strip: a gentle mound with an ink rim and a lit crown, bubbles popping on it.
+    const base = y - 9, rise = 6 + 1.8 * Math.sin(now / 240 + c.id);
+    const grad = ctx.createLinearGradient(0, y - 19, 0, y);
+    grad.addColorStop(0, "#ffe066");
+    grad.addColorStop(0.5, "#ff9a2a");
+    grad.addColorStop(1, "#e8480f");
+    ctx.beginPath();
+    ctx.moveTo(x0 - 3, base + 3);
+    ctx.quadraticCurveTo(c.x, base - rise * 2 - 2, x1 + 3, base + 3);
+    ctx.quadraticCurveTo(x1 + 5, y - 3, x1 - 4, y - 1);
+    ctx.lineTo(x0 + 4, y - 1);
+    ctx.quadraticCurveTo(x0 - 5, y - 3, x0 - 3, base + 3);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255,250,200,.55)";
+    ctx.beginPath();
+    ctx.ellipse(c.x - w * 0.14, base - rise * 0.6, w * 0.2, 1.9, -0.06, 0, Math.PI * 2);
+    ctx.fill();
+    for (let b = 0; b < 5; b++) {
+      const t = (now / 650 + b * 0.21 + c.x * 0.013) % 1;
+      const bx2 = x0 + w * (0.12 + 0.76 * ((b * 0.37 + c.x * 0.01) % 1));
+      ctx.fillStyle = "#fff0a0";
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.arc(bx2, base + 1 - t * 8, 1.6 + (1 - t) * 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    // The first moment of a leak: a spray of droplets thrown off the pool (a parabola each, from the clock alone).
+    if (!reduce && since >= 0 && since < 30) {
+      const RB = rng(c.id * 53 + 7);
+      for (let d = 0; d < 14; d++) {
+        const a = -Math.PI / 2 + (RB() - 0.5) * 1.9, v = 3 + RB() * 4.5;
+        const px = c.x + Math.cos(a) * v * since * 0.85, py = base + Math.sin(a) * v * since + 0.2 * since * since;
+        if (py > y - 2) continue;
+        ctx.fillStyle = `rgba(255,${180 + RB() * 60},50,${1 - since / 30})`;
+        ctx.beginPath();
+        ctx.arc(px, py, 2.6 - since / 16, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  // The leak lights up whoever stands near it: an orange glow on a fighter's legs, stronger inside the zone (where it hurts).
+  private legGlow(ctx: CanvasRenderingContext2D, s: StageState, tick: number) {
+    const a = s.arena;
+    if (!a || !s.fighters) return;
+    const live = a.cracks.filter((c) => tick >= c.born + c.glow);
+    if (!live.length) return;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    for (const f of s.fighters) {
+      if (f.y < ARENA.ground - 6) continue;
+      let k = 0;
+      for (const c of live) {
+        const d = Math.abs(f.x - c.x) - c.w / 2;
+        k = Math.max(k, d <= 0 ? 1 : Math.max(0, 1 - d / 80));
+      }
+      if (k <= 0.02) continue;
+      const g = ctx.createRadialGradient(f.x, f.y - 22, 2, f.x, f.y - 22, 62);
+      g.addColorStop(0, `rgba(255,140,40,${0.62 * k})`);
+      g.addColorStop(1, "rgba(255,90,20,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(f.x - 62, f.y - 84, 124, 124);
+    }
+    ctx.restore();
   }
 
   // The warning for a rock about to rise: dust ring and hairline cracks on the floor, pebbles jumping. Louder as it nears.
@@ -1049,6 +1180,7 @@ export class ArenaView {
     const a = s.arena!;
     const tick = arenaTick(s);
     const T = ARENA_TUNE.meteor;
+    this.legGlow(ctx, s, tick);
     for (const m of a.meteors) {
       const left = m.hit - tick;
       const p = Math.max(0, Math.min(1, 1 - left / T.warn));

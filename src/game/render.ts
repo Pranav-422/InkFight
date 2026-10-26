@@ -407,7 +407,7 @@ export class Renderer {
       this.arenaView.back(ctx, cur, now, this.view, getReduceFlashes());
       this.heat = this.arenaView.heat(cur);
       this.dimOverlay();
-      this.arenaView.mid(ctx, cur, now);
+      this.arenaView.mid(ctx, cur, now, getReduceFlashes());
     } else this.background();
     this.drawStains();
     // The ultimate blacks out the page (fighters and effects are drawn over it).
