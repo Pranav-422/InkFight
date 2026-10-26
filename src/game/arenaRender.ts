@@ -6,7 +6,8 @@
 //
 // render.ts calls back() before the fighters, mid() right after the page and floor, front() over everything and hud() last.
 
-import { ARENA_TUNE, arenaTick, lavaY, platformsAt, ROCK_DEFS, SCENE_NAMES, sceneAt, type ArenaGameEvent, type ArenaState, type Platform } from "./arena";
+import { ARENA_TUNE, arenaTick, arenaWorld, lavaY, platformsAt, ROCK_DEFS, SCENE_NAMES, sceneAt, type ArenaGameEvent, type ArenaState, type Platform } from "./arena";
+import type { Cue } from "./sim";
 import { ARENA, TICK_HZ } from "./space";
 
 // The backdrop covers more than the 960 x 540 arena so the camera can zoom out and look up (a fighter on the final platform
@@ -551,7 +552,7 @@ export class ArenaView {
   }
 
   // The floor's live state: crack zones, the dust and cracks of boulders about to rise, the boulders, the lava.
-  mid(ctx: CanvasRenderingContext2D, s: { arena?: ArenaState; timer: number }, now: number) {
+  mid(ctx: CanvasRenderingContext2D, s: { arena?: ArenaState; timer: number; cue?: Cue }, now: number) {
     const a = s.arena!;
     const tick = arenaTick(s);
     for (const c of a.cracks) this.crack(ctx, c, tick, now);
@@ -564,10 +565,105 @@ export class ArenaView {
       ctx.fill();
     }
     this.craters = this.craters.filter((d) => now - d.born < 7000);
-    const plats = platformsAt(tick);
-    for (const p of plats) this.platformFx(ctx, p, tick, now);
-    for (const p of plats) if (p.state === "rising" || p.state === "up") this.boulder(ctx, p, tick, now);
-    this.lava(ctx, tick, now);
+    const world = arenaWorld(s);
+    const plats = platformsAt(world);
+    for (const p of plats) this.platformFx(ctx, p, world, now);
+    for (const p of plats) if (p.state === "rising" || p.state === "up") this.boulder(ctx, p, world, now);
+    this.lava(ctx, tick, world, now);
+    if (s.cue?.target) this.marks(ctx, s.cue, now);
+  }
+
+  // Guided pause: where each fighter has to stand, drawn on the surface under the fighters. A small mark is a pad with an arrow
+  // over it; a wide one (the final platform) is a gold dashed line along its top with arrows at both ends.
+  private marks(ctx: CanvasRenderingContext2D, cue: Cue, now: number) {
+    const wide = cue.target![0].r > 60;
+    cue.target!.forEach((mk, slot) => {
+      const color = slot === 0 ? "#e5482d" : "#2f5be0";
+      const done = cue.done[slot];
+      const pulse = 0.5 + 0.5 * Math.sin(now / 200 + slot);
+      const bob = Math.sin(now / 160 + slot * 2) * 4;
+      ctx.save();
+      ctx.lineJoin = "round";
+      if (wide) {
+        if (slot === 1) {
+          ctx.restore();
+          return; // one line for both fighters
+        }
+        const x0 = mk.x - mk.r, x1 = mk.x + mk.r;
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = 9;
+        ctx.beginPath();
+        ctx.moveTo(x0, mk.y - 4);
+        ctx.lineTo(x1, mk.y - 4);
+        ctx.stroke();
+        ctx.strokeStyle = `rgba(242,183,5,${0.65 + 0.35 * pulse})`;
+        ctx.lineWidth = 5;
+        ctx.setLineDash([16, 10]);
+        ctx.lineDashOffset = -now / 40;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        for (const ax of [x0 + 30, x1 - 30, mk.x]) {
+          ctx.fillStyle = "#f2b705";
+          ctx.strokeStyle = INK;
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(ax, mk.y - 38 + bob);
+          ctx.lineTo(ax + 14, mk.y - 58 + bob);
+          ctx.lineTo(ax - 14, mk.y - 58 + bob);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+        ctx.restore();
+        return;
+      }
+      // A stand-here pad.
+      ctx.translate(mk.x, mk.y - 2);
+      ctx.fillStyle = done ? "rgba(242,183,5,.6)" : `${color}40`;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, mk.r + 6, (mk.r + 6) * 0.24, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 5;
+      ctx.stroke();
+      ctx.strokeStyle = done ? "#f2b705" : color;
+      ctx.lineWidth = 3;
+      ctx.setLineDash(done ? [] : [10, 6]);
+      ctx.lineDashOffset = -now / 50;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // Footprints, and the arrow that says "here".
+      ctx.fillStyle = done ? "#f2b705" : `${color}cc`;
+      for (const fx of [-mk.r * 0.35, mk.r * 0.35]) {
+        ctx.beginPath();
+        ctx.ellipse(fx, 0, 6, 2.6, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      if (!done) {
+        ctx.fillStyle = color;
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, -34 + bob);
+        ctx.lineTo(13, -56 + bob);
+        ctx.lineTo(-13, -56 + bob);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.font = `800 15px ${this.fontDisplay}`;
+      ctx.textAlign = "center";
+      const label = done ? `P${slot + 1} ✓` : `P${slot + 1}`;
+      const w = ctx.measureText(label).width + 16;
+      ctx.fillStyle = done ? "#f2b705" : color;
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 3;
+      ctx.fillRect(-w / 2, -80 + bob * (done ? 0 : 1), w, 22);
+      ctx.strokeRect(-w / 2, -80 + bob * (done ? 0 : 1), w, 22);
+      ctx.fillStyle = done ? INK : "#fff";
+      ctx.fillText(label, 0, -64 + bob * (done ? 0 : 1));
+      ctx.restore();
+    });
   }
 
   private crack(ctx: CanvasRenderingContext2D, c: ArenaState["cracks"][number], tick: number, now: number) {
@@ -683,11 +779,11 @@ export class ArenaView {
   }
 
   // A boulder column standing on the floor: charcoal stone with a lit top slab, ink outline, seams that glow as the lava climbs.
-  private boulder(ctx: CanvasRenderingContext2D, p: Platform, tick: number, now: number) {
+  private boulder(ctx: CanvasRenderingContext2D, p: Platform, world: number, now: number) {
     const R = rng(p.id * 131);
     const top = p.top, bot = ARENA.ground + 10, x = p.x, w = p.w;
-    const L = LOOKS[Math.min(4, sceneAt(tick))];
-    const heat = Math.max(0, Math.min(1, (ARENA.ground - lavaY(tick) + 60) / 220));
+    const L = LOOKS[Math.min(4, sceneAt(world))];
+    const heat = Math.max(0, Math.min(1, (ARENA.ground - lavaY(world) + 60) / 220));
     const shake = p.state === "rising" ? Math.sin(now / 24) * 1.6 : 0;
     ctx.save();
     ctx.translate(shake, 0);
@@ -760,8 +856,8 @@ export class ArenaView {
   }
 
   // Rising lava in scene 5: a glowing surface with a wavy edge, in front of the boulders and the floor.
-  private lava(ctx: CanvasRenderingContext2D, tick: number, now: number) {
-    const y = lavaY(tick);
+  private lava(ctx: CanvasRenderingContext2D, tick: number, world: number, now: number) {
+    const y = lavaY(world);
     if (y >= ARENA.h + 60 || tick < ARENA_TUNE.scenes[4]) return;
     const x0 = WORLD.x0, x1 = WORLD.x1, bottom = WORLD.y1;
     const gr = ctx.createLinearGradient(0, y, 0, y + 200);
@@ -884,11 +980,11 @@ export class ArenaView {
         ctx.stroke();
       }
     }
-    this.sparks(ctx, scene, tick, reduce);
+    this.sparks(ctx, scene, arenaWorld(s), reduce);
   }
 
   // Embers drifting up and ash falling, capped.
-  private sparks(ctx: CanvasRenderingContext2D, scene: number, tick: number, reduce: boolean) {
+  private sparks(ctx: CanvasRenderingContext2D, scene: number, world: number, reduce: boolean) {
     const cap = reduce ? 14 : 36;
     const rate = [0.04, 0.08, 0.16, 0.3, 0.45][scene] * (reduce ? 0.5 : 1);
     if (this.embers.length < cap && Math.random() < rate) {
@@ -896,7 +992,7 @@ export class ArenaView {
       this.embers.push(
         ash
           ? { x: Math.random() * ARENA.w, y: -20, vx: (Math.random() - 0.3) * 0.5, vy: 0.5 + Math.random() * 0.8, life: 0, max: 520, size: 1.5 + Math.random() * 1.8, ash: true }
-          : { x: 40 + Math.random() * 880, y: Math.min(ARENA.h, lavaY(tick)) + 10, vx: (Math.random() - 0.5) * 0.7, vy: -(0.6 + Math.random() * 1.4), life: 0, max: 200 + Math.random() * 200, size: 1 + Math.random() * 2.2, ash: false },
+          : { x: 40 + Math.random() * 880, y: Math.min(ARENA.h, lavaY(world)) + 10, vx: (Math.random() - 0.5) * 0.7, vy: -(0.6 + Math.random() * 1.4), life: 0, max: 200 + Math.random() * 200, size: 1 + Math.random() * 2.2, ash: false },
       );
     }
     this.embers = this.embers.filter((e) => ++e.life < e.max && e.y > -60 && e.y < ARENA.h + 80);
@@ -930,7 +1026,7 @@ export class ArenaView {
     if (tick >= sc[3] - 5 * TICK_HZ && tick < sc[3]) t = 1.5;
     if (tick >= sc[4] - 8 * TICK_HZ && tick < sc[4]) t = 2 + ((tick - (sc[4] - 8 * TICK_HZ)) / (8 * TICK_HZ)) * 3;
     if (tick >= sc[4] && tick < sc[4] + 4 * TICK_HZ) t = 5 * (1 - (tick - sc[4]) / (4 * TICK_HZ)) + 1;
-    for (const p of platformsAt(tick)) {
+    for (const p of platformsAt(arenaWorld(s))) {
       if (p.state === "warn") t = Math.max(t, 1.2);
       if (p.state === "rising") t = Math.max(t, 4);
     }
@@ -939,8 +1035,9 @@ export class ArenaView {
 
   // The camera for an arena fight: both fighters in frame, with room for their heads under the HUD, zoomed out when one is up
   // on a platform. A special's push-in or the KO (render.ts) override it.
-  camera(fighters: { x: number; y: number }[]): { z: number; x: number; y: number } {
-    const headTop = Math.min(...fighters.map((f) => f.y)) - 170 - 20;
+  camera(fighters: { x: number; y: number }[], cue?: Cue): { z: number; x: number; y: number } {
+    // A pause that sends them up somewhere keeps that spot in frame too.
+    const headTop = Math.min(...fighters.map((f) => f.y), ...(cue?.target?.map((t) => t.y) ?? [])) - 170 - 20;
     const feetBot = Math.max(...fighters.map((f) => f.y)) + 70;
     const hud = 130; // screen units the HUD takes at the top
     const z = Math.max(0.8, Math.min(1, ARENA.h / (feetBot - headTop + hud)));
@@ -950,7 +1047,7 @@ export class ArenaView {
   }
 
   // HUD pieces in screen space (960 x 540 units): the clock, the scene name, hazard warnings.
-  hud(ctx: CanvasRenderingContext2D, s: { arena?: ArenaState; timer: number; phase: string }, now: number, z: number) {
+  hud(ctx: CanvasRenderingContext2D, s: { arena?: ArenaState; timer: number; phase: string; cue?: Cue }, now: number, z: number) {
     const a = s.arena!;
     const tick = arenaTick(s);
     const scene = sceneAt(tick);
@@ -962,6 +1059,7 @@ export class ArenaView {
     ctx.font = `700 ${Math.round(11 * z)}px ${this.fontBody}`;
     ctx.fillStyle = "#6b6a66";
     ctx.fillText(`${scene + 1}/5 · ${SCENE_NAMES[scene]}`, ARENA.w / 2, 82 + 8 * (z - 1));
+    if (s.cue) this.cueBanner(ctx, s.cue, now, z);
     if (s.phase !== "fight") return;
 
     // A stamped tag when the scene changes (small, in the corner of the action, never blocking).
@@ -1001,8 +1099,8 @@ export class ArenaView {
     const warns: string[] = [];
     if (a.cracks.some((c) => tick < c.born + c.glow)) warns.push("GROUND CRACKING");
     if (a.meteors.length) warns.push("METEOR INCOMING");
-    if (platformsAt(tick).some((p) => p.state === "warn")) warns.push("THE GROUND SHAKES");
-    if (scene === 4 && lavaY(tick) < ARENA.ground + 20) warns.push("LAVA ON THE FLOOR");
+    if (platformsAt(arenaWorld(s)).some((p) => p.state === "warn")) warns.push("THE GROUND SHAKES");
+    if (scene === 4 && lavaY(arenaWorld(s)) < ARENA.ground + 20) warns.push("LAVA ON THE FLOOR");
     warns.slice(0, 2).forEach((w, k) => {
       const pulse = 0.75 + 0.25 * Math.sin(now / 120);
       ctx.font = `800 ${Math.round(12 * z)}px ${this.fontDisplay}`;
@@ -1014,4 +1112,32 @@ export class ArenaView {
       ctx.fillText(w, ARENA.w / 2, y);
     });
   }
+  // The headline of a guided pause, under the HUD: what to do, and who has done it (P1 ✓ / P2 ...).
+  private cueBanner(ctx: CanvasRenderingContext2D, cue: Cue, now: number, z: number) {
+    const size = Math.round(30 * Math.min(z, 1.35));
+    ctx.save();
+    ctx.translate(ARENA.w / 2, 168 + 10 * (z - 1));
+    ctx.rotate(-0.025);
+    ctx.font = `800 ${size}px ${this.fontDisplay}`;
+    ctx.textAlign = "center";
+    const w = ctx.measureText(cue.text).width + 56;
+    const h = size + 18;
+    ctx.fillStyle = "rgba(0,0,0,.35)";
+    ctx.fillRect(-w / 2 + 6, -h / 2 + 6, w, h);
+    ctx.fillStyle = "#0f0d12";
+    ctx.fillRect(-w / 2, -h / 2, w, h);
+    ctx.fillStyle = "#f2b705";
+    ctx.fillRect(-w / 2, h / 2 - 5, w, 5);
+    ctx.fillStyle = "#fff9ed";
+    ctx.fillText(cue.text, 0, size * 0.34);
+    if (cue.target) {
+      ctx.font = `800 ${Math.round(13 * Math.min(z, 1.3))}px ${this.fontDisplay}`;
+      cue.done.forEach((d, slot) => {
+        ctx.fillStyle = d ? "#f2b705" : slot === 0 ? "#ff7a5c" : "#7c9bff";
+        ctx.fillText(`P${slot + 1} ${d ? "✓" : "…"}`, (slot === 0 ? -1 : 1) * (w / 2 - 34), h / 2 + 18);
+      });
+    }
+    ctx.restore();
+  }
+
 }

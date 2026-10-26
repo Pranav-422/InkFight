@@ -1,7 +1,7 @@
 // Computer opponent. Reads the match like a player would (with a reaction delay,
 // so it isn't frame-perfect) and drives the same Input a human would send.
 
-import { arenaNav, guardEdges, type NavMemory } from "./arenaNav";
+import { arenaNav, cueNav, guardEdges, type NavMemory } from "./arenaNav";
 import { MOVES, SLOT1_COST, SPECIAL_INFO, ULT_COST, type SpecialKind } from "./moves";
 import { ARENA, BLAST_REACH, BODY, holds, moveReach, type Input, type Match, type Slot } from "./sim";
 
@@ -47,6 +47,11 @@ export const newBrain = (level: Level, knobs?: Partial<Knobs>): CpuBrain => {
 };
 
 export function cpuThink(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
+  // A guided pause: walk to the mark, nothing else (src/game/arenaNav.ts).
+  if (m.arena && m.phase === "cue") {
+    cueNav(m, slot, m.defs[slot], brain.nav, input);
+    return;
+  }
   // Arena fight: hazards and the climb take over the movement when they must; otherwise it fights as usual, but never walks off a platform.
   if (m.arena && !holds(m) && m.phase === "fight" && m.fighters[slot].action !== "ko" && arenaNav(m, slot, m.defs[slot], brain.nav, input)) return;
   fight(m, slot, brain, input);

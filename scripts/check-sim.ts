@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { ARENA_TUNE, arenaTick, lavaY, platformsAt, ROCK_DEFS, sceneAt, STAIRS_UP_TICK } from "../src/game/arena";
+import { ARENA_STORY_LENGTH, ARENA_TUNE, arenaTick, arenaWorld, lavaY, platformsAt, ROCK_DEFS, sceneAt, STAIRS_UP_TICK } from "../src/game/arena";
 import { CLASS_ULT, SLOT1_COST, SPECIAL_KINDS, STYLE_INFO, ULT_COST } from "../src/game/moves";
 import { poseFor } from "../src/game/poses";
 import { AVERAGE_BUILD, buildFor, solveStick } from "../src/game/stickman";
@@ -905,13 +905,15 @@ const p2 = (): BossSpec => bossOf("curse-marks", { phase2: { stats: { ...fighter
 }
 
 // An arena match already in the fight phase at `tick`, fighters at x0 / x1 on the floor, random hazards off unless asked.
-function arena(tick: number, x0 = 300, x1 = 660, hazards = false) {
+// The story (the guided pauses) is marked as told unless `story`, so a test that jumps to a scene isn't interrupted by one.
+function arena(tick: number, x0 = 300, x1 = 660, hazards = false, story = false) {
   const ia = { ...EMPTY_INPUT }, ib = { ...EMPTY_INPUT };
   const m = createMatch(fighter("Fighter"), fighter("Fighter"), [ia, ib], { arena: "inferno" });
   for (const d of m.defs) d.dodge = 0;
   for (let i = 0; i < 3 * TICK_HZ; i++) step(m, [ia, ib]);
   assert.equal(m.phase, "fight");
   m.timer = ARENA_TUNE.matchTicks - tick;
+  if (!story) m.arena!.beat = ARENA_STORY_LENGTH;
   if (!hazards) m.arena!.next = [1e9, 1e9];
   m.fighters[0].x = x0;
   m.fighters[1].x = x1;
@@ -924,7 +926,7 @@ function arena(tick: number, x0 = 300, x1 = 660, hazards = false) {
   m.arena!.next = [1e9, 1e9];
   assert.equal(m.timer, ARENA_TUNE.matchTicks);
   assert.equal(m.defs[0].maxHp, 200 * ARENA_TUNE.hpMul);
-  const seen: [number, number][] = []; // [scene number, tick it was announced]
+  const seen: [number, number][] = []; // [scene number, match tick it was announced on]
   let last = 0;
   for (let t = 0; t < 9100; t++) {
     step(m, [ia, ib]);
@@ -933,6 +935,16 @@ function arena(tick: number, x0 = 300, x1 = 660, hazards = false) {
   }
   assert.deepEqual(seen, [[1, 0], [2, 1800], [3, 3600], [4, 6300], [5, 9000]], "scenes must change at 0, 30, 60, 105 and 150 s");
   assert.deepEqual([0, 1799, 1800, 3599, 3600, 6299, 6300, 8999, 9000, 17999].map(sceneAt), [0, 0, 1, 1, 2, 2, 3, 3, 4, 4]);
+  // With the story on, scene 5 begins with a guided pause: its announcement comes on the pause's first tick, at the same match tick.
+  const S = arena(8990, 300, 660, false, true);
+  S.m.arena!.scene = 3;
+  let phase5 = -1;
+  for (let t = 0; t < 40; t++) {
+    run(S, 1);
+    if (phase5 < 0 && S.m.events.some((e) => e.type === "arena" && e.kind === "scene" && e.n === 5)) phase5 = arenaTick(S.m);
+  }
+  assert.equal(phase5, 9000, "scene 5 is announced when 9000 ticks have been played");
+  assert.equal(S.m.phase, "cue");
 }
 
 // Platforms are real: you land on top, you can't fall through one at any speed, you jump up through one and drop down with S + jump.
@@ -995,11 +1007,117 @@ function arena(tick: number, x0 = 300, x1 = 660, hazards = false) {
   assert.ok(f.grounded && f.y === r.top, `a rising rock should carry the fighter to its top (${r.top}), got ${f.y}`);
   assert.ok(lowest <= ARENA.ground, "the fighter must never end up below the floor");
   // The warning comes first: dust and a rumble for at least 2 s before anything rises.
+  for (const d of ROCK_DEFS) assert.ok(d.rise - d.warn >= 2 * TICK_HZ, `rock ${d.id} warns less than 2 s ahead`);
   assert.ok(r.rise - r.warn >= 2 * TICK_HZ);
   assert.equal(platformsAt(r.warn - 1)[0].state, "hidden");
   assert.equal(platformsAt(r.warn)[0].state, "warn");
   assert.equal(platformsAt(r.rise - 1)[0].state, "warn");
   assert.equal(platformsAt(r.rise)[0].state, "rising");
+}
+
+// Guided pause (the "cue" phase): scene 5 begins with "Get up there!". The clock and the fight hold still, nobody can attack,
+// the staircase keeps rising on the world clock, and the pause ends when both fighters stand on the final platform.
+{
+  const S = arena(8990, 300, 660, false, true);
+  const { m, ia } = S;
+  m.projectiles.push({ id: 9500, owner: 0, kind: "orb", x: 400, y: 400, vx: 5, r: 10, dmg: 30, life: 50 });
+  Object.assign(m.fighters[1], { action: "attack", t: 3, move: "jab" as never });
+  for (let t = 0; t < 9; t++) {
+    run(S, 1);
+    assert.equal(m.phase, "fight", "the pause must not start before 9000 ticks have been played");
+  }
+  run(S, 1);
+  assert.equal(m.phase, "cue");
+  assert.equal(arenaTick(m), 9000);
+  assert.equal(m.cue!.id, "climb");
+  assert.equal(m.cue!.text, "GET UP THERE!");
+  assert.equal(m.arena!.beat, ARENA_STORY_LENGTH, "a beat is played once");
+  assert.equal(m.projectiles.length, 0, "what was in flight stops when a pause begins");
+  assert.equal(m.fighters[1].action, "idle");
+  const f = m.fighters[0], g = m.fighters[1];
+  const timer = m.timer, hp = [f.hp, g.hp], w0 = arenaWorld(m), p0 = m.arena!.pause;
+  // Nobody can attack, guard or cast in a pause (and nothing is left queued for when the fight resumes).
+  f.energy = 100;
+  ia.attack++; ia.kick++; ia.special++; ia.skill++; ia.block = true;
+  run(S, 6);
+  assert.equal(f.action, "idle");
+  assert.equal(f.blocking, false);
+  assert.equal(f.skillT, 0, "a side skill was used in a pause");
+  assert.equal(f.energy, 100, "the meter must not move in a pause");
+  ia.block = false;
+  // They can walk and jump (there is a mark to go to).
+  const x0 = f.x;
+  ia.right = true;
+  run(S, 20);
+  assert.ok(f.x > x0 + 20, "walking works in a pause");
+  ia.right = false;
+  ia.jump++;
+  run(S, 3);
+  assert.ok(f.y < ARENA.ground, "jumping works in a pause");
+  run(S, 60);
+  // The clock holds; the world moves on (the stairs rise while the fight is stopped).
+  assert.equal(m.timer, timer, "the match clock must hold in a pause");
+  assert.equal(arenaTick(m), 9000);
+  assert.equal(arenaWorld(m), w0 + (m.arena!.pause - p0));
+  assert.equal(m.arena!.pause - p0, 89, "the world clock counts the pause");
+  assert.equal(platformsAt(arenaWorld(m)).find((p) => p.id === 1)!.state, "up", "step 1 should have risen during the pause");
+  assert.deepEqual([f.hp, g.hp], hp, "no damage in a pause");
+  assert.ok(m.events.some((e) => e.type === "arena" && e.kind === "cue"), "the pause announces itself");
+  // Both on the final platform: the pause ends (after a short linger) and the fight resumes where it stopped.
+  while (arenaWorld(m) < STAIRS_UP_TICK + 2) run(S, 1);
+  assert.equal(m.phase, "cue", "the pause must wait for the fighters");
+  const c = platformsAt(arenaWorld(m)).find((p) => p.kind === "final")!;
+  assert.equal(c.state, "up");
+  Object.assign(f, { x: 400, y: c.top, vx: 0, vy: 0, grounded: true });
+  Object.assign(g, { x: 560, y: c.top, vx: 0, vy: 0, grounded: true });
+  run(S, 1);
+  assert.deepEqual(m.cue!.done, [true, true]);
+  ia.right = true;
+  run(S, 5);
+  assert.equal(f.x, 400, "someone in place is held there until the other arrives");
+  ia.right = false;
+  run(S, ARENA_TUNE.cue.hold + 2);
+  assert.equal(m.phase, "fight");
+  assert.equal(m.cue, undefined);
+  assert.equal(m.events.filter((e) => e.type === "arena" && e.kind === "warp").length, 0, "nobody needed lifting");
+  const t1 = m.timer;
+  run(S, 5);
+  assert.equal(m.timer, t1 - 5, "the clock runs again");
+  assert.equal(f.action, "idle", "a press made during the pause must not fire when the fight resumes");
+}
+
+// A pause that nobody finishes times out and lifts whoever is still below onto the platform.
+{
+  const S = arena(8990, 300, 660, false, true);
+  run(S, 12);
+  assert.equal(S.m.phase, "cue");
+  run(S, ARENA_TUNE.cue.climb - 20);
+  assert.equal(S.m.phase, "cue", "the pause waits for the timeout");
+  run(S, 40);
+  assert.equal(S.m.phase, "fight");
+  const c = platformsAt(arenaWorld(S.m)).find((p) => p.kind === "final")!;
+  for (const f of S.m.fighters) assert.ok(f.y === c.top && f.x >= c.x && f.x <= c.x + c.w, "a straggler is put on the final platform");
+  assert.equal(S.m.events.filter((e) => e.type === "arena" && e.kind === "warp").length, 2);
+}
+
+// A snapshot taken in a pause survives JSON and the resumed match carries on identically.
+{
+  const S = arena(8990, 300, 660, false, true);
+  run(S, 250);
+  const snap = JSON.parse(JSON.stringify(snapshot(S.m)));
+  assert.equal(snap.phase, "cue");
+  assert.equal(snap.cue.id, "climb");
+  const b = resumeMatch(snap, fighter("Fighter"), fighter("Fighter"), [{ ...S.ia }, { ...S.ib }]);
+  for (const d of b.defs) d.dodge = 0;
+  S.ia.right = true;
+  const ib = { ...S.ia };
+  for (let t = 0; t < 400; t++) {
+    step(S.m, [S.ia, S.ib]);
+    step(b, [ib, { ...S.ib }]);
+  }
+  assert.deepEqual(JSON.parse(JSON.stringify(snapshot(b).cue ?? null)), JSON.parse(JSON.stringify(snapshot(S.m).cue ?? null)), "a resumed pause diverged");
+  assert.deepEqual(JSON.parse(JSON.stringify(snapshot(b).arena)), JSON.parse(JSON.stringify(snapshot(S.m).arena)));
+  assert.deepEqual([b.fighters[0].x, b.fighters[0].y], [S.m.fighters[0].x, S.m.fighters[0].y]);
 }
 
 // Telegraph first, damage second: a crack does nothing while it glows, a meteor nothing before its marker runs out.

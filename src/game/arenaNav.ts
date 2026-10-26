@@ -3,7 +3,7 @@
 // A → B exists if a jump planned with this fighter's own numbers (deriveDef jump / speed / air control, the scene-5 boost)
 // lands on B. The plan is found by replaying the sim's jump physics, so it is right for an AGI-40 fighter and for an AGI-100 one.
 
-import { ARENA_TUNE, arenaBoost, arenaTick, platformsAt, ROCK_DEFS, standingOn, type Platform } from "./arena";
+import { ARENA_TUNE, arenaBoost, arenaWorld, platformsAt, ROCK_DEFS, standingOn, type Platform } from "./arena";
 import { ARENA, BODY } from "./space";
 import { GRAVITY, type FighterDef, type Input, type Match, type Slot } from "./sim";
 
@@ -38,13 +38,15 @@ function landing(nodes: Node[], fromTop: number, x0: number, v0: number, air: nu
   return null;
 }
 
-// A takeoff that lands on `to` with room to spare (±4 px of takeoff error and 6 px from either edge), or null.
-export function planHop(def: FighterDef, boost: { jump: number; air: number }, nodes: Node[], from: Node, to: Node): Hop | null {
-  if (to.top >= from.top) return null;
+// Every takeoff on `from` that lands on `to` with room to spare (±4 px of takeoff error and 6 px from either edge): the best plan for
+// each takeoff x (the one furthest from either edge, then the shortest air-control burst). Empty when `to` can't be reached.
+export function planHops(def: FighterDef, boost: { jump: number; air: number }, nodes: Node[], from: Node, to: Node): (Hop & { margin: number })[] {
+  if (to.top >= from.top) return [];
   const v0 = def.jump * boost.jump, air = def.air * boost.air, cap = def.speed * 1.3;
   const dirs: (-1 | 1)[] = to.x0 + to.x1 >= from.x0 + from.x1 ? [1, -1] : [-1, 1];
-  let best: (Hop & { margin: number }) | null = null;
+  const out: (Hop & { margin: number })[] = [];
   for (let x = Math.ceil(from.x0 + 4); x <= from.x1 - 4; x += 3) {
+    let best: (Hop & { margin: number }) | null = null;
     for (const dir of dirs) {
       for (let hold = 0; hold <= 40; hold++) {
         let margin = Infinity;
@@ -54,47 +56,67 @@ export function planHop(def: FighterDef, boost: { jump: number; air: number }, n
           margin = Math.min(margin, l.x - to.x0, to.x1 - l.x);
         }
         if (margin < 6) continue;
-        // Prefer the plan furthest from either edge, then the shortest air-control burst.
         if (!best || margin > best.margin + 0.5 || (Math.abs(margin - best.margin) <= 0.5 && hold < best.hold)) best = { from: from.id, to: to.id, x, dir, hold, margin };
       }
     }
+    if (best) out.push(best);
   }
-  return best && { from: best.from, to: best.to, x: best.x, dir: best.dir, hold: best.hold };
+  return out;
 }
 
-const planCache = new Map<string, Hop | null>();
+// The takeoff to use from `x`: among the comfortable plans (margin within reach of the best one, or 25 px), the one nearest to x. So
+// two fighters going the same way don't both queue for the single best spot (they would push each other away from it for ever).
+export function pickHop(plans: (Hop & { margin: number })[], x: number): Hop | null {
+  if (!plans.length) return null;
+  const ok = Math.min(25, Math.max(...plans.map((p) => p.margin)));
+  const near = plans.filter((p) => p.margin >= ok).reduce((a, b) => (Math.abs(b.x - x) < Math.abs(a.x - x) || (Math.abs(b.x - x) === Math.abs(a.x - x) && b.hold < a.hold) ? b : a));
+  return { from: near.from, to: near.to, x: near.x, dir: near.dir, hold: near.hold };
+}
+
+// Kept for scripts: the best single takeoff (the one furthest from either edge).
+export function planHop(def: FighterDef, boost: { jump: number; air: number }, nodes: Node[], from: Node, to: Node): Hop | null {
+  const plans = planHops(def, boost, nodes, from, to);
+  if (!plans.length) return null;
+  const best = plans.reduce((a, b) => (b.margin > a.margin + 0.5 || (Math.abs(b.margin - a.margin) <= 0.5 && b.hold < a.hold) ? b : a));
+  return { from: best.from, to: best.to, x: best.x, dir: best.dir, hold: best.hold };
+}
+
+const planCache = new Map<string, (Hop & { margin: number })[]>();
 const planFor = (def: FighterDef, boost: { jump: number; air: number }, nodes: Node[], a: Node, b: Node) => {
   const key = `${def.jump}|${def.air}|${boost.jump}|${boost.air}|${nodes.map((n) => `${n.id}:${n.top}`).join(",")}|${a.id}>${b.id}`;
-  if (!planCache.has(key)) planCache.set(key, planHop(def, boost, nodes, a, b));
+  if (!planCache.has(key)) planCache.set(key, planHops(def, boost, nodes, a, b));
   return planCache.get(key)!;
 };
 
-// The platforms a fighter can stand on now: fully risen (a rising rock is still moving).
-const standing = (tick: number) => platformsAt(tick).filter((p) => p.state === "up").map(nodeOf);
+// The platforms a fighter can stand on now: fully risen (a rising rock is still moving). `world`: arenaWorld.
+const standing = (world: number) => platformsAt(world).filter((p) => p.state === "up").map(nodeOf);
 
-// First step of the shortest chain of jumps from `from` to the final platform, or null.
-export function nextHop(def: FighterDef, boost: { jump: number; air: number }, nodes: Node[], from: Node): Hop | null {
-  const goal = nodes.find((n) => n.id === FINAL);
-  if (!goal || from.id === FINAL) return null;
-  const prev = new Map<number, { via: number; hop: Hop }>();
+// First step of the shortest chain of jumps from `from` to `goalId` (the final platform unless told otherwise), or null.
+// The nodes are tried nearest first, so of two equally short staircases a fighter takes the one on its own side.
+export function nextHop(def: FighterDef, boost: { jump: number; air: number }, nodes: Node[], from: Node, goalId: number = FINAL, x = (from.x0 + from.x1) / 2): Hop | null {
+  const goal = nodes.find((n) => n.id === goalId);
+  if (!goal || from.id === goalId) return null;
+  const centre = (n: Node) => (n.x0 + n.x1) / 2;
+  const near = [...nodes].sort((p, q) => Math.abs(centre(p) - centre(from)) - Math.abs(centre(q) - centre(from)));
+  const prev = new Map<number, { via: number; plans: (Hop & { margin: number })[] }>();
   const seen = new Set([from.id]);
   const queue = [from];
   while (queue.length) {
     const a = queue.shift()!;
-    for (const b of nodes) {
+    for (const b of near) {
       if (seen.has(b.id)) continue;
-      const hop = planFor(def, boost, nodes, a, b);
-      if (!hop) continue;
+      const plans = planFor(def, boost, nodes, a, b);
+      if (!plans.length) continue;
       seen.add(b.id);
-      prev.set(b.id, { via: a.id, hop });
-      if (b.id === FINAL) {
+      prev.set(b.id, { via: a.id, plans });
+      if (b.id === goalId) {
         let at: number = b.id;
-        let first = hop;
+        let first = plans;
         while (prev.get(at)) {
-          first = prev.get(at)!.hop;
+          first = prev.get(at)!.plans;
           at = prev.get(at)!.via;
         }
-        return first;
+        return pickHop(first, x);
       }
       queue.push(b);
     }
@@ -108,7 +130,7 @@ export type NavMemory = { hop?: Hop; hopT?: number }; // the jump being flown (b
 export function arenaNav(m: Match, slot: Slot, def: FighterDef, mem: NavMemory, input: Input): boolean {
   const a = m.arena!;
   const me = m.fighters[slot];
-  const tick = arenaTick(m);
+  const world = arenaWorld(m);
   const T = ARENA_TUNE;
   const go = (dir: -1 | 0 | 1) => {
     input.left = dir < 0;
@@ -153,12 +175,12 @@ export function arenaNav(m: Match, slot: Slot, def: FighterDef, mem: NavMemory, 
   }
 
   // Scene 5: be on the final platform. Wait until a step stands, then go up one hop at a time.
-  if (tick >= ROCK_DEFS[ROCK_DEFS.length - 1].warn) {
-    const nodes = [floorNode, ...standing(tick)];
+  if (world >= ROCK_DEFS[ROCK_DEFS.length - 1].warn) {
+    const nodes = [floorNode, ...standing(world)];
     const under = standingOn(m, me);
     const here = under ? nodeOf(under) : me.y >= ARENA.ground - 1 ? floorNode : null;
     if (!here || here.id === FINAL) return false;
-    const hop = nextHop(def, arenaBoost(m), nodes, here);
+    const hop = nextHop(def, arenaBoost(m), nodes, here, FINAL, me.x);
     if (!hop) return false;
     const dx = hop.x - me.x;
     if (Math.abs(dx) > Math.max(2.5, def.speed / 2)) {
@@ -182,4 +204,47 @@ export function guardEdges(m: Match, slot: Slot, input: Input) {
   const pad = 22;
   if (me.x <= p.x + pad) input.left = false;
   if (me.x >= p.x + p.w - pad) input.right = false;
+}
+
+// A guided pause (Match.cue): walk to the mark, climbing to it when it is up on a platform; wait when the way up isn't built yet.
+// Returns after setting this tick's movement. Presses are never made: nothing but moving counts in a pause.
+export function cueNav(m: Match, slot: Slot, def: FighterDef, mem: NavMemory, input: Input) {
+  const c = m.cue!;
+  const me = m.fighters[slot];
+  const mk = c.target?.[slot];
+  input.left = input.right = input.block = false;
+  if (!mk || c.done[slot]) return;
+  const go = (dir: -1 | 0 | 1) => {
+    input.left = dir < 0;
+    input.right = dir > 0;
+  };
+  // Flying a planned jump: hold the air-control direction for its burst, then let go.
+  if (!me.grounded && mem.hop) {
+    go(mem.hopT! < mem.hop.hold ? mem.hop.dir : 0);
+    mem.hopT!++;
+    return;
+  }
+  if (me.grounded) mem.hop = undefined;
+  if (!me.grounded) return;
+  const world = arenaWorld(m);
+  const nodes = [floorNode, ...standing(world)];
+  const under = standingOn(m, me);
+  const here = under ? nodeOf(under) : me.y >= ARENA.ground - 1 ? floorNode : null;
+  const goal = nodes.find((n) => n.top === mk.y && mk.x >= n.x0 && mk.x <= n.x1);
+  if (!here || !goal) return; // (not on anything yet, or the mark's platform isn't standing yet: wait)
+  if (here.id === goal.id) {
+    const dx = mk.x - me.x;
+    go(Math.abs(dx) > 1 ? (dx > 0 ? 1 : -1) : 0);
+    return;
+  }
+  const hop = nextHop(def, arenaBoost(m), nodes, here, goal.id, me.x);
+  if (!hop) return; // the stairs aren't built far enough yet
+  const dx = hop.x - me.x;
+  if (Math.abs(dx) > Math.max(2.5, def.speed / 2)) {
+    go(dx > 0 ? 1 : -1);
+    return;
+  }
+  input.jump++;
+  mem.hop = hop;
+  mem.hopT = 0;
 }

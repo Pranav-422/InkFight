@@ -6,7 +6,7 @@ import { CLASS_CHAIN, CLASS_CHAIN_POWER, CLASS_TUNE, COMBO_WINDOW, ELEMENT_TUNE,
 
 export type { SpecialKind } from "./moves";
 
-import { ARENA_TUNE, arenaBoost, arenaClampX, arenaStep, arenaSurface, cloneArena, matchupFactor, newArena, standingOn, type ArenaGameEvent, type ArenaId, type ArenaState } from "./arena";
+import { ARENA_TUNE, arenaBeat, arenaBoost, arenaClampX, arenaCueEnd, arenaCueTick, arenaStep, arenaSurface, cloneArena, matchupFactor, newArena, standingOn, type ArenaGameEvent, type ArenaId, type ArenaState } from "./arena";
 import { ARENA, BODY, TICK_HZ } from "./space";
 
 export { ARENA, BODY, TICK_HZ };
@@ -203,7 +203,13 @@ export type GameEvent =
   | { id: number; type: "phase"; slot: Slot; n: number; cls: string; item: string } // a boss changed form
   | ArenaGameEvent; // the arena's cues (src/game/arena.ts): scene changes, cracks, meteors, rising rocks
 
-export type Phase = "intro" | "fight" | "roundEnd" | "matchEnd";
+export type Phase = "intro" | "cue" | "fight" | "roundEnd" | "matchEnd";
+
+// A guided pause (arena fights, src/game/arena.ts): the clock and the fight hold still, nobody can attack, and the text tells
+// everyone what to do. Fighters may walk and jump only when there are marks to go to. It ends when both are `done` (standing
+// on their mark, or otherwise ready) and have lingered `hold` ticks, or `until` ticks after it began, whichever comes first.
+export type Mark = { x: number; y: number; r: number }; // stand within r px of x, on the surface at height y
+export type Cue = { id: string; text: string; until: number; hold: number; target?: [Mark, Mark]; done: [boolean, boolean]; fin?: number };
 
 export type Match = {
   phase: Phase;
@@ -219,6 +225,7 @@ export type Match = {
   hazards: Hazard[];
   boss?: { slot: Slot; phase: 1 | 2; base: FighterDef; spec: BossSpec }; // dungeon fight: which seat, which form
   arena?: ArenaState; // an arena fight (createMatch option): one 5-minute round on a floor that changes, see src/game/arena.ts
+  cue?: Cue; // set while phase is "cue"
   events: GameEvent[]; // recent, capped; clients dedupe by id
   nextId: number;
   defs: [FighterDef, FighterDef];
@@ -326,6 +333,9 @@ function roll(m: Match, salt: number) {
   h ^= h >>> 13;
   return (h >>> 0) / 4294967296;
 }
+
+// What the arena (src/game/arena.ts) may call back into: the sim's own roll and event list.
+const ARENA_HOOKS = { roll, emit: (m: Match, e: Omit<ArenaGameEvent, "id">) => emit(m, e as NewEvent) };
 
 // Element effects (strength × ELEMENT_TUNE[kind]). ELECTRIC and GRAVITY act once on the hit and
 // their status only lingers for the renderer. The rest act every tick: burn and bleed in
@@ -971,12 +981,16 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
     f.seen[k] = now;
     return p;
   };
-  const jumpP = pressed("jump");
-  const attackP = pressed("attack");
-  const kickP = pressed("kick");
-  const specialP = pressed("special");
-  const skillP = pressed("skill");
   const canAct = m.phase === "fight";
+  // A guided pause lets a fighter walk and jump to a mark that isn't reached yet, and do nothing else. Presses are still read
+  // (so none is left over when the fight resumes) but only the jump counts. (Every other phase reads them as it always did.)
+  const cueing = m.phase === "cue";
+  const cueMove = cueing && !!m.cue?.target && !m.cue.done[f.slot];
+  const jumpP = pressed("jump") && (!cueing || cueMove);
+  const attackP = pressed("attack") && !cueing;
+  const kickP = pressed("kick") && !cueing;
+  const specialP = pressed("special") && !cueing;
+  const skillP = pressed("skill");
   const boost = arenaBoost(m); // scene 5 of an arena fight: a little more jump and air control (1 / 1 everywhere else)
 
   f.cooldown = Math.max(0, f.cooldown - 1);
@@ -1101,12 +1115,12 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
   }
   if (f.action === "special") updateSpecial(m, f, opp);
 
-  if (f.action === "idle" && canAct && !swapping(m, f)) {
+  if (f.action === "idle" && (canAct || cueing) && !swapping(m, f)) {
     // The queued ultimate is used on the first free tick or dropped (a stale press must not fire seconds later).
     const queuedUlt = f.ultQ && f.energy >= ULT_COST;
     f.ultQ = false;
     f.facing = opp.x >= f.x ? 1 : -1;
-    f.blocking = input.block && f.grounded;
+    f.blocking = !cueing && input.block && f.grounded;
     const toward = (input.right ? 1 : 0) - (input.left ? 1 : 0) === f.facing;
     if (kickP && f.cooldown === 0 && f.blocking) {
       startMove(f, def, "kick", "sweep"); // down+K: a low sweep that goes under a guard
@@ -1128,7 +1142,7 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
     } else if (specialP && f.energy >= SLOT1_COST) {
       startSpecial(m, f, false); // L (S + L without a full meter fires slot 1 too: the guard was only a modifier)
     } else {
-      const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+      const dir = canAct || cueMove ? (input.right ? 1 : 0) - (input.left ? 1 : 0) : 0; // (in a pause only toward a mark)
       const slow = f.status?.kind === "FROST" ? Math.max(0.2, 1 - FROST_SLOW * (ELEMENT_TUNE.FROST ?? 1)) : 1;
       // Walking away is slower than walking in (standard in fighting games), so nobody can kite forever.
       const back = dir !== 0 && dir !== f.facing ? TRAIT.BACKWALK : 1;
@@ -1153,7 +1167,7 @@ function updateFighter(m: Match, f: Fighter, opp: Fighter, input: Input) {
   }
 
   // Physics
-  if (!canAct || f.action === "hit" || f.action === "ko" || ((f.action === "attack" || f.action === "kick") && f.grounded) || swapping(m, f)) f.vx *= 0.85;
+  if (!(canAct || cueing) || f.action === "hit" || f.action === "ko" || ((f.action === "attack" || f.action === "kick") && f.grounded) || swapping(m, f)) f.vx *= 0.85;
   f.vy += GRAVITY;
   f.x += f.vx;
   const prevY = f.y;
@@ -1213,6 +1227,52 @@ function clash(m: Match, a: Fighter, b: Fighter) {
   b.vx = dir * 5;
   for (const f of [a, b]) f.energy = Math.min(100, f.energy + energyGain(m, f, m.defs[f.slot].cls === "Fighter" ? 15 : 12));
   emit(m, { type: "clash", x: (a.x + b.x) / 2, y: Math.min(a.y, b.y) - BODY.h * 0.65 });
+}
+
+// A guided pause starts from a quiet fight: whatever was in flight stops (health, meter and cooldowns stay).
+function calm(m: Match) {
+  m.projectiles = [];
+  m.hazards = [];
+  m.freeze = 0;
+  for (const f of m.fighters) {
+    f.action = "idle";
+    f.t = f.combo = f.comboT = f.cooldown = f.hitN = f.crossT = 0;
+    f.tempoAcc = 0;
+    f.move = null;
+    f.buffer = null;
+    f.landed = f.ult = f.locked = f.blocking = f.skillQ = f.ultQ = f.draw = f.fast = f.mix = f.moving = false;
+    f.ultEnd = 0;
+  }
+}
+
+function startCue(m: Match, cue: Cue) {
+  calm(m);
+  m.phase = "cue";
+  m.phaseT = 0;
+  m.cue = cue;
+}
+
+const cloneCue = (c: Cue): Cue => ({ ...c, ...(c.target && { target: [{ ...c.target[0] }, { ...c.target[1] }] as [Mark, Mark] }), done: [c.done[0], c.done[1]] });
+
+// One tick of a guided pause, after the fighters moved: who is in place, and whether it is over.
+function cueTick(m: Match) {
+  const c = m.cue!;
+  arenaCueTick(m, ARENA_HOOKS);
+  if (c.target) {
+    for (const f of m.fighters) {
+      const mk = c.target[f.slot];
+      if (!c.done[f.slot] && f.grounded && Math.abs(f.y - mk.y) < 0.5 && Math.abs(f.x - mk.x) <= mk.r) c.done[f.slot] = true;
+    }
+  }
+  if (c.fin === undefined && c.done[0] && c.done[1]) c.fin = m.phaseT;
+  if (!((c.fin !== undefined && m.phaseT - c.fin >= c.hold) || m.phaseT >= c.until)) return;
+  const next = arenaCueEnd(m, ARENA_HOOKS, c, c.fin === undefined);
+  if (next) startCue(m, next);
+  else {
+    m.cue = undefined;
+    m.phase = "fight";
+    m.phaseT = 0;
+  }
 }
 
 function resetRound(m: Match) {
@@ -1291,14 +1351,20 @@ export function step(m: Match, inputs: [Input, Input]) {
   m.hazards = m.hazards.filter((h) => h.left > 0);
 
   // The arena acts after the fighters, only while the fight is on: a knockout earlier this tick has already ended it.
-  if (m.arena && m.phase === "fight") arenaStep(m, { roll, emit: (mm, e) => emit(mm, e as NewEvent) });
+  if (m.arena && m.phase === "fight") arenaStep(m, ARENA_HOOKS);
 
-  if (m.phase === "fight") {
+  if (m.phase === "cue") {
+    cueTick(m);
+  } else if (m.phase === "fight") {
     m.timer--;
     if (m.timer <= 0) {
       const fa = a.hp / m.defs[0].maxHp;
       const fb = b.hp / m.defs[1].maxHp;
       endRound(m, fa === fb ? null : fa > fb ? 0 : 1, "time");
+    } else if (m.arena) {
+      // The story's next beat, if it is due (a guided pause), starts after the tick has been counted.
+      const cue = arenaBeat(m, ARENA_HOOKS);
+      if (cue) startCue(m, cue);
     }
   } else if (m.phase === "roundEnd" && m.phaseT >= ROUND_END_TICKS && m.arena) {
     m.phase = "matchEnd"; // an arena fight is one round: a knockout or the clock decides (equal health on the clock: a draw, matchWinner null)
@@ -1345,6 +1411,7 @@ export function snapshot(m: Match): Snapshot {
     projectiles: m.projectiles,
     hazards: m.hazards,
     ...(m.arena && { arena: cloneArena(m.arena) }),
+    ...(m.cue && { cue: cloneCue(m.cue) }),
     passives: [m.defs[0].passive ?? null, m.defs[1].passive ?? null],
     ...(m.boss && { bossPhase: m.boss.phase }),
     events: m.events,
@@ -1367,6 +1434,7 @@ export function snapshot(m: Match): Snapshot {
 export function resumeMatch(s: Snapshot, a: FighterStats, b: FighterStats, inputs: [Input, Input]): Match {
   const m = createMatch(a, b, inputs, s.arena ? { arena: s.arena.id } : {});
   if (s.arena) m.arena = cloneArena(s.arena);
+  if (s.cue) m.cue = cloneCue(s.cue);
   Object.assign(m, {
     phase: s.phase,
     phaseT: s.phaseT,

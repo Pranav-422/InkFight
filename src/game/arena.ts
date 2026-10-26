@@ -8,7 +8,7 @@
 
 import { CLASSES } from "../lib/stats";
 import { ARENA, BODY, TICK_HZ } from "./space";
-import type { Fighter, Match, Slot } from "./sim";
+import type { Cue, Fighter, Match, Slot } from "./sim";
 
 export const ARENAS = ["inferno"] as const;
 export type ArenaId = (typeof ARENAS)[number];
@@ -58,6 +58,10 @@ export const ARENA_TUNE = {
   // Scene 5 only: the climb gets easier. The staircase itself is built for the weakest jumper without this.
   boost: { jump: 1.12, air: 1.5 },
   dropTicks: 14, // S + jump on a platform: ignore platforms this long (fall through)
+  // Guided pauses (Match.cue): the fight and the clock hold still while everyone is told where to go. `climb`: how long the
+  // "Get up there!" pause waits for both fighters to reach the final platform before it lifts whoever is still below.
+  // `hold`: ticks both fighters linger once they are in place, so the arrival reads.
+  cue: { climb: 25 * S, hold: 30 },
 };
 
 // ------------------------------------------------------------------ scenes
@@ -72,6 +76,9 @@ export function sceneAt(tick: number): number {
 
 // Ticks of fight played so far. The timer only runs in the fight phase, so this is the match clock.
 export const arenaTick = (m: Pick<Match, "timer">) => ARENA_TUNE.matchTicks - m.timer;
+// The world clock drives what moves by itself (the rising staircase, the lava). It runs whenever the world moves, in a fight and in a
+// guided pause, while the match clock above runs only in a fight: so it is the match clock plus the ticks spent paused.
+export const arenaWorld = (m: Pick<Match, "timer" | "arena">) => arenaTick(m) + (m.arena?.pause ?? 0);
 
 // ------------------------------------------------------------------ platforms
 
@@ -84,12 +91,14 @@ const HIDDEN_TOP = ARENA.ground + 70; // below the floor: nothing can stand on i
 // The staircase, mirrored around the centre. Each rise is 66-67 px (the weakest jumper clears 69), each gap 10-15 px,
 // every step 70+ px wide, and the final platform is 420 px wide with its top 200 px above the old floor.
 // warn: the dust ring and rumble start (telegraph, at least 2 s); rise: it starts to come up; dur: how long it takes.
+// Times are on the world clock (arenaWorld): the match clock plus the ticks spent in guided pauses, because the stairs
+// rise while the "Get up there!" pause holds the match clock still. The whole staircase stands 6.5 s after scene 5 begins.
 const ROCKS = [
   { id: 1, kind: "step", x: 95, w: 80, top: 414, warn: 8700, rise: 9000, dur: 60 },
   { id: 2, kind: "step", x: 785, w: 80, top: 414, warn: 8700, rise: 9000, dur: 60 },
-  { id: 3, kind: "step", x: 190, w: 70, top: 347, warn: 9300, rise: 9480, dur: 60 },
-  { id: 4, kind: "step", x: 700, w: 70, top: 347, warn: 9300, rise: 9480, dur: 60 },
-  { id: 5, kind: "final", x: 270, w: 420, top: 280, warn: 9840, rise: 10020, dur: 90 },
+  { id: 3, kind: "step", x: 190, w: 70, top: 347, warn: 9000, rise: 9150, dur: 60 },
+  { id: 4, kind: "step", x: 700, w: 70, top: 347, warn: 9000, rise: 9150, dur: 60 },
+  { id: 5, kind: "final", x: 270, w: 420, top: 280, warn: 9150, rise: 9300, dur: 90 },
 ] as const;
 export const ROCK_DEFS = ROCKS;
 export const STAIRS_UP_TICK = Math.max(...ROCKS.map((r) => r.rise + r.dur)); // the whole staircase stands from here
@@ -115,16 +124,23 @@ export function platformsAt(tick: number): Platform[] {
   return list;
 }
 
-// The lava surface (y, grows downward). Below the floor until the staircase has stood for 10 s.
-export const lavaY = (tick: number) => (tick < ARENA_TUNE.scenes[4] ? ARENA_TUNE.lava.start : ARENA_TUNE.lava.start - ARENA_TUNE.lava.rate * (tick - ARENA_TUNE.scenes[4]));
+// Can a fighter land on it now? A step may be landed on while it rises (a fighter on top is carried up, never crushed); the final
+// platform only once it has risen: it comes up through the middle of the floor, and carrying everyone standing there would make the
+// climb pointless. (A fighter on the floor under it just sees it rise behind them, then jumps up through it or takes the stairs.)
+export const landable = (p: Platform) => p.state === "up" || (p.state === "rising" && p.kind === "step");
+
+// The lava surface (y, grows downward) at a world tick. Below the floor until scene 5, then it rises; it stops 35 px under the
+// final platform, which it never reaches however long the pauses were.
+const FINAL_TOP = ROCKS[ROCKS.length - 1].top;
+export const lavaY = (world: number) => Math.max(FINAL_TOP + 35, world < ARENA_TUNE.scenes[4] ? ARENA_TUNE.lava.start : ARENA_TUNE.lava.start - ARENA_TUNE.lava.rate * (world - ARENA_TUNE.scenes[4]));
 
 // A platform a fighter can be sent to: standing, with its top clear of the lava.
-const safePlatform = (p: Platform, tick: number) => (p.state === "up" || p.state === "rising") && p.top < lavaY(tick) - ARENA_TUNE.lava.margin;
+const safePlatform = (p: Platform, world: number) => landable(p) && p.top < lavaY(world) - ARENA_TUNE.lava.margin;
 
 // The platform a fighter stands on (feet on its top), or null on the floor / in the air.
 export function standingOn(m: Pick<Match, "timer" | "arena">, f: Pick<Fighter, "x" | "y">): Platform | null {
   if (!m.arena) return null;
-  for (const p of platformsAt(arenaTick(m))) if (p.state !== "hidden" && p.state !== "warn" && Math.abs(f.y - p.top) < 0.5 && f.x >= p.x && f.x <= p.x + p.w) return p;
+  for (const p of platformsAt(arenaWorld(m))) if (landable(p) && Math.abs(f.y - p.top) < 0.5 && f.x >= p.x && f.x <= p.x + p.w) return p;
   return null;
 }
 
@@ -146,6 +162,8 @@ export type ArenaState = {
   lavaT: [number, number]; // ticks in lava in a row (the rescue timer)
   immune: [number, number]; // ticks of lava / crack immunity left (after a rescue)
   drop: [number, number]; // ticks left of falling through platforms
+  pause: number; // ticks spent in guided pauses since the fight began (see arenaWorld)
+  beat: number; // how many of the story's beats (ARENA_STORY) have been played
 };
 
 export function newArena(id: ArenaId): ArenaState {
@@ -164,6 +182,8 @@ export function newArena(id: ArenaId): ArenaState {
     lavaT: [0, 0],
     immune: [0, 0],
     drop: [0, 0],
+    pause: 0,
+    beat: 0,
   };
 }
 
@@ -199,12 +219,12 @@ export function arenaSurface(m: Match, f: Fighter, prevY: number): number | null
   const a = m.arena!;
   let top: number | null = f.y >= ARENA.ground ? ARENA.ground : null;
   if (a.drop[f.slot] > 0) return top;
-  const tick = arenaTick(m);
-  const now = platformsAt(tick);
-  const before = platformsAt(Math.max(0, tick - 1)).map((p) => p.top); // (copy: the cache holds one tick)
+  const world = arenaWorld(m);
+  const now = platformsAt(world);
+  const before = platformsAt(Math.max(0, world - 1)).map((p) => p.top); // (copy: the cache holds one tick)
   for (let i = 0; i < now.length; i++) {
     const p = now[i];
-    if ((p.state !== "rising" && p.state !== "up") || f.x < p.x || f.x > p.x + p.w) continue;
+    if (!landable(p) || f.x < p.x || f.x > p.x + p.w) continue;
     if (prevY <= before[i] + 0.01 && f.y >= p.top - 0.01 && (top === null || p.top < top)) top = p.top;
   }
   return top;
@@ -219,9 +239,9 @@ export function arenaClampX(m: Match, att: Fighter, x: number): number {
 // ------------------------------------------------------------------ per-tick update
 
 type Hooks = { roll: (m: Match, salt: number) => number; emit: (m: Match, e: ArenaEvent) => void };
-export type ArenaEventKind = "scene" | "crack" | "meteor" | "impact" | "rumble" | "rise" | "burn" | "rescue";
+export type ArenaEventKind = "scene" | "crack" | "meteor" | "impact" | "rumble" | "rise" | "burn" | "rescue" | "cue" | "warp";
 // What the renderer and the sound get through the sim's event list (it keeps the last 16, so a skipped relay snapshot loses nothing).
-// scene: n = 1-5. burn: n = damage, slot. rescue: slot. The rest: x is where.
+// scene: n = 1-5. burn: n = damage, slot. rescue / warp: slot. cue: a guided pause began (its text is in the snapshot). The rest: x is where.
 export type ArenaGameEvent = { id: number; type: "arena"; kind: ArenaEventKind; x: number; y: number; n?: number; slot?: Slot };
 type ArenaEvent = Omit<ArenaGameEvent, "id">;
 
@@ -286,9 +306,9 @@ function spawnMeteor(m: Match, h: Hooks, tick: number) {
 }
 
 // Nearest platform that is safe from the lava, as a spot to put a fighter back on.
-function rescue(m: Match, h: Hooks, f: Fighter, tick: number) {
+function rescue(m: Match, h: Hooks, f: Fighter, world: number) {
   const a = m.arena!;
-  const spots = platformsAt(tick).filter((p) => safePlatform(p, tick));
+  const spots = platformsAt(world).filter((p) => safePlatform(p, world));
   if (!spots.length) return;
   const gap = (p: Platform) => (f.x < p.x ? p.x - f.x : f.x > p.x + p.w ? f.x - (p.x + p.w) : 0);
   const to = spots.reduce((best, p) => (gap(p) < gap(best) ? p : best));
@@ -301,23 +321,33 @@ function rescue(m: Match, h: Hooks, f: Fighter, tick: number) {
   h.emit(m, ev("rescue", f.x, f.y, { slot: f.slot }));
 }
 
+// What the world does by itself on every tick it moves, in a fight and in a guided pause: announce a new scene, and the
+// staircase's rumble and rise cues (on the world clock). Each world tick is visited exactly once.
+function worldStep(m: Match, h: Hooks) {
+  const a = m.arena!;
+  const scene = sceneAt(arenaTick(m));
+  if (scene !== a.scene) {
+    a.scene = scene;
+    h.emit(m, ev("scene", 0, 0, { n: scene + 1 }));
+  }
+  const world = arenaWorld(m);
+  for (const r of ROCKS) {
+    if (world === r.warn) h.emit(m, ev("rumble", r.x + r.w / 2, ARENA.ground));
+    if (world === r.rise) h.emit(m, ev("rise", r.x + r.w / 2, ARENA.ground));
+  }
+}
+
 // One tick of the arena, called from step() while the fight is on (so never after a KO, and never after the match ends).
 export function arenaStep(m: Match, h: Hooks) {
   const a = m.arena!, T = ARENA_TUNE;
   const tick = arenaTick(m);
+  const world = arenaWorld(m);
   const scene = sceneAt(tick);
   if (tick % S === 0) {
     const b = Math.floor(tick / S) % 11;
     a.log[0][b] = a.log[1][b] = 0;
   }
-  if (scene !== a.scene) {
-    a.scene = scene;
-    h.emit(m, ev("scene", 0, 0, { n: scene + 1 }));
-  }
-  for (const r of ROCKS) {
-    if (tick === r.warn) h.emit(m, ev("rumble", r.x + r.w / 2, ARENA.ground));
-    if (tick === r.rise) h.emit(m, ev("rise", r.x + r.w / 2, ARENA.ground));
-  }
+  worldStep(m, h);
 
   // Cracks (scene 3): one more every few seconds, faster, wider and hotter as the scene goes on.
   a.cracks = a.cracks.filter((c) => tick < c.end);
@@ -347,7 +377,7 @@ export function arenaStep(m: Match, h: Hooks) {
   }
   a.meteors = a.meteors.filter((mt) => tick < mt.hit);
 
-  const lava = lavaY(tick);
+  const lava = lavaY(world);
   for (const f of m.fighters) {
     if (f.action === "ko") continue;
     const s = f.slot;
@@ -371,6 +401,68 @@ export function arenaStep(m: Match, h: Hooks) {
       a.contact[s] = 0;
       if (++a.since[s] > T.weak.after) a.weak[s] = Math.max(0, a.weak[s] - T.weak.recover);
     }
-    if (a.lavaT[s] >= T.lava.rescue && !f.locked) rescue(m, h, f, tick);
+    if (a.lavaT[s] >= T.lava.rescue && !f.locked) rescue(m, h, f, world);
   }
+}
+
+// ------------------------------------------------------------------ the story: guided pauses
+
+// The match tells a story in beats, each a guided pause (Match.cue: the clock and the fight hold still and everyone is told
+// where to go). `at`: the match tick the beat waits for; a beat without it follows the previous one at once. `make` builds
+// the cue (and sets up whatever state it needs), `end` settles it when it is over (`timedOut`: nobody finished it).
+type Beat = { id: string; at?: number; make: (m: Match, h: Hooks) => Cue; end?: (m: Match, h: Hooks, cue: Cue, timedOut: boolean) => void };
+
+// Put a fighter on a mark at once (a puff and a sound): what a pause does to whoever hasn't arrived when it times out.
+function warp(m: Match, h: Hooks, f: Fighter, mk: { x: number; y: number; r: number }) {
+  f.x = Math.min(mk.x + mk.r - 12, Math.max(mk.x - mk.r + 12, f.x));
+  f.y = mk.y;
+  f.vx = f.vy = 0;
+  f.grounded = true;
+  h.emit(m, ev("warp", f.x, f.y, { slot: f.slot }));
+}
+
+const FINAL = ROCKS[ROCKS.length - 1];
+
+const STORY: Beat[] = [
+  // Scene 5: the staircase rises and the fight stops until both fighters are on the final platform (nobody fights on the
+  // stairs). Whoever is still below after the timeout is lifted up.
+  {
+    id: "climb",
+    at: ARENA_TUNE.scenes[4],
+    make: () => {
+      const mark = { x: FINAL.x + FINAL.w / 2, y: FINAL.top, r: FINAL.w / 2 - 20 };
+      return { id: "climb", text: "GET UP THERE!", until: ARENA_TUNE.cue.climb, hold: ARENA_TUNE.cue.hold, target: [mark, mark], done: [false, false] };
+    },
+    end: (m, h, cue, timedOut) => {
+      if (!timedOut || !cue.target) return;
+      for (const f of m.fighters) if (!cue.done[f.slot]) warp(m, h, f, cue.target[f.slot]);
+    },
+  },
+];
+export const ARENA_STORY_LENGTH = STORY.length;
+
+function begin(m: Match, h: Hooks, b: Beat): Cue {
+  m.arena!.beat++;
+  h.emit(m, ev("cue", 0, 0));
+  return b.make(m, h);
+}
+
+// After a tick of the fight: is the next beat due? Returns its cue (step() then starts the pause) or null.
+export function arenaBeat(m: Match, h: Hooks): Cue | null {
+  const b = STORY[m.arena!.beat];
+  return b && b.at !== undefined && arenaTick(m) >= b.at ? begin(m, h, b) : null;
+}
+
+// One tick of a guided pause: the world keeps moving (the stairs rise) on its own clock while the match clock holds.
+export function arenaCueTick(m: Match, h: Hooks) {
+  worldStep(m, h);
+  if (m.timer < ARENA_TUNE.matchTicks) m.arena!.pause++; // (a pause before the first fight tick doesn't move the world)
+}
+
+// A pause is over. Settles it, then returns the beat that follows at once, or null: back to the fight.
+export function arenaCueEnd(m: Match, h: Hooks, cue: Cue, timedOut: boolean): Cue | null {
+  const i = STORY.findIndex((b) => b.id === cue.id);
+  STORY[i]?.end?.(m, h, cue, timedOut);
+  const next = STORY[m.arena!.beat];
+  return next && next.at === undefined ? begin(m, h, next) : null;
 }

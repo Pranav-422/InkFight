@@ -1,14 +1,15 @@
 // Arena 1 (Inferno Crater) checks: the staircase is built within what the weakest jumper can do (asserted from the sim's own
 // numbers and by real jumps through step()), the telegraphs and hazard limits hold, and the computer plays the mode.
-//   npx tsx scripts/arena.ts [fights per class pair, default 100]
+//   npx tsx scripts/arena.ts [fights per class pair, default 300: about 5 minutes]
 //   npx tsx scripts/arena.ts --tune [fights per pair]   find ARENA_TUNE.matchup (src/game/arena.ts): the arena's per-matchup damage trims
+//   npx tsx scripts/arena.ts --quick   only the layout and the climb (a minute), while developing
 // Prints the platform layout as ASCII at each stage, then the CPU numbers. Exits 1 on a failed assert or a missed target:
 // >= 95% of the fighters still fighting 10 s after the staircase stands reach the final platform, hazards deal 10-25% of all damage,
 // every class pair is 35-65%, every fight ends (KO or the clock), and the same seed gives the same fights.
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { ARENA_TUNE, arenaTick, lavaY, platformsAt, ROCK_DEFS, SCENE_NAMES, sceneAt, STAIRS_UP_TICK } from "../src/game/arena";
+import { ARENA_TUNE, arenaTick, arenaWorld, lavaY, platformsAt, ROCK_DEFS, SCENE_NAMES, sceneAt, STAIRS_UP_TICK } from "../src/game/arena";
 import { cpuThink, newBrain } from "../src/game/cpu";
 import { nextHop } from "../src/game/arenaNav";
 import { CLASS_ITEM, CLASS_SPECIAL, CLASS_STYLE, MOVES } from "../src/game/moves";
@@ -16,8 +17,10 @@ import { createMatch, deriveDef, EMPTY_INPUT, GRAVITY, snapshot, step, TICK_HZ, 
 import { ARENA, BODY } from "../src/game/space";
 import { CLASSES, ruleStats } from "../src/lib/stats";
 
-const TUNING = process.argv[2] === "--tune";
-const N = Number((TUNING ? process.argv[3] : process.argv[2]) ?? (TUNING ? 60 : 100));
+const QUICK = process.argv.includes("--quick"); // the layout and the climb only (about 20 s), not the computer fights
+const args = process.argv.slice(2).filter((a) => a !== "--quick");
+const TUNING = args[0] === "--tune";
+const N = Number((TUNING ? args[1] : args[0]) ?? (TUNING ? 60 : 300)); // (300 fights per pair: +-6%; at 100 a fair pair now and then reads 65%+)
 const T = ARENA_TUNE;
 let failed = false;
 const fail = (msg: string) => {
@@ -92,7 +95,8 @@ function ascii(tick: number): string {
   for (let y = lava; y < y1; y += rh) for (let x = ARENA.wall; x < ARENA.w - ARENA.wall; x += cw) if (rows[Math.floor((y - y0) / rh)]?.[Math.floor(x / cw)] === " ") put(x, y, "~");
   return rows.map((r, i) => `${String(y0 + i * rh).padStart(3)} ${r.join("")}`).join("\n");
 }
-for (const [label, tick] of [["scene 1-4: the floor", 0], ["scene 4, 5 s before the stairs: dust where they will rise", 8760], ["scene 5, step 1 rising", 9030], ["scene 5, steps up, final platform warning", 9900], ["scene 5, everything up", STAIRS_UP_TICK + 30], ["5:00, lava at its highest", T.matchTicks]] as const) {
+// (world ticks: the match clock plus the time spent in guided pauses; the staircase rises on it)
+for (const [label, tick] of [["scene 1-4: the floor", 0], ["scene 4, 5 s before the stairs: dust where they will rise", 8760], ["scene 5, step 1 rising", 9030], ["scene 5, steps 1 up, 2 and the final platform warn", 9200], ["scene 5, everything up", STAIRS_UP_TICK + 30], ["5:00, lava at its highest", T.matchTicks]] as const) {
   console.log(`\n${label} (tick ${tick}, ${(tick / TICK_HZ).toFixed(0)} s, lava y ${lavaY(tick).toFixed(0)})`);
   console.log(ascii(tick));
 }
@@ -153,59 +157,76 @@ assert.deepEqual(T.scenes.map((t) => t / TICK_HZ), [0, 30, 60, 105, 150]);
 assert.equal(T.matchTicks / TICK_HZ, 300);
 console.log(`  rises <= ${MAX_RISE.toFixed(1)} (staircase: ${ROCK_DEFS.filter((r) => r.kind === "step").map((r) => ARENA.ground - r.top).join(", ")}), gaps <= ${MAX_GAP.toFixed(1)}, final platform ${fin.w} px wide (${2 * fightDist} needed), ${height} px up. ok`);
 
-// ------------------------------------------------------------------ real jumps: the weakest fighter climbs to the final platform from anywhere
+// ------------------------------------------------------------------ real jumps: the climb pause, played by the computer
 
-console.log("\nclimbing with the real sim (AGI 40 / SPD 40, nobody to fight):");
-function climb(stats: FighterStats, x: number, tick = STAIRS_UP_TICK + 30): number | null {
+// Scene 5 begins with the "Get up there!" pause: the fight stops, the staircase rises, and the pause ends when both fighters stand
+// on the final platform. Here two computer fighters play it from the 8990th tick of a fight, one of them starting at x, and we
+// measure how long the pause lasts. It must end because both arrived (never by lifting someone at the timeout).
+console.log("\nthe climb pause with the real sim (nobody fights; both fighters are computer-driven):");
+function climb(stats: FighterStats, other: FighterStats, x: number, xo: number): { ticks: number; warps: number } | null {
   const ia = { ...EMPTY_INPUT }, ib = { ...EMPTY_INPUT };
-  const m = createMatch(stats, kit("Fighter"), [ia, ib], { arena: "inferno" });
+  const m = createMatch(stats, other, [ia, ib], { arena: "inferno" });
   for (let i = 0; i < 4 * TICK_HZ; i++) step(m, [ia, ib]);
-  m.timer = T.matchTicks - tick;
-  m.fighters[1].x = 480; // the opponent stands on the final platform, out of the way
-  m.fighters[1].y = fin.top;
+  m.timer = T.matchTicks - 8990;
+  m.arena!.next = [1e9, 1e9];
   m.fighters[0].x = x;
-  const brain = newBrain("normal");
-  for (let t = 0; t < 12 * TICK_HZ; t++) {
-    cpuThink(m, 0, brain, ia);
+  m.fighters[1].x = xo;
+  const brains = [newBrain("normal"), newBrain("normal")];
+  let began = -1, warps = 0, seen = 0;
+  for (let t = 0; t < 40 * TICK_HZ; t++) {
+    cpuThink(m, 0, brains[0], ia);
+    cpuThink(m, 1, brains[1], ib);
     step(m, [ia, ib]);
-    const f = m.fighters[0];
-    if (f.grounded && Math.abs(f.y - fin.top) < 0.5 && f.x >= fin.x && f.x <= fin.x + fin.w) return t;
+    for (const e of m.events) if (e.id > seen) { seen = e.id; if (e.type === "arena" && e.kind === "warp") warps++; }
+    if (began < 0 && m.phase === "cue") began = t;
+    if (began >= 0 && m.phase !== "cue") return { ticks: t - began, warps };
   }
   return null;
 }
+const FAR = 480; // where the other fighter starts: the middle
 for (const [name, stats] of [["AGI 40 / SPD 40", weak], ["AGI 100 / SPD 100", { ...weak, spd: 100, agi: 100, atk: 50, def: 50, iq: 50 }], ["AGI 70 / SPD 40", { ...weak, agi: 70, atk: 80, def: 80, iq: 80 }]] as [string, FighterStats][]) {
   const times: string[] = [];
   for (const x of [65, 100, 150, 230, 300, 480, 650, 740, 810, 895]) {
-    const t = climb(stats, x);
-    times.push(t === null ? `${x}:NO` : `${x}:${(t / TICK_HZ).toFixed(1)}s`);
-    if (t === null) fail(`${name} starting at x=${x} never reaches the final platform`);
+    // Both fighters have these stats, so the other one is just as weak a climber; it starts on the opposite side from x.
+    const r = climb(stats, stats, x, Math.min(895, Math.max(65, ARENA.w - x)));
+    times.push(r === null ? `${x}:NO` : `${x}:${(r.ticks / TICK_HZ).toFixed(1)}s${r.warps ? `!${r.warps}` : ""}`);
+    if (r === null) fail(`${name} starting at x=${x} never finishes the climb pause`);
+    else if (r.warps) fail(`${name} starting at x=${x}: the climb pause timed out and lifted ${r.warps} fighter(s)`);
+    else if (r.ticks >= T.cue.climb) fail(`${name} starting at x=${x}: the climb pause took the whole timeout`);
   }
   console.log(`  ${name}: ${times.join(" ")}`);
 }
+void FAR;
 // The planner's first hop from the floor must exist for the weakest fighter on both sides.
 const hop = nextHop(deriveDef(weak), { jump: 1, air: 1 }, [{ id: 0, top: ARENA.ground, x0: 65, x1: 895 }, ...platformsAt(STAIRS_UP_TICK + 1).map((p) => ({ id: p.id, top: p.top, x0: p.x, x1: p.x + p.w }))], { id: 0, top: ARENA.ground, x0: 65, x1: 895 });
 assert.ok(hop, "no path from the floor to the final platform without the scene-5 boost");
 
+if (QUICK) {
+  console.log(failed ? "\nSOME ARENA CHECKS FAILED" : "\nquick: layout and climb ok");
+  process.exit(failed ? 1 : 0);
+}
+
 // ------------------------------------------------------------------ CPU vs CPU
 
-type Result = { winner: number | null; ticks: number; by: "ko" | "time"; env: number; dmg: number; scene5: boolean[]; ready: boolean[]; final: boolean[]; hash: string };
+type Result = { winner: number | null; ticks: number; by: "ko" | "time"; env: number; dmg: number; scene5: boolean[]; ready: boolean[]; final: boolean[]; warps: number; hash: string };
 function play(a: FighterStats, b: FighterStats, level: "normal" | "hard" = "normal"): Result {
   const ia = { ...EMPTY_INPUT }, ib = { ...EMPTY_INPUT };
   const m: Match = createMatch(a, b, [ia, ib], { arena: "inferno" });
   const brains = [newBrain(level), newBrain(level)];
   const h = createHash("sha1");
   const scene5 = [false, false], ready = [false, false], final = [false, false];
-  let ticks = 0;
+  let ticks = 0, warps = 0, seen = 0;
   while (m.phase !== "matchEnd" && ticks < 3 * T.matchTicks) {
     cpuThink(m, 0, brains[0], ia);
     cpuThink(m, 1, brains[1], ib);
     step(m, [ia, ib]);
     ticks++;
+    for (const e of m.events) if (e.id > seen) { seen = e.id; if (e.type === "arena" && e.kind === "warp") warps++; }
     if (m.phase === "fight" && sceneAt(arenaTick(m)) === 4) {
       for (const f of m.fighters) {
         scene5[f.slot] = true;
-        if (arenaTick(m) >= STAIRS_UP_TICK + 10 * TICK_HZ && f.action !== "ko") ready[f.slot] = true; // still fighting once the staircase has stood 10 s
-        const on = platformsAt(arenaTick(m)).find((p) => p.kind === "final" && p.state === "up" && f.grounded && Math.abs(f.y - p.top) < 0.5 && f.x >= p.x && f.x <= p.x + p.w);
+        if (arenaWorld(m) >= STAIRS_UP_TICK + 10 * TICK_HZ && f.action !== "ko") ready[f.slot] = true; // still fighting once the staircase has stood 10 s
+        const on = platformsAt(arenaWorld(m)).find((p) => p.kind === "final" && p.state === "up" && f.grounded && Math.abs(f.y - p.top) < 0.5 && f.x >= p.x && f.x <= p.x + p.w);
         if (on) final[f.slot] = true;
       }
     }
@@ -213,7 +234,7 @@ function play(a: FighterStats, b: FighterStats, level: "normal" | "hard" = "norm
   }
   assert.equal(m.phase, "matchEnd", "an arena fight must end (KO or the clock)");
   h.update(`${m.matchWinner}:${ticks}:${m.fighters.map((f) => f.hp)}`);
-  return { winner: m.matchWinner, ticks, by: m.roundReason ?? "time", env: m.arena!.envDmg[0] + m.arena!.envDmg[1], dmg: m.damage[0] + m.damage[1], scene5, ready, final, hash: h.digest("hex") };
+  return { winner: m.matchWinner, ticks, by: m.roundReason ?? "time", env: m.arena!.envDmg[0] + m.arena!.envDmg[1], dmg: m.damage[0] + m.damage[1], scene5, ready, final, warps, hash: h.digest("hex") };
 }
 
 const pairs: [string, string][] = [];
@@ -252,7 +273,7 @@ if (TUNING) {
   console.log(`\nCPU vs CPU, normal level: ${fights} arena fights over ${pairs.length} class pairs, both seats`);
   seedRandom(20261025);
   const started = Date.now();
-  let ko = 0, timeout = 0, draws = 0, reached = 0, ready = 0, readyFinal = 0, envSum = 0, dmgSum = 0, ticksSum = 0, total = 0, bothReady = 0, bothFinal = 0;
+  let ko = 0, timeout = 0, draws = 0, reached = 0, ready = 0, readyFinal = 0, envSum = 0, dmgSum = 0, ticksSum = 0, total = 0, bothReady = 0, bothFinal = 0, warpSum = 0;
   for (const [A, B] of pairs) {
     for (let g = 0; g < per(A, B); g++) {
       const r = g % 2 === 0 ? play(kit(A), kit(B)) : play(kit(B), kit(A));
@@ -261,6 +282,7 @@ if (TUNING) {
       if (r.by === "ko") ko++;
       else timeout++;
       if (r.winner === null) draws++;
+      warpSum += r.warps;
       envSum += r.env;
       dmgSum += r.dmg;
       ticksSum += r.ticks;
@@ -274,6 +296,8 @@ if (TUNING) {
   console.log(`  ${((Date.now() - started) / 1000).toFixed(0)} s. ended by KO ${ko}, by the clock ${timeout} (draws ${draws}); average ${(ticksSum / total / TICK_HZ).toFixed(0)} s of play (the clock holds during hit-stop)`);
   const reachRate = ready ? readyFinal / ready : 1;
   console.log(`  fighters in scene 5: ${reached}/${total * 2}; still fighting 10 s after the stairs stood: ${ready}; of those on the final platform at some point: ${(reachRate * 100).toFixed(1)}% (both fighters of a fight: ${bothReady ? ((bothFinal / bothReady) * 100).toFixed(1) : "n/a"}% of ${bothReady})`);
+  console.log(`  fighters lifted onto the final platform by a pause timeout: ${warpSum}`);
+  if (warpSum > 0) fail(`${warpSum} fighters had to be lifted by the climb pause's timeout: the computer should climb by itself`);
   const share = envSum / (envSum + dmgSum);
   console.log(`  hazards dealt ${(share * 100).toFixed(1)}% of all damage (${envSum} of ${envSum + dmgSum})`);
   if (ready === 0) fail("no fighter was still fighting 10 s after the staircase stood: the pool is too small");

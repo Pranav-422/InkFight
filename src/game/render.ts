@@ -297,6 +297,13 @@ export class Renderer {
     } else if (e.kind === "burn") {
       this.particles.push({ x: e.x, y: e.y - 18, vx: 0, vy: -1.1, life: 0, max: 34, text: `-${e.n}`, color: "#ff8a22", size: 20 });
       if (s.fighters[e.slot ?? 0]?.hp > 0) this.sfx("hiss");
+    } else if (e.kind === "cue") {
+      this.sfx("round"); // a guided pause begins
+      this.banner = null; // (a special's name from the last moment of the fight must not sit on the headline)
+    } else if (e.kind === "warp") {
+      this.sfx("skill");
+      this.rings.push({ x: e.x, y: e.y - BODY.h * 0.5, r: 14, grow: 7, life: 0, max: 18, color: C.gold, width: 5 });
+      for (let i = 0; i < 10; i++) this.particles.push({ x: e.x + (Math.random() - 0.5) * 50, y: e.y - 6, vx: (Math.random() - 0.5) * 4, vy: -1 - Math.random() * 3, life: 0, max: 26, color: C.gold, size: 3 + Math.random() * 3 });
     } else if (e.kind === "rescue") {
       this.sfx("skill");
       this.rings.push({ x: e.x, y: e.y - BODY.h * 0.5, r: 14, grow: 6, life: 0, max: 18, color: C.gold, width: 5 });
@@ -348,7 +355,7 @@ export class Renderer {
     // An arena fight: keep both fighters in frame (zoomed out and looking up when one is on a platform), unless a special or the KO has the camera.
     if (cur.arena && !this.arenaView) this.arenaView = new ArenaView(this.fontDisplay, this.fontBody);
     if (cur.arena && this.arenaView && !this.preview && tz === 1) {
-      const w = this.arenaView.camera(fighters);
+      const w = this.arenaView.camera(fighters, cur.cue);
       tz = w.z;
       tx = w.x;
       ty = w.y;
