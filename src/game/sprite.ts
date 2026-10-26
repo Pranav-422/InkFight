@@ -2,6 +2,8 @@
 // transparent, the figure found, and its head cut out (the body is drawn as a
 // clean stickman, see stickman.ts). Runs in the browser.
 
+import { bossLookOf, type BossLook } from "./bossLook";
+import { bossSprite } from "./bossSprite";
 import { estimateJoints, jointsFromVision, type Joints, type Vec } from "./skeleton";
 
 // What a fighter wears from its drawing. head: the drawn head, cut out as a circle.
@@ -10,7 +12,12 @@ import { estimateJoints, jointsFromVision, type Joints, type Vec } from "./skele
 // axis: grip→tip angle of a long item (blade, staff), which the stickman turns with the arm;
 // null for the rest (shield, book, bow), which keep the angle they were drawn at.
 export type Prop = { img: HTMLCanvasElement; hx: number; hy: number; scale: number; rest: number; axis: number | null };
-export type Sprite = { head: HTMLCanvasElement | null; ink: string | null; prop: Prop | null; width: number };
+export type Sprite = {
+  head: HTMLCanvasElement | null; ink: string | null; prop: Prop | null; width: number;
+  // A dungeon boss's sprite is built from its data, not from a photo (src/game/bossSprite.ts): its head canvas is drawn at headScale world units per pixel
+  // with the face at headCenter, and `look` carries the outfit, palette, idle and aura for whoever draws it.
+  headScale?: number; headCenter?: { x: number; y: number }; look?: BossLook;
+};
 
 // Loading a drawing is a few ms of pixel work; the gallery, pickers and the arena share it.
 const cache = new Map<string, Promise<Sprite>>();
@@ -18,7 +25,9 @@ export function loadSpriteCached(url: string, poseJson?: string | null, rotation
   const key = `${url}|${rotation}|${flipItem}|${poseJson ?? ""}`;
   let p = cache.get(key);
   if (!p) {
-    p = loadSprite(url, poseJson, rotation, flipItem);
+    const look = bossLookOf(url);
+    p = look ? Promise.resolve(bossSprite(look)) : loadSprite(url, poseJson, rotation, flipItem); // a boss is drawn from its data
+
     p.catch(() => cache.delete(key));
     cache.set(key, p);
   }

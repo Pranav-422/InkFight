@@ -15,7 +15,7 @@
 // Math.random is seeded so a run can be repeated; the CPU is the only user of it.
 
 import { cpuThink, newBrain } from "../src/game/cpu";
-import { CLASS_ITEM, CLASS_SKILL, CLASS_SPECIAL, CLASS_STYLE, CLASS_TUNE, ELEMENT_TUNE, SIDE_SKILLS, SKILL_INFO, SKILL_TUNE, SPECIAL_KINDS, SPECIAL_TUNE, STYLE_TUNE, STYLES } from "../src/game/moves";
+import { BOSS_KINDS, CLASS_ITEM, CLASS_SKILL, CLASS_SPECIAL, CLASS_STYLE, CLASS_TUNE, ELEMENT_TUNE, SIDE_SKILLS, SKILL_INFO, SKILL_TUNE, SPECIAL_KINDS, SPECIAL_TUNE, STYLE_TUNE, STYLES } from "../src/game/moves";
 import { createMatch, deriveDef, EMPTY_INPUT, step, TICK_HZ, TRAIT, TUNE, type FighterStats } from "../src/game/sim";
 import { CLASSES, ELEMENTS, ruleStats } from "../src/lib/stats";
 
@@ -86,12 +86,22 @@ function rate(a: FighterStats, b: FighterStats, n: number, start = SEED) {
 // A style × special pair for match i: spread over every combination, the same for both sides of a test.
 const kit = (i: number) => ({ style: STYLES[i % STYLES.length], specialKind: SPECIAL_KINDS[(i * 5 + Math.floor(i / 12)) % SPECIAL_KINDS.length], ultKind: SPECIAL_KINDS[(i * 7 + 3 + Math.floor(i / 12) * 2) % SPECIAL_KINDS.length] });
 
-// No player kit has a boss passive: passives enter only through createMatch(..., { boss }) (dungeon fights).
+// No player kit has a boss passive, a boss kit or a boss-only special kind: they enter only through createMatch(..., { boss }) (dungeon fights),
+// and no list a player can pick from names a boss-only kind.
 {
   const kits = [...CLASSES.map(fighter), ...Array.from({ length: 60 }, (_, i) => ({ ...fighter(CLASSES[i % CLASSES.length]), ...kit(i) }))];
-  for (const k of kits) if (deriveDef(k).passive !== undefined) throw new Error("a player kit has a passive");
+  for (const k of kits) {
+    const d = deriveDef(k);
+    if (d.passive !== undefined) throw new Error("a player kit has a passive");
+    if (d.kit !== undefined) throw new Error("a player kit has a boss kit");
+    if ((BOSS_KINDS as readonly string[]).includes(d.special) || (BOSS_KINDS as readonly string[]).includes(d.ult)) throw new Error("a player kit has a boss-only kind");
+  }
+  for (const k of BOSS_KINDS) {
+    if ((SPECIAL_KINDS as readonly string[]).includes(k)) throw new Error(`${k} is on the player list`);
+    if (deriveDef({ ...fighter("Fighter"), specialKind: k, ultKind: k }).ult === k) throw new Error(`a stat line can carry ${k}`);
+  }
   const m = createMatch(kits[0], kits[1], [{ ...EMPTY_INPUT }, { ...EMPTY_INPUT }]);
-  if (m.defs[0].passive !== undefined || m.defs[1].passive !== undefined || m.boss) throw new Error("a match without a boss spec has a passive");
+  if (m.defs[0].passive !== undefined || m.defs[1].passive !== undefined || m.defs[0].kit !== undefined || m.defs[1].kit !== undefined || m.boss) throw new Error("a match without a boss spec has a passive");
 }
 const avg: FighterStats = { hp: 200, atk: 70, def: 70, spd: 70, agi: 70, iq: 70, class: "Fighter" };
 

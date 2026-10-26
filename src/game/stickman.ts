@@ -4,7 +4,9 @@
 // tore apart on most real drawings.
 
 import { normClass } from "../lib/stats";
+import type { Piece } from "./bossLook";
 import { itemOf } from "./moves";
+import { drawOutfit } from "./outfit";
 import { BONES, type BoneName, type Joints, type Vec } from "./skeleton";
 import type { Prop } from "./sprite";
 
@@ -81,10 +83,14 @@ export function drawStick(
     build?: Build; // body proportions from DUR/SPD
     now?: number; // ms, for the cosmetics that move (orbs, headband tails)
     plain?: boolean; // no class cosmetics: afterimages, and the builder's drawing (which is measured like a scanned one)
+    outfit?: Piece[]; // a dungeon boss's own clothes (src/game/outfit.ts) instead of its class's cosmetics
+    sheathed?: boolean; // a held sword shows only its hilt: the blade is in the scabbard (the sheathed swordsman between draws)
+    headScale?: number; // a boss's head is drawn, not cut from a photo: world units per pixel of its canvas, with the face circle at headCenter
+    headCenter?: { x: number; y: number };
   },
 ) {
   const build = o.build ?? AVERAGE_BUILD;
-  const cls = o.plain ? "" : normClass(o.cls);
+  const cls = o.plain || o.outfit ? "" : normClass(o.cls);
   const now = o.now ?? 0;
   const pen = o.width * build.thick;
   ctx.lineCap = "round";
@@ -104,6 +110,8 @@ export function drawStick(
     ctx.lineTo(j[c].x, j[c].y);
     ctx.stroke();
   };
+  const wear = o.outfit && !o.plain ? { ink: o.ink, pen, now, world, sB, sF } : null;
+  if (wear) drawOutfit(ctx, o.outfit!, "back", j, wear);
   if (cls === "Attacker") floatingOrbs(ctx, j, o, now);
   limb(LIMBS[0], sB);
   limb(LIMBS[1]);
@@ -119,6 +127,7 @@ export function drawStick(
   }
   if (cls === "Sword") sheath(ctx, j, world, o, pen);
   limb(LIMBS[2]);
+  if (wear) drawOutfit(ctx, o.outfit!, "mid", j, wear);
   if (cls === "Tank") shoulderPads(ctx, sB, sF, world, o);
 
   // Head: the player's drawing, turned with the neck. A plain circle until it loads.
@@ -126,7 +135,11 @@ export function drawStick(
   ctx.save();
   ctx.translate(j.head.x, j.head.y);
   ctx.rotate(tilt);
-  if (o.head) {
+  if (o.head && o.headScale) {
+    // A boss's head is its own drawing, face and hair and hat and all: no white behind it, and it may leave the head circle.
+    const s = o.headScale, c = o.headCenter ?? { x: o.head.width / 2, y: o.head.height / 2 };
+    ctx.drawImage(o.head, -c.x * s, -c.y * s, o.head.width * s, o.head.height * s);
+  } else if (o.head) {
     // Paper-white face behind the drawing's lines, so the head reads as solid.
     ctx.fillStyle = "#fff";
     ctx.beginPath();
@@ -155,11 +168,12 @@ export function drawStick(
     ctx.scale(p.scale, p.scale);
     ctx.drawImage(p.img, -p.hx, -p.hy);
     ctx.restore();
-  } else drawItem(ctx, itemOf(o.item, o.cls), j, world.foreF, o.ink, o.accent);
+  } else if (!(wear && itemOf(o.item, o.cls) === "nothing")) drawItem(ctx, itemOf(o.item, o.cls), j, world.foreF, o.ink, o.accent, o.sheathed); // (a boss's bare hands are its outfit's business)
   ctx.lineWidth = pen;
   ctx.strokeStyle = o.ink;
   limb(LIMBS[3], sF);
   if (cls === "Fighter") handWraps(ctx, j, o);
+  if (wear) drawOutfit(ctx, o.outfit!, "front", j, wear);
 }
 
 // ---------------------------------------------------------------- class cosmetics (ink colour, procedural)
@@ -275,7 +289,7 @@ function handWraps(ctx: CanvasRenderingContext2D, j: Joints, o: { accent: string
 }
 
 // The item, held in the front hand and aligned with the forearm. "nothing" = taped fists.
-function drawItem(ctx: CanvasRenderingContext2D, item: string, j: Joints, fore: number, ink: string, accent: string) {
+function drawItem(ctx: CanvasRenderingContext2D, item: string, j: Joints, fore: number, ink: string, accent: string, sheathed = false) {
   const h = j.handF;
   ctx.save();
   ctx.translate(h.x, h.y);
@@ -289,7 +303,7 @@ function drawItem(ctx: CanvasRenderingContext2D, item: string, j: Joints, fore: 
       ctx.lineWidth = 5;
       ctx.beginPath();
       ctx.moveTo(0, 6);
-      ctx.lineTo(0, -62);
+      ctx.lineTo(0, sheathed ? -8 : -62);
       ctx.stroke();
       ctx.strokeStyle = accent;
       ctx.beginPath();

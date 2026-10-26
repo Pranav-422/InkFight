@@ -5,7 +5,7 @@
 // Used on every card and picker, for players' and computer fighters alike.
 
 import { useEffect, useRef } from "react";
-import { MOVES, STYLE_INFO, styleOf, type MoveName } from "@/game/moves";
+import { MOVES, STYLE_INFO, styleOf, type BossKit, type MoveName } from "@/game/moves";
 import { normClass } from "@/lib/stats";
 import { poseFor } from "@/game/poses";
 import { resolvePose, type BoneName } from "@/game/skeleton";
@@ -13,13 +13,13 @@ import type { Snapshot } from "@/game/sim";
 import { loadSpriteCached, type Sprite } from "@/game/sprite";
 import { buildFor, drawStick, solveStick, STICK_REST } from "@/game/stickman";
 
-type AvatarFighter = { imageUrl: string; class: string; item?: string | null; pose?: string | null; rotation?: number; style?: string | null; flipItem?: boolean; def?: number; spd?: number };
+type AvatarFighter = { imageUrl: string; class: string; item?: string | null; pose?: string | null; rotation?: number; style?: string | null; flipItem?: boolean; def?: number; spd?: number; kit?: BossKit };
 
 const ACCENT: Record<string, string> = { Tank: "#2f5be0", Attacker: "#2f5be0", Fighter: "#e5482d" };
 
 export function FighterAvatar({ fighter, className = "", showcase = true }: { fighter: AvatarFighter; className?: string; showcase?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const { imageUrl, pose, rotation, class: cls, item, style, flipItem, def, spd } = fighter;
+  const { imageUrl, pose, rotation, class: cls, item, style, flipItem, def, spd, kit } = fighter;
 
   useEffect(() => {
     const canvas = ref.current!;
@@ -32,7 +32,8 @@ export function FighterAvatar({ fighter, className = "", showcase = true }: { fi
 
     const build = buildFor(def ?? 70, spd ?? 70);
     const chain = STYLE_INFO[styleOf(style, cls)];
-    const showMoves: MoveName[] = [...chain.punch, ...chain.kick];
+    const punches = kit?.punch ?? chain.punch, kicks = kit?.kick ?? chain.kick; // (a dungeon boss shows its own moves)
+    const showMoves: MoveName[] = [...punches, ...kicks];
     let limbs: Record<BoneName, number> | null = null;
     let raf = 0, visible = true, last = performance.now(), moveAt = performance.now() + 1500 + Math.random() * 1500, mi = 0;
     const io = new IntersectionObserver(([e]) => {
@@ -59,7 +60,7 @@ export function FighterAvatar({ fighter, className = "", showcase = true }: { fi
         mi++;
       }
       const f = {
-        action: playing ? (chain.punch.includes(move) ? "attack" : "kick") : "idle",
+        action: playing ? (punches.includes(move) ? "attack" : "kick") : "idle",
         move: playing ? move : null,
         t: Math.max(0, t),
         grounded: true,
@@ -67,7 +68,7 @@ export function FighterAvatar({ fighter, className = "", showcase = true }: { fi
         blocking: false,
         hitN: 0,
       } as unknown as Snapshot["fighters"][number];
-      const motion = poseFor(f, "uppercut", now);
+      const motion = poseFor(f, "uppercut", now, "", sprite?.look?.idle);
       const target = resolvePose(STICK_REST, motion.pose);
       const k = 1 - Math.exp(-Math.min(0.05, (now - last) / 1000) * (playing ? 38 : 22));
       last = now;
@@ -94,6 +95,10 @@ export function FighterAvatar({ fighter, className = "", showcase = true }: { fi
       drawStick(ctx, body, {
         ink: s?.ink ?? "#17171a",
         head: s?.head ?? null,
+        headScale: s?.headScale,
+        headCenter: s?.headCenter,
+        outfit: s?.look?.outfit,
+        sheathed: !!s?.look?.sheathes && !playing,
         prop: s?.prop ?? null,
         cls,
         item,
@@ -110,7 +115,7 @@ export function FighterAvatar({ fighter, className = "", showcase = true }: { fi
       io.disconnect();
       cancelAnimationFrame(raf);
     };
-  }, [imageUrl, pose, rotation, cls, item, style, flipItem, showcase, def, spd]);
+  }, [imageUrl, pose, rotation, cls, item, style, flipItem, showcase, def, spd, kit]);
 
   return <canvas ref={ref} className={`block h-full w-full ${className}`} aria-hidden />;
 }

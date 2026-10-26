@@ -4,6 +4,8 @@
 
 import { normClass } from "../lib/stats";
 import { ARENA_TUNE } from "./arena";
+import { bossLook } from "./bossLook";
+import { auraBack, auraFx, auraGlow, moveFx, type FxHost } from "./bossFx";
 import { starColor } from "./arenaStars";
 import { ArenaView, ROW } from "./arenaRender";
 import { getReduceFlashes } from "./flashes";
@@ -12,7 +14,7 @@ import { itemOf, MOVES, SKILL_INFO, STYLE_INFO, type SideSkill } from "./moves";
 import { ceremonyPose, poseFor } from "./poses";
 import { resolvePose, type BoneName, type Vec } from "./skeleton";
 import type { Sprite } from "./sprite";
-import { ARENA, BEAM, BODY, SPECIAL_DURATION, TICK_HZ, WINS_NEEDED, type GameEvent, type PassiveId, type Slot, type Snapshot, type SpecialKind } from "./sim";
+import { ARENA, BEAM, BODY, SPECIAL_DURATION, TICK_HZ, TIME_STOP, WINS_NEEDED, type GameEvent, type PassiveId, type Slot, type Snapshot, type SpecialKind } from "./sim";
 import { AVERAGE_BUILD, drawStick, solveStick, STICK_REST, type Build, type StickPose } from "./stickman";
 
 const C = {
@@ -25,8 +27,8 @@ const C = {
   gold: "#f2b705",
 };
 
-type Particle = { x: number; y: number; vx: number; vy: number; life: number; max: number; text?: string; color: string; size: number; g?: number }; // g: gravity (default 0.25; steam rises)
-type Ring = { x: number; y: number; r: number; grow: number; life: number; max: number; color: string; width: number };
+export type Particle = { x: number; y: number; vx: number; vy: number; life: number; max: number; text?: string; color: string; size: number; g?: number }; // g: gravity (default 0.25; steam rises)
+export type Ring = { x: number; y: number; r: number; grow: number; life: number; max: number; color: string; width: number };
 type Stain = { x: number; y: number; r: number; life: number; color: string };
 type F = Snapshot["fighters"][number];
 type Doodle = { x: number; y: number; kind: number; speed: number; spin: number; size: number };
@@ -49,11 +51,30 @@ export class Renderer {
   private dim: { slot: Slot; life: number } | null = null; // special start: darken + speed lines
   private impact: { x: number; y: number; until: number } | null = null; // impact frame: where (world) and until when
   private view = { cx: ARENA.w / 2, cy: ARENA.h / 2, z: 1 }; // the camera as drawn this frame (world → screen)
-  private redPage = 0; // 0..1: the page bleeds red once the Redline Regent unseals its second form (eased)
+  private formTint = 0; // 0..1: the page takes the boss's second colour once its second form is out (eased)
   private cine = 0; // 0..1: how far into the ultimate's blackout we are (eased)
   private banner: { text: string; color: string; life: number; low?: boolean } | null = null;
   private arenaView: ArenaView | null = null; // an arena fight's backdrop and live hazards (src/game/arenaRender.ts)
   private lastEventId = 0;
+  private invert = 0; // 0..1: the page inverted while the Overdue's time is stopped (eased)
+  private epoch: [number, number] = [0, 0]; // counts each fighter's moves, so an effect that starts on a tick is started once
+  private lastT: [number, number] = [0, 0];
+  private seen = new Set<string>();
+  // What the bosses' effects (src/game/bossFx.ts) draw with: the context, the particle lists, and a few of our own helpers.
+  private readonly fxHost: FxHost = {
+    ctx: null as unknown as CanvasRenderingContext2D,
+    particles: this.particles,
+    rings: this.rings,
+    once: (slot, key) => {
+      const k = `${slot}:${key}#${this.epoch[slot as 0 | 1]}`;
+      if (this.seen.has(k)) return false;
+      if (this.seen.size > 60) this.seen.clear();
+      this.seen.add(k);
+      return true;
+    },
+    glow: (x, y, r, color) => this.glowBall(x, y, r, color),
+    shake: (n) => (this.shake = Math.max(this.shake, getReduceFlashes() ? n * 0.4 : n)),
+  };
   private fontDisplay = "sans-serif";
   private fontBody = "sans-serif";
   sprites: [Sprite | null, Sprite | null] = [null, null];
@@ -84,6 +105,7 @@ export class Renderer {
     private preview = false,
   ) {
     this.ctx = canvas.getContext("2d")!;
+    this.fxHost.ctx = this.ctx;
     const css = getComputedStyle(document.body);
     this.fontDisplay = css.getPropertyValue("--font-display").trim() || "sans-serif";
     this.fontBody = css.getPropertyValue("--font-body").trim() || "sans-serif";
@@ -185,10 +207,13 @@ export class Renderer {
     if (e.type === "hit") {
       // Blocked or absorbed: a tock. Otherwise a thud, lower and louder with the damage; a kick sounds heavier than a fist.
       const att = s.fighters[e.by];
+      const vic = s.fighters[1 - e.by];
+      const rubber = s.passives?.[1 - e.by] === "rubber" && att.action === "attack" && !e.special && !e.blocked && e.dmg > 0; // a punch bounces off the rubber man
+      const crushed = !e.blocked && e.dmg > 0 && att.action === "kick" && (vic.pv?.noBlock ?? 0) > 0 && s.passives?.[e.by] === "guard-crush"; // a guard broken by the Compressed Kick
       if (e.blocked || e.dmg === 0) this.sfx("block");
       else this.sfx(att.action === "kick" ? "kick" : "punch", Math.min(1, e.dmg / 24 + (e.special ? 0.25 : 0)));
-      const color = e.blocked ? C.guard : C.hit;
-      const big = e.special || e.dmg >= 10;
+      const color = e.blocked ? C.guard : rubber ? "#ff8fb0" : C.hit;
+      const big = e.special || e.dmg >= 10 || crushed;
       const n = e.special ? 22 : 10;
       for (let i = 0; i < n; i++) {
         const a = Math.random() * Math.PI * 2;
@@ -205,7 +230,12 @@ export class Renderer {
         }
       }
       const words = e.blocked ? ["BLOCK", "NOPE"] : e.special ? ["KRAKA-BOOM", "WHAM!!", "SPLAT", "DOOM"] : ["POW", "BAM", "BONK", "SMACK", "OOF", "THWACK"];
-      const text = e.dmg === 0 ? "ABSORBED" : `${words[e.id % words.length]} ${e.dmg}`; // 0: an ink bubble soaked it
+      const text = e.dmg === 0 ? "ABSORBED" : rubber ? `BOING ${e.dmg}` : crushed ? `GUARD CRUSH ${e.dmg}` : `${words[e.id % words.length]} ${e.dmg}`; // 0: an ink bubble soaked it
+      if (crushed) {
+        // The guard shatters: shards of the arc fly off the defender.
+        for (let i = 0; i < 12; i++) this.particles.push({ x: vic.x + vic.facing * 20, y: vic.y - BODY.h * (0.3 + Math.random() * 0.5), vx: vic.facing * (1 + Math.random() * 5), vy: -2 - Math.random() * 3, life: 0, max: 22, color: C.guard, size: 3 + Math.random() * 3 });
+        this.shake = Math.max(this.shake, 12);
+      }
       this.particles.push({ x: e.x, y: e.y - 24, vx: 0, vy: -1.2, life: 0, max: 36, text, color, size: e.special ? 30 : 22 });
       this.shake = Math.max(this.shake, e.special ? 13 : e.blocked ? 2 : 4 + e.dmg / 3);
       // A mace's overhead or slam cracks the floor; a sweep kicks up dust.
@@ -221,7 +251,8 @@ export class Renderer {
       if (e.special) this.flash = Math.max(this.flash, 3);
       // Impact frame on ultimate blows and Ink Flash crits: two ticks of inverted screen with speed lines from the
       // hit point. "Reduce flashes" swaps it for a soft ring.
-      if (e.ult || e.crit) {
+      const stopped = s.fighters.some((f) => f.action === "special" && f.ult && s.ults?.[f.slot] === "time_stop_barrage"); // (the stopped page is already inverted: no strobing)
+      if ((e.ult || e.crit) && !stopped) {
         if (getReduceFlashes()) this.rings.push({ x: e.x, y: e.y, r: 14, grow: 9, life: 0, max: 22, color: C.gold, width: 9 });
         else this.impact = { x: e.x, y: e.y, until: performance.now() + (2 * 1000) / TICK_HZ };
       }
@@ -256,7 +287,7 @@ export class Renderer {
       // A boss changed form: new class look, the page bleeds red (see draw), a banner and a burst.
       this.classes[e.slot] = e.cls;
       this.items[e.slot] = e.item;
-      this.banner = { text: "THE MARGIN TEARS", color: C.hit, life: 140 };
+      this.banner = { text: e.banner ?? "FORM CHANGE", color: C.hit, life: 140 };
       const f = s.fighters[e.slot];
       this.shake = 24;
       this.flash = Math.max(this.flash, 5);
@@ -471,15 +502,21 @@ export class Renderer {
     } else this.background();
     this.drawStains();
     // The ultimate blacks out the page (fighters and effects are drawn over it).
-    const ultOn = cur.fighters.some((f) => f.action === "special" && f.ult);
+    // (the Overdue's time stop doesn't black the page out: it inverts it, below)
+    const stopper = cur.fighters.find((f) => f.action === "special" && f.ult && cur.ults?.[f.slot] === "time_stop_barrage" && f.t >= TIME_STOP.start - 2);
+    const ultOn = !stopper && cur.fighters.some((f) => f.action === "special" && f.ult);
     this.cine += ((ultOn ? 1 : 0) - this.cine) * ease;
+    this.invert += ((stopper ? 1 : 0) - this.invert) * ease * 1.5;
     if (this.cine > 0.01) {
       ctx.fillStyle = `rgba(5,5,12,${0.62 * this.cine})`;
       ctx.fillRect(-20, -20, ARENA.w + 40, ARENA.h + 40);
     }
-    this.redPage += ((cur.bossPhase === 2 ? 1 : 0) - this.redPage) * ease;
-    if (this.redPage > 0.01) {
-      ctx.fillStyle = `rgba(158,27,27,${0.13 * this.redPage})`;
+    this.formTint += ((cur.bossPhase === 2 ? 1 : 0) - this.formTint) * ease;
+    if (this.formTint > 0.01) {
+      // The second form tints the page in the boss's own second colour.
+      const tint = cur.bossFloor ? bossLook(cur.bossFloor)?.palette.sub ?? "#9e1b1b" : "#9e1b1b";
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(tint.slice(i, i + 2), 16));
+      ctx.fillStyle = `rgba(${r},${g},${b},${0.14 * this.formTint})`;
       ctx.fillRect(-20, -20, ARENA.w + 40, ARENA.h + 40);
     }
     for (const h of cur.hazards ?? []) this.hazard(h, fighters[1 - h.owner], now);
@@ -510,11 +547,19 @@ export class Renderer {
     }
     this.spin = 0;
     this.lastNow = now;
-    for (const p of projectiles) if (!p.delay) this.projectile(p.kind, p.x, p.y, p.r, p.vx, now, p.owner, fighters[p.owner].x);
+    for (const p of projectiles) this.projectile(p.kind, p.x, p.y, p.r, p.vx, now, p.owner, fighters[p.owner].x);
     this.fx();
     if (cur.arena && this.arenaView) this.arenaView.front(ctx, cur, now, getReduceFlashes());
     ctx.restore();
 
+    // Time stopped: the page inverted (softer with "Reduce flashes").
+    if (this.invert > 0.02) {
+      ctx.save();
+      ctx.globalCompositeOperation = "difference";
+      ctx.fillStyle = `rgba(255,255,255,${(getReduceFlashes() ? 0.4 : 1) * Math.min(1, this.invert)})`;
+      ctx.fillRect(0, 0, ARENA.w, ARENA.h);
+      ctx.restore();
+    }
     if (this.flash > 0) {
       if (!getReduceFlashes()) {
         ctx.fillStyle = `rgba(255,255,255,${0.35 * this.flash})`;
@@ -538,53 +583,87 @@ export class Renderer {
     this.phaseText(cur);
   }
 
-  // A drawn threat: the Regent's ruled line on the floor, or the crosshair and column of a remote detonation.
+  // A drawn threat: the crosshair and column of a delayed cut (remote detonation, the Overdue's knives).
   // It darkens as it nears the cut and flashes for the last 8 ticks.
   private hazard(h: Snapshot["hazards"][number], target: F, now: number) {
     const { ctx } = this;
     const p = 1 - h.left / h.max, flash = h.left <= 8 && Math.floor(now / 70) % 2 === 0;
     ctx.save();
     ctx.lineCap = "round";
+    if (h.knife) {
+      // A knife hanging in the air where it will fall: it drops the last stretch and sticks in the floor.
+      const fall = Math.max(0, 1 - h.left / 14), y = 40 + (ARENA.ground - 60) * fall * fall;
+      ctx.strokeStyle = `rgba(136,0,255,${0.18 + 0.3 * p})`;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 8]);
+      ctx.beginPath();
+      ctx.moveTo(h.x, 40);
+      ctx.lineTo(h.x, ARENA.ground);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = flash ? "#ffffff" : "#d9dee5";
+      ctx.strokeStyle = C.ink;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(h.x, y + 26);
+      ctx.lineTo(h.x - 6, y);
+      ctx.lineTo(h.x + 6, y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#2a1b3d";
+      ctx.fillRect(h.x - 4, y - 14, 8, 14);
+      ctx.restore();
+      return;
+    }
     ctx.strokeStyle = flash ? "#ffffff" : `rgba(190,30,30,${0.25 + 0.6 * p})`;
     ctx.fillStyle = `rgba(190,30,30,${0.06 + 0.16 * p})`;
-    if (h.kind === "line") {
-      ctx.lineWidth = 3 + 3 * p;
-      ctx.beginPath();
-      ctx.moveTo(h.x - h.w / 2, ARENA.ground + 5);
-      ctx.lineTo(h.x + h.w / 2, ARENA.ground + 5);
-      ctx.moveTo(h.x - h.w / 2, ARENA.ground - 8);
-      ctx.lineTo(h.x - h.w / 2, ARENA.ground + 5);
-      ctx.moveTo(h.x + h.w / 2, ARENA.ground - 8);
-      ctx.lineTo(h.x + h.w / 2, ARENA.ground + 5);
-      ctx.stroke();
-    } else {
-      ctx.fillRect(h.x - h.w / 2, 60, h.w, ARENA.ground - 60);
-      ctx.lineWidth = 2 + 2 * p;
-      ctx.beginPath();
-      ctx.moveTo(h.x - h.w / 2, 60);
-      ctx.lineTo(h.x - h.w / 2, ARENA.ground);
-      ctx.moveTo(h.x + h.w / 2, 60);
-      ctx.lineTo(h.x + h.w / 2, ARENA.ground);
-      ctx.stroke();
-      const cy = target.y - BODY.h * 0.55, r = 30 - 10 * p;
-      ctx.beginPath();
-      ctx.arc(h.x, cy, r, 0, Math.PI * 2);
-      ctx.moveTo(h.x - r - 10, cy);
-      ctx.lineTo(h.x + r + 10, cy);
-      ctx.moveTo(h.x, cy - r - 10);
-      ctx.lineTo(h.x, cy + r + 10);
-      ctx.stroke();
-    }
+    ctx.fillRect(h.x - h.w / 2, 60, h.w, ARENA.ground - 60);
+    ctx.lineWidth = 2 + 2 * p;
+    ctx.beginPath();
+    ctx.moveTo(h.x - h.w / 2, 60);
+    ctx.lineTo(h.x - h.w / 2, ARENA.ground);
+    ctx.moveTo(h.x + h.w / 2, 60);
+    ctx.lineTo(h.x + h.w / 2, ARENA.ground);
+    ctx.stroke();
+    const cy = target.y - BODY.h * 0.55, r = 30 - 10 * p;
+    ctx.beginPath();
+    ctx.arc(h.x, cy, r, 0, Math.PI * 2);
+    ctx.moveTo(h.x - r - 10, cy);
+    ctx.lineTo(h.x + r + 10, cy);
+    ctx.moveTo(h.x, cy - r - 10);
+    ctx.lineTo(h.x, cy + r + 10);
+    ctx.stroke();
     ctx.restore();
+  }
+
+  // The rubber man's arm (or leg) while it strikes: drawn out to the length of the move's reach, then drawn back in.
+  private stretchLimb(pose: StickPose, f: F) {
+    const mv = MOVES[f.move!];
+    const env = Math.min(1, Math.max(0, (f.t - (mv.from - 4)) / 4)) * (1 - Math.min(1, Math.max(0, (f.t - mv.to) / 6)));
+    if (env <= 0) return;
+    const j = pose.joints;
+    const pull = (from: Vec, mid: keyof typeof j, tip: keyof typeof j, want: number) => {
+      const d = Math.hypot(j[tip].x - from.x, j[tip].y - from.y) || 1;
+      const len = d + (want - d) * env, ux = (j[tip].x - from.x) / d, uy = (j[tip].y - from.y) / d;
+      j[tip] = { x: from.x + ux * len, y: from.y + uy * len };
+      j[mid] = { x: from.x + ux * len * 0.5, y: from.y + uy * len * 0.5 };
+    };
+    const reach = mv.reach + BODY.w / 2 - 6;
+    if (mv.tip === "foot" || mv.tip === "footB") pull(j.hip, mv.tip === "foot" ? "kneeF" : "kneeB", mv.tip === "foot" ? "footF" : "footB", reach * 0.95);
+    else {
+      pull(j.shoulder, "elbowF", "handF", reach);
+      if (f.move === "bazooka") pull(j.shoulder, "elbowB", "handB", reach * 0.92);
+    }
   }
 
   // A boss's aura, by passive: what the fighter glows with right now (and how hard), or null.
   private bossGlow(f: F, passive: PassiveId, now: number): { color: string; blur: number } | null {
     const pv = f.pv ?? {};
     switch (passive) {
-      case "heat-stacks": {
+      case "fracture": {
         const h = pv.heat ?? 0;
-        return h > 0 ? { color: "#ff8a1f", blur: 4 + h * 4 + (h >= 3 ? Math.sin(now / 45) * 3 : 0) } : null;
+        return h > 0 ? { color: "#ff3b3b", blur: 4 + h * 4 + (h >= 3 ? Math.sin(now / 45) * 3 : 0) } : null;
       }
       case "sheathed-draw":
         return (pv.still ?? 0) >= 20 ? { color: "#ffffff", blur: 16 } : (pv.still ?? 0) > 0 ? { color: "#8fb4ff", blur: 3 + (pv.still ?? 0) / 5 } : null;
@@ -592,45 +671,26 @@ export class Renderer {
         const mv = f.move ? MOVES[f.move] : null;
         return (f.action === "attack" || f.action === "kick") && mv && f.t < mv.from ? { color: "#000000", blur: 14 } : null;
       }
-      case "royal-pride":
-        return f.hp < 80 ? { color: "#7b4fd6", blur: 9 + Math.sin(now / 120) * 2 } : null;
-      case "endless-dance":
-        return (pv.restarts ?? 0) > 0 ? { color: C.gold, blur: 5 + 4 * (pv.restarts ?? 0) } : null;
       case "whiteout-guard":
         return (pv.cracks ?? 0) >= 2 ? { color: "#dfe6ee", blur: 12 } : null;
       case "infinite-margin":
         return (pv.shimmer ?? 0) > 0 ? { color: "#8fd3e8", blur: 14 + Math.sin(now / 50) * 4 } : null;
+      case "charge-up": {
+        const k = Math.min(3, Math.floor((pv.charge ?? 0) / 60));
+        return k > 0 ? { color: k >= 2 ? "#ffd700" : "#00ccff", blur: 6 + k * 5 } : null;
+      }
       default:
         return null;
     }
   }
 
-  // The passive's other tells, drawn over the boss: the crown, the shield cracks, the pencil case, the ruled grid and blink ripple,
-  // heat embers, sword sparks, gold footwork. (x, y) is the fighter's feet in the world; hand is its front hand.
+  // The passive's other tells, drawn over the boss: the shield cracks, the ruled grid and blink ripple, sword sparks, ki rocks.
+  // (x, y) is the fighter's feet in the world; hand is its front hand.
   private bossFx(f: F, passive: PassiveId, x: number, y: number, hand: Vec) {
     const { ctx } = this;
     const pv = f.pv ?? {};
     const rnd = Math.random;
-    if (passive === "royal-pride" && f.hp < 80) {
-      // A crown of ink floats above the head.
-      const cx = x, cy = y - BODY.h * 1.1 - 16;
-      ctx.save();
-      ctx.strokeStyle = C.ink;
-      ctx.fillStyle = C.gold;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(cx - 17, cy + 10);
-      ctx.lineTo(cx - 17, cy - 8);
-      ctx.lineTo(cx - 8, cy + 2);
-      ctx.lineTo(cx, cy - 12);
-      ctx.lineTo(cx + 8, cy + 2);
-      ctx.lineTo(cx + 17, cy - 8);
-      ctx.lineTo(cx + 17, cy + 10);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.restore();
-    } else if (passive === "whiteout-guard" && (pv.cracks ?? 0) > 0) {
+    if (passive === "whiteout-guard" && (pv.cracks ?? 0) > 0) {
       ctx.save();
       ctx.strokeStyle = "#ffffff";
       ctx.lineWidth = 2.5;
@@ -643,19 +703,6 @@ export class Renderer {
       }
       ctx.restore();
       if ((pv.cracks ?? 0) >= 2 && rnd() < 0.4) this.particles.push({ x: hand.x + (rnd() - 0.5) * 40, y: hand.y + (rnd() - 0.5) * 60, vx: 0, vy: -0.8, life: 0, max: 24, color: "#dfe6ee", size: 5 + rnd() * 4 });
-    } else if (passive === "pencil-case" && ((pv.timer ?? 0) >= 420 || (pv.swap ?? 0) > 0)) {
-      // The pencil case pops open above the head and names the weapon coming next.
-      const next = ["SWORD", "SHIELD", "MACE"][pv.weapon ?? 0];
-      ctx.save();
-      ctx.font = `800 13px ${this.fontDisplay}`;
-      ctx.textAlign = "center";
-      ctx.fillStyle = C.ink;
-      ctx.strokeStyle = C.paper;
-      ctx.lineWidth = 4;
-      const ty = y - BODY.h * 1.1 - 22;
-      ctx.strokeText(`✎ ${(pv.swap ?? 0) > 0 ? "SWAPPING" : "NEXT"}: ${next}`, x, ty);
-      ctx.fillText(`✎ ${(pv.swap ?? 0) > 0 ? "SWAPPING" : "NEXT"}: ${next}`, x, ty);
-      ctx.restore();
     } else if (passive === "infinite-margin") {
       // A ruled-line grid shimmers around him; the blink is an ink-blot ripple on him.
       ctx.save();
@@ -683,36 +730,12 @@ export class Renderer {
         }
       }
       ctx.restore();
-    } else if (passive === "heat-stacks" && (pv.heat ?? 0) >= 3 && rnd() < 0.7) {
-      this.particles.push({ x: hand.x + (rnd() - 0.5) * 20, y: hand.y, vx: (rnd() - 0.5) * 1.5, vy: -1.5 - rnd() * 2, life: 0, max: 20, color: rnd() < 0.5 ? "#ff8a1f" : C.hit, size: 4 + rnd() * 4 });
+    } else if (passive === "fracture" && (pv.heat ?? 0) >= 3 && rnd() < 0.7) {
+      this.particles.push({ x: hand.x + (rnd() - 0.5) * 20, y: hand.y, vx: (rnd() - 0.5) * 1.5, vy: -1.5 - rnd() * 2, life: 0, max: 20, color: rnd() < 0.5 ? "#ff3b3b" : C.hit, size: 4 + rnd() * 4 });
     } else if (passive === "sheathed-draw" && (pv.still ?? 0) > 0 && rnd() < 0.5) {
-      // Blue sparks crawl along the blade, then it flashes white.
+      // Sparks crawl along the blade, then it flashes white.
       this.particles.push({ x: hand.x + f.facing * rnd() * 50, y: hand.y - rnd() * 60, vx: 0, vy: -0.4, life: 0, max: 12, color: (pv.still ?? 0) >= 20 ? "#ffffff" : "#8fb4ff", size: 2.5 });
-    } else if (passive === "endless-dance" && (pv.restarts ?? 0) > 0 && (f.action === "attack" || f.action === "kick") && rnd() < 0.8) {
-      this.particles.push({ x: x + (rnd() - 0.5) * 50, y: ARENA.ground - 3, vx: -f.facing * rnd() * 2, vy: -rnd() * 1.5, life: 0, max: 22, color: C.gold, size: 4 + (pv.restarts ?? 0) * 2 });
     }
-  }
-
-  // Curse Marks: red tally strokes on the marked fighter's body, one per mark; the fourth pulses.
-  private marksFx(f: F, x: number, y: number, now: number) {
-    const { ctx } = this;
-    ctx.save();
-    ctx.strokeStyle = C.hit;
-    ctx.lineCap = "round";
-    ctx.lineWidth = f.marks >= 4 && Math.floor(now / 120) % 2 ? 5 : 3;
-    const top = y - BODY.h * 0.78;
-    for (let i = 0; i < f.marks; i++) {
-      ctx.beginPath();
-      if (i < 4) {
-        ctx.moveTo(x - 12 + i * 8, top);
-        ctx.lineTo(x - 12 + i * 8, top + 22);
-      } else {
-        ctx.moveTo(x - 16, top + 18);
-        ctx.lineTo(x + 18, top + 4); // the fifth stroke crosses the four
-      }
-      ctx.stroke();
-    }
-    ctx.restore();
   }
 
   // The manga impact frame: the arena inverted, black and white wedges fanning out from the point of impact.
@@ -852,6 +875,9 @@ export class Renderer {
     const { ctx } = this;
     const sprite = this.sprites[f.slot];
     const cls = this.classes[f.slot];
+    const bl = sprite?.look ?? null; // a dungeon boss's look: its palette, aura, idle and outfit
+    if (f.t < this.lastT[f.slot]) this.epoch[f.slot]++; // a new move began
+    this.lastT[f.slot] = f.t;
 
     // Shadow shrinks while airborne. In an arena fight a fighter on a platform casts it on the platform.
     const sc = this.scales[f.slot];
@@ -864,7 +890,7 @@ export class Renderer {
 
     // Round intro: taunts. After a KO / time-out: the winner celebrates.
     const ceremony = f.action === "idle" && f.grounded && !f.moving && (this.phase === "intro" || (this.phase !== "fight" && this.roundWinner === f.slot));
-    const motion = ceremony ? ceremonyPose(this.phase === "intro" ? "intro" : "win", f.slot, now) : poseFor(f, special, now, normClass(this.classes[f.slot] ?? ""));
+    const motion = ceremony ? ceremonyPose(this.phase === "intro" ? "intro" : "win", f.slot, now) : poseFor(f, special, now, normClass(this.classes[f.slot] ?? ""), sprite?.look?.idle);
     let dx = motion.lunge * f.facing;
     if (f.action === "hit") dx += (Math.random() - 0.5) * 6;
     const h = BODY.h * 1.06;
@@ -883,6 +909,7 @@ export class Renderer {
     }
     this.limbs[f.slot] = cur;
     const pose = solveStick(cur, this.builds[f.slot]);
+    if (bl?.stretch && f.move && bl.stretch.includes(f.move) && (f.action === "attack" || f.action === "kick")) this.stretchLimb(pose, f);
     // Keep the lowest foot on the floor: bent legs crouch the body instead of sinking it.
     const lift = (f.grounded && f.action !== "ko" ? -Math.max(pose.joints.footF.y, pose.joints.footB.y) : 0) - (motion.hover ?? 0);
     const dir = motion.flip ? -f.facing : f.facing;
@@ -900,7 +927,7 @@ export class Renderer {
     const chain = normal ? STYLE_INFO[style][f.action === "attack" ? "punch" : "kick"] : null;
     const finisher = !!chain && chain.length > 1 && f.combo === chain.length - 1;
     if (smear.length > 2) {
-      const color = f.action === "special" ? (special === "uppercut" ? C.gold : C.hit) : finisher ? C.hit : "rgba(23,23,26,.55)";
+      const color = f.action === "special" ? (special === "uppercut" ? (bl?.palette.sub ?? C.gold) : (bl?.palette.main ?? C.hit)) : finisher || (bl && mv?.crush) ? (bl?.palette.main ?? C.hit) : "rgba(23,23,26,.55)";
       this.drawSmear(smear, color, f.action === "special" || finisher ? 26 : 18);
     }
     // A sword's slashes leave a crescent where the blade swept (the smear only follows the hand).
@@ -922,10 +949,10 @@ export class Renderer {
       ctx.restore();
     }
 
-    // Afterimages while a special is out (and Smudge's grey trail while its Afterimage is ready).
+    // Afterimages while a special is out (and a boss's trail while its Afterimage is ready).
     const trail = this.trails[f.slot];
     const ghost = passive === "afterimage" && (f.pv?.cd ?? 1) === 0;
-    if ((f.action === "special" && special !== "beam") || ghost) {
+    if ((f.action === "special" && special !== "beam") || ghost || (f.draw && f.action === "attack")) {
       trail.unshift(pose);
       trail.length = Math.min(trail.length, 5);
     } else trail.length = 0;
@@ -933,8 +960,9 @@ export class Renderer {
     const hurt = f.action === "hit" && f.t < 8;
     const nc = normClass(cls);
     const accent = nc === "Tank" || nc === "Attacker" ? C.guard : nc === "Fighter" ? C.hit : C.gold;
-    const look = { ink: hurt ? C.hit : (sprite?.ink ?? C.ink), head: sprite?.head ?? null, prop: sprite?.prop ?? null, cls, item: passive === "pencil-case" ? ["mace", "sword", "shield"][f.pv?.weapon ?? 0] : this.items[f.slot], accent, width: sprite?.width ?? 7, build: this.builds[f.slot], now };
+    const look = { ink: hurt ? C.hit : (sprite?.ink ?? C.ink), head: sprite?.head ?? null, headScale: sprite?.headScale, headCenter: sprite?.headCenter, outfit: sprite?.look?.outfit, sheathed: !!sprite?.look?.sheathes && (f.action === "idle" || ((f.action === "attack" || f.action === "kick") && !!mv && f.t < mv.from) || (f.action === "special" && f.t < 3)), prop: sprite?.prop ?? null, cls, item: this.items[f.slot], accent, width: sprite?.width ?? 7, build: this.builds[f.slot], now };
 
+    if (bl) auraBack(this.fxHost, bl, f, pose, toWorld, now);
     ctx.save();
     ctx.translate(f.x + dx, f.y);
     ctx.scale(sc, sc); // (the ring shrinks a fighter a little and a buff grows one; about the feet, so they stay on the floor)
@@ -955,12 +983,12 @@ export class Renderer {
     const base = (f.action === "ko" ? 0.75 : 1) * motion.alpha;
     trail.slice(1).forEach((p, i) => {
       ctx.globalAlpha = (0.24 - i * 0.05) * Math.max(0.3, motion.alpha);
-      drawStick(ctx, p, { ...look, ink: ghost ? "#6b6b73" : C.hit, head: null, prop: null, plain: true });
+      drawStick(ctx, p, { ...look, ink: ghost ? (bl?.palette.main ?? "#6b6b73") : (bl?.palette.main ?? C.hit), head: null, prop: null, plain: true });
     });
     ctx.globalAlpha = base;
     const skillOn = f.skillT > 0 && f.action !== "ko" ? skill : undefined;
     if (f.armorTicks > 0 || f.action === "special") {
-      ctx.shadowColor = f.action === "special" ? C.hit : C.guard;
+      ctx.shadowColor = f.action === "special" ? ((f.ult && bl?.palette.ult) || bl?.palette.main || C.hit) : C.guard; // (a boss's special glows in its own colour)
       ctx.shadowBlur = 12; // blur cost grows with radius, and it runs per stroke
     } else if (skillOn === "poise" || skillOn === "blade") {
       ctx.shadowColor = skillOn === "poise" ? C.gold : C.hit; // iron poise / element blade
@@ -970,6 +998,10 @@ export class Renderer {
       ctx.shadowBlur = 7;
     } else if (passive && this.bossGlow(f, passive, now)) {
       const g = this.bossGlow(f, passive, now)!;
+      ctx.shadowColor = g.color;
+      ctx.shadowBlur = g.blur;
+    } else if (bl && f.action !== "ko") {
+      const g = auraGlow(bl, f, now); // the boss's own aura, always on, in its colour
       ctx.shadowColor = g.color;
       ctx.shadowBlur = g.blur;
     } else if (this.auras[f.slot] && f.action !== "ko") {
@@ -984,6 +1016,10 @@ export class Renderer {
     ctx.globalAlpha = 1;
 
     if (f.action === "special") this.specialFx(f, special, pose, toWorld, now);
+    if (bl) {
+      auraFx(this.fxHost, bl, f, pose, toWorld, now);
+      moveFx(this.fxHost, bl, f, f.action === "special" ? special : "", pose, toWorld, now);
+    }
     if (skillOn) this.skillFx(f, skillOn, f.x + dx, f.y + lift * sc, now);
     // A blessed fighter: little stars of its constellation circle it.
     if (this.auras[f.slot] && f.action !== "ko") {
@@ -1017,7 +1053,6 @@ export class Renderer {
     }
     if (f.status && f.action !== "ko") this.statusFx(f.status.kind, f.x + dx - f.facing * 38, f.y + (lift - 150) * sc, now);
     if (passive && f.action !== "ko") this.bossFx(f, passive, f.x + dx, f.y + lift, toWorld(pose.joints.handF));
-    if (f.marks > 0 && f.action !== "ko") this.marksFx(f, f.x + dx, f.y + lift, now);
 
     if (f.blocking) {
       ctx.strokeStyle = C.guard;
@@ -1103,6 +1138,8 @@ export class Renderer {
   private specialFx(f: F, kind: SpecialKind, pose: StickPose, toWorld: (v: Vec) => Vec, now: number) {
     const { ctx } = this;
     const t = f.t;
+    const pal = this.sprites[f.slot]?.look?.palette; // a boss's moves are drawn in its own colours
+    const main = (f.ult && pal?.ult) || pal?.main; // (the ultimate may have a colour of its own: the purple of two colours merged)
     const hand = toWorld(pose.joints.handF);
     const j = pose.joints;
     const mid = toWorld({ x: (j.handF.x + j.handB.x) / 2, y: (j.handF.y + j.handB.y) / 2 });
@@ -1110,7 +1147,7 @@ export class Renderer {
     if (kind === "beam") {
       if (t < BEAM.fireFrom) {
         // Charging ball between the cupped hands, with sparks being sucked in.
-        this.glowBall(mid.x, mid.y, 6 + t * 0.55 + Math.sin(now / 30) * 2, C.guard);
+        this.glowBall(mid.x, mid.y, 6 + t * 0.55 + Math.sin(now / 30) * 2, main ?? C.guard);
         for (let i = 0; i < 3; i++) {
           const a = Math.random() * Math.PI * 2, d = 40 + Math.random() * 40;
           this.particles.push({ x: mid.x + Math.cos(a) * d, y: mid.y + Math.sin(a) * d, vx: -Math.cos(a) * 3, vy: -Math.sin(a) * 3, life: 0, max: 12, color: "#9fb6ff", size: 2.5 });
@@ -1120,20 +1157,20 @@ export class Renderer {
         const end = f.facing > 0 ? ARENA.w + 20 : -20;
         const thick = (30 + Math.sin(now / 18) * 6) * fade;
         ctx.globalAlpha = fade;
-        ctx.shadowColor = C.guard;
+        ctx.shadowColor = main ?? C.guard;
         ctx.shadowBlur = 30;
-        ctx.fillStyle = C.guard;
+        ctx.fillStyle = main ?? C.guard;
         ctx.fillRect(Math.min(hand.x, end), hand.y - thick / 2, Math.abs(end - hand.x), thick);
-        ctx.fillStyle = "#ffffff";
+        ctx.fillStyle = pal?.core ?? "#ffffff";
         ctx.fillRect(Math.min(hand.x, end), hand.y - thick / 5, Math.abs(end - hand.x), (thick * 2) / 5);
-        this.glowBall(hand.x, hand.y, thick * 0.9, C.guard);
+        this.glowBall(hand.x, hand.y, thick * 0.9, main ?? C.guard);
         this.shake = Math.max(this.shake, 3);
       }
     } else if (kind === "spiral" && t < 40) {
       // Spinning sphere in the palm: a glowing core with orbiting rings.
       const r = Math.min(22, 8 + t * 1.2);
       const cx = hand.x + f.facing * 10;
-      this.glowBall(cx, hand.y, r, "#5aa2ff");
+      this.glowBall(cx, hand.y, r, main ?? "#5aa2ff");
       ctx.strokeStyle = "#ffffff";
       ctx.lineWidth = 2.5;
       for (let i = 0; i < 3; i++) {
@@ -1146,14 +1183,14 @@ export class Renderer {
       ctx.globalAlpha = 1 - (t - 4) / 18;
       ctx.translate(f.x + f.facing * 40, f.y - BODY.h * 0.55);
       ctx.scale(f.facing, 1);
-      ctx.fillStyle = C.hit;
+      ctx.fillStyle = main ?? C.hit;
       ctx.beginPath();
       ctx.arc(0, 0, 95, -1.3, 1.1);
       ctx.arc(-22, 0, 80, 1.1, -1.3, true);
       ctx.fill();
     } else if (kind === "teleport" && t >= 2 && t <= 14) {
       // Vanishing streaks.
-      ctx.strokeStyle = C.ink;
+      ctx.strokeStyle = main ?? C.ink;
       ctx.lineWidth = 2;
       ctx.globalAlpha = 0.6;
       for (let i = 0; i < 7; i++) {
@@ -1165,7 +1202,7 @@ export class Renderer {
       }
     } else if ((kind === "barrage" && t >= 6 && t < 42) || (f.ult && f.ultEnd > 0 && t >= SPECIAL_DURATION[kind])) {
       // Ghost fists everywhere in front.
-      ctx.fillStyle = C.ink;
+      ctx.fillStyle = pal?.sub ?? C.ink;
       ctx.globalAlpha = 0.35;
       for (let i = 0; i < 5; i++) {
         const x = f.x + f.facing * (55 + Math.random() * 45), y = f.y - BODY.h * (0.45 + Math.random() * 0.4);
@@ -1177,7 +1214,7 @@ export class Renderer {
     } else if (kind === "shatter" && t >= 11 && t <= 18) {
       // An open hand closing: cracks radiate from the grab.
       const gx = f.x + f.facing * 60, gy = f.y - BODY.h * 0.55;
-      ctx.strokeStyle = C.ink;
+      ctx.strokeStyle = pal ? (t % 2 ? pal.main : pal.sub) : C.ink;
       ctx.lineWidth = 3;
       ctx.globalAlpha = Math.max(0, 1 - (t - 11) / 8);
       ctx.beginPath();
@@ -1188,20 +1225,20 @@ export class Renderer {
         ctx.lineTo(gx + Math.cos(a) * r1, gy + Math.sin(a) * r1);
       }
       ctx.stroke();
-      if (t === 12) this.rings.push({ x: gx, y: gy, r: 6, grow: 8, life: 0, max: 14, color: C.gold, width: 5 });
+      if (t === 12) this.rings.push({ x: gx, y: gy, r: 6, grow: 8, life: 0, max: 14, color: pal?.sub ?? C.gold, width: 5 });
     } else if (kind === "counter" && t < 26) {
       // The stance: a white-gold arc in front, brightest at the start of the 24-tick window.
-      ctx.strokeStyle = t < 24 ? C.gold : "rgba(255,255,255,.5)";
+      ctx.strokeStyle = t < 24 ? (pal?.main ?? C.gold) : "rgba(255,255,255,.5)";
       ctx.lineWidth = 6;
       ctx.globalAlpha = 0.5 + 0.4 * Math.sin(now / 50);
       ctx.beginPath();
       ctx.arc(f.x + f.facing * 6, f.y - BODY.h * 0.55, 80, f.facing > 0 ? -1.1 : Math.PI - 1.1, f.facing > 0 ? 1.1 : Math.PI + 1.1);
       ctx.stroke();
-      if (f.landed && t >= 40 && t <= 42) this.rings.push({ x: f.x + f.facing * 50, y: f.y - BODY.h * 0.55, r: 10, grow: 10, life: 0, max: 14, color: C.gold, width: 6 });
+      if (f.landed && t >= 40 && t <= 42) this.rings.push({ x: f.x + f.facing * 50, y: f.y - BODY.h * 0.55, r: 10, grow: 10, life: 0, max: 14, color: pal?.main ?? C.gold, width: 6 });
     } else if (kind === "dash_slash" && t >= 10 && t <= 24) {
       // The streak the dash leaves: a long gold line along the path, fading.
       ctx.globalAlpha = Math.max(0, 1 - (t - 10) / 14);
-      ctx.fillStyle = C.gold;
+      ctx.fillStyle = main ?? C.gold;
       const x0 = f.x - f.facing * (t <= 18 ? (t - 10) * 27.5 : 220), y0 = hand.y;
       ctx.beginPath();
       ctx.moveTo(x0, y0);
@@ -1211,7 +1248,7 @@ export class Renderer {
       ctx.fill();
     } else if (kind === "remote_detonation" && t >= 2 && t <= 14) {
       // A pointed finger: a little red tick marks the cast.
-      ctx.strokeStyle = C.hit;
+      ctx.strokeStyle = pal ? pal.sub : C.hit;
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.arc(hand.x + f.facing * 12, hand.y, 7 + (t % 6), 0, Math.PI * 2);
@@ -1233,7 +1270,7 @@ export class Renderer {
       }
     } else if (kind === "uppercut" && t >= 8 && t <= 16) {
       for (let i = 0; i < 2; i++) {
-        this.particles.push({ x: hand.x, y: hand.y, vx: (Math.random() - 0.5) * 3, vy: -1 - Math.random() * 2, life: 0, max: 14, color: i ? C.gold : C.hit, size: 5 + Math.random() * 4 });
+        this.particles.push({ x: hand.x, y: hand.y, vx: (Math.random() - 0.5) * 3, vy: -1 - Math.random() * 2, life: 0, max: 14, color: i ? (pal?.sub ?? C.gold) : (pal?.main ?? C.hit), size: 5 + Math.random() * 4 });
       }
     }
     ctx.restore();
@@ -1316,10 +1353,11 @@ export class Renderer {
   private projectile(kind: SpecialKind | "blast", x: number, y: number, r: number, vx: number, now: number, owner: Slot, fromX = x) {
     const { ctx } = this;
     const d = Math.sign(vx);
+    const pal = this.sprites[owner]?.look?.palette; // a boss's shots are in its colours
     ctx.save();
     if (kind === "blast") {
       // The Attacker's punch shot: an arrow for a bow, otherwise a ball of the drawing's own ink.
-      const ink = this.sprites[owner]?.ink ?? C.ink;
+      const ink = pal?.main ?? this.sprites[owner]?.ink ?? C.ink;
       ctx.strokeStyle = ctx.fillStyle = ink;
       if (itemOf(this.items[owner], this.classes[owner]) === "bow") {
         ctx.lineWidth = 3;
@@ -1352,8 +1390,18 @@ export class Renderer {
         ctx.fill();
       }
     } else if (kind === "pull") {
-      // Iron Reel: a hook on a line that runs back to the thrower's hand.
-      ctx.strokeStyle = C.ink;
+      // Iron Reel: a hook on a line that runs back to the thrower's hand (a boss's is a sphere that pulls, with a swirl).
+      if (pal) {
+        this.glowBall(x, y, r * 0.8, pal.main);
+        ctx.strokeStyle = pal.main;
+        ctx.lineWidth = 2.5;
+        for (let i = 0; i < 3; i++) {
+          ctx.beginPath();
+          ctx.ellipse(x, y, r * 1.5, r * 0.6, now / 120 + (i * Math.PI) / 3, 0, Math.PI * 1.4);
+          ctx.stroke();
+        }
+      }
+      ctx.strokeStyle = pal?.main ?? C.ink;
       ctx.lineWidth = 3;
       ctx.setLineDash([10, 6]);
       ctx.beginPath();
@@ -1369,6 +1417,28 @@ export class Renderer {
       ctx.moveTo(x + d * r * 0.7, y - r * 0.5);
       ctx.lineTo(x + d * (r * 0.7 + 8), y - r * 0.9);
       ctx.stroke();
+    } else if (kind === "arrow" && pal) {
+      // A thrown knife: a silver blade with a dark grip and a trail in the thrower's second colour.
+      ctx.globalAlpha = 0.4;
+      ctx.strokeStyle = pal.sub;
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(x - d * 24, y);
+      ctx.lineTo(x - d * 90, y);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#d9dee5";
+      ctx.strokeStyle = C.ink;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(x + d * 22, y);
+      ctx.lineTo(x - d * 8, y - 5);
+      ctx.lineTo(x - d * 8, y + 5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#2a1b3d";
+      ctx.fillRect(Math.min(x - d * 8, x - d * 22), y - 3.5, 14, 7);
     } else if (kind === "arrow") {
       ctx.strokeStyle = C.ink;
       ctx.lineWidth = 4;
@@ -1387,17 +1457,17 @@ export class Renderer {
       ctx.stroke();
     } else if (kind === "wave") {
       // A crescent of ground rolling forward, kicking up dust.
-      ctx.fillStyle = C.ink;
+      ctx.fillStyle = pal ? "#2a1a10" : C.ink;
       ctx.beginPath();
       ctx.moveTo(x - d * 40, ARENA.ground);
       ctx.quadraticCurveTo(x, ARENA.ground - r * 3.2, x + d * 18, ARENA.ground);
       ctx.fill();
-      ctx.strokeStyle = C.gold;
+      ctx.strokeStyle = pal?.main ?? C.gold;
       ctx.lineWidth = 3;
       ctx.stroke();
       if (Math.random() < 0.7) this.particles.push({ x: x - d * 10, y: ARENA.ground - 6, vx: -d * Math.random() * 2, vy: -2 - Math.random() * 3, life: 0, max: 18, color: C.muted, size: 3 + Math.random() * 3 });
     } else {
-      const color = kind === "orb" ? C.gold : C.guard;
+      const color = pal?.main ?? (kind === "orb" ? C.gold : C.guard);
       const rr = r * (1 + Math.sin(now / 60) * 0.08);
       // Comet tail.
       ctx.globalAlpha = 0.35;

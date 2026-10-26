@@ -2,6 +2,7 @@
 // so it isn't frame-perfect) and drives the same Input a human would send.
 
 import { arenaNav, cueNav, fightBounds, guardEdges, type NavMemory } from "./arenaNav";
+import { PERSONAS, REFLEXES, type AiCtx, type PersonaId } from "./bossAi";
 import { MOVES, SLOT1_COST, SPECIAL_INFO, ULT_COST, type SpecialKind } from "./moves";
 import { BLAST_REACH, BODY, holds, moveReach, type Input, type Match, type Slot } from "./sim";
 
@@ -17,7 +18,7 @@ const LEVELS: Record<Level, Knobs> = {
 };
 
 // How close it must be before a special is worth throwing: ranged ones from afar, the rest up close.
-const RANGE: Partial<Record<SpecialKind, number>> = { teleport: 400, meteor: 300, spiral: 300, shatter: 110, counter: 170, dash_slash: 260, pull: 330, remote_detonation: 480 };
+const RANGE: Partial<Record<SpecialKind, number>> = { teleport: 400, meteor: 300, spiral: 300, shatter: 110, counter: 170, dash_slash: 260, pull: 330, remote_detonation: 480, time_stop_barrage: 170 };
 const specialRange = (kind: SpecialKind) => RANGE[kind] ?? (SPECIAL_INFO[kind].ranged ? 650 : 170);
 
 // How often a sword steps back after a chain. Every time makes a slow class unable to ever reach it
@@ -36,14 +37,16 @@ export type CpuBrain = {
   stepBack: boolean | null; // after this chain, step back out of range? (rolled once per chain, null between chains)
   skillUse: number; // chance to use the side skill when the moment comes (scripts/balance.ts sets 0 to price a skill)
   knobs?: Partial<Knobs>; // a dungeon boss's own knobs over its level's (src/game/dungeon.ts)
+  persona?: PersonaId; // ...and how it plays (src/game/bossAi.ts)
+  ps: Record<string, number>; // a persona's memory
   ultUse: number; // chance that it saves up for the ultimate (scripts/balance.ts sets 1 / 0 to price the ultimate)
   saving: boolean; // rolled after every special: this meter goes to the ultimate, slot 1 stays unused
   nav: NavMemory; // arena fights: the jump it is flying (src/game/arenaNav.ts)
 };
 
-export const newBrain = (level: Level, knobs?: Partial<Knobs>): CpuBrain => {
+export const newBrain = (level: Level, knobs?: Partial<Knobs>, persona?: PersonaId): CpuBrain => {
   const ult = knobs?.ult ?? LEVELS[level].ult;
-  return { level, tick: 0, history: [], blockUntil: 0, nextThink: 0, reactedTo: "", guardFor: "", retreatUntil: 0, stepBack: null, skillUse: knobs?.skill ?? LEVELS[level].skill, ultUse: ult, saving: Math.random() < ult, knobs, nav: {} };
+  return { level, tick: 0, history: [], blockUntil: 0, nextThink: 0, reactedTo: "", guardFor: "", retreatUntil: 0, stepBack: null, skillUse: knobs?.skill ?? LEVELS[level].skill, ultUse: ult, saving: Math.random() < ult, knobs, persona, ps: {}, nav: {} };
 };
 
 export function cpuThink(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
@@ -128,6 +131,17 @@ function fight(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
     return;
   }
 
+  // Each class spaces itself by its own reach (a sword outranges fists).
+  const punchReach = BODY.w / 2 + moveReach(myDef, "attack") - 8;
+  const kickReach = BODY.w / 2 + moveReach(myDef, "kick") - 8;
+  const reach = Math.max(punchReach, kickReach);
+  // Cornered: 55 px from the nearest thing that stops it (the arena's wall, or in an arena fight's ring the ring's walls, which are much nearer).
+  const bounds = fightBounds(m, me);
+  const cornered = away === "left" ? me.x < bounds.lo + 55 : me.x > bounds.hi - 55;
+  const ctx: AiCtx | null = brain.persona ? { m, slot, me, op, input, brain, L, dist, toward, away, punchReach, kickReach, reach, cornered } : null;
+  // A dungeon boss's reflexes (src/game/bossAi.ts) come before the think: a counter has to start before the blow lands.
+  if (ctx && REFLEXES[brain.persona!]?.(ctx)) return;
+
   if (brain.tick < brain.nextThink) return;
   brain.nextThink = brain.tick + L.think + Math.floor(Math.random() * L.think);
 
@@ -153,10 +167,6 @@ function fight(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
   if (me.hp / m.defs[slot].maxHp < 0.3 && Math.random() < 0.15) brain.retreatUntil = brain.tick + 30;
   const retreat = brain.retreatUntil > brain.tick;
 
-  // Each class spaces itself by its own reach (a sword outranges fists).
-  const punchReach = BODY.w / 2 + moveReach(myDef, "attack") - 8;
-  const kickReach = BODY.w / 2 + moveReach(myDef, "kick") - 8;
-  const reach = Math.max(punchReach, kickReach);
   input.left = input.right = false;
   // Air: an agile fighter jumps in; once airborne it swings (or dive-kicks) when in range.
   if (!me.grounded) {
@@ -164,9 +174,8 @@ function fight(m: Match, slot: Slot, brain: CpuBrain, input: Input) {
     input[toward] = !retreat;
     return;
   }
-  // Cornered: 55 px from the nearest thing that stops it (the arena's wall, or in an arena fight's ring the ring's walls, which are much nearer).
-  const bounds = fightBounds(m, me);
-  const cornered = away === "left" ? me.x < bounds.lo + 55 : me.x > bounds.hi - 55;
+  // A dungeon boss plays as its inspiration would (src/game/bossAi.ts): the persona decides where it stands and what it swings.
+  if (ctx && PERSONAS[brain.persona!](ctx)) return;
   // Attacker: a zoner. Holds just inside its blast's reach, backs off from anyone who closes in,
   // and when cornered jumps over the opponent instead of trading weak punches.
   if (myDef.cls === "Attacker" && !retreat) {
