@@ -205,7 +205,7 @@ export const BOSSES: Boss[] = [
     moves: { special: "Static Dash", ult: "Thunder Bolt: Sixfold" },
     kit: { punch: ["thunderclap"], kick: ["thunderclap"] },
     persona: "sheathed",
-    budget: 299,
+    budget: 297,
     cap: 115,
     stats: { atk: 98, def: 54, spd: 112, agi: 98, iq: 50 },
     cpu: { react: 8, block: 0.5, aggro: 0.9, dodge: 0.6, think: 6 },
