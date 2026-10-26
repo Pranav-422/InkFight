@@ -3,7 +3,7 @@
 
 import { MOVES, type MoveName } from "./moves";
 import type { PoseTargets } from "./skeleton";
-import { BEAM, SPECIAL_DURATION, type SpecialKind, type Snapshot } from "./sim";
+import { BEAM, SPECIAL_DURATION, TIME_STOP, type SpecialKind, type Snapshot } from "./sim";
 
 type F = Snapshot["fighters"][number];
 
@@ -22,7 +22,8 @@ const FIGHT: PoseTargets = { ...GUARD, ...STANCE };
 export type BodyMotion = { pose: PoseTargets; lunge: number; fall: number; flip: boolean; alpha: number; hover?: number };
 
 // Wind-up, strike and recovery poses per move. Recovery returns to the fighting stance.
-const MOVE_POSES: Record<MoveName, { wind: PoseTargets; hit: PoseTargets; lunge?: number; spin?: boolean }> = {
+// alt: the other fist, on odd beats of a chain (the Overdue's rush).
+const MOVE_POSES: Record<MoveName, { wind: PoseTargets; hit: PoseTargets; alt?: PoseTargets; lunge?: number; spin?: boolean }> = {
   jab: { wind: FIGHT, hit: { ...STANCE, upperF: abs(-0.05), foreF: abs(-0.05), upperB: abs(1.5), foreB: abs(-1.0), torso: rel(0.1) }, lunge: 8 },
   cross: {
     wind: { ...FIGHT, torso: rel(-0.12) },
@@ -148,10 +149,148 @@ const MOVE_POSES: Record<MoveName, { wind: PoseTargets; hit: PoseTargets; lunge?
     wind: { ...GUARD, thighF: abs(-0.3), shinF: abs(DOWN + 0.6), thighB: abs(DOWN + 0.2), shinB: abs(DOWN + 0.9), torso: rel(-0.15) },
     hit: { upperF: abs(-0.6), foreF: abs(-0.9), upperB: abs(BACK - 0.4), thighF: abs(0.35), shinF: abs(0.35), thighB: abs(DOWN + 0.9), shinB: abs(BACK - 0.5), torso: rel(-0.3) },
   },
+  // Dungeon bosses' moves. The research's keyframes, where it has them: limbs are its `abs` as they stand; its `torso.abs` is turned round
+  // (rel = π/2 - abs: its lean is measured the other way).
+  flickerJab: {
+    wind: { ...FIGHT, torso: rel(0.12), upperF: abs(1.1), foreF: abs(-0.8) },
+    hit: { ...STANCE, torso: rel(0.17), upperF: abs(-0.05), foreF: abs(0), upperB: abs(1.5), foreB: abs(-1.0) },
+    lunge: 4,
+  },
+  corkscrew: {
+    wind: { ...FIGHT, torso: rel(0.02), upperB: abs(2.1), foreB: abs(0.5) },
+    hit: { ...STANCE, torso: rel(0.32), upperB: abs(0), foreB: abs(0), upperF: abs(1.5), foreF: abs(-1.0), thighB: abs(1.9) },
+    lunge: 8,
+  },
+  gazelleHook: {
+    wind: { ...STANCE, torso: rel(0.47), thighF: abs(1.1), shinF: abs(2.1), upperF: abs(1.8), foreF: abs(-0.6), upperB: abs(1.5), foreB: abs(-1.0) },
+    hit: { ...STANCE, torso: rel(0.27), upperF: abs(0.25), foreF: abs(-0.35), upperB: abs(1.5), foreB: abs(-1.0) },
+    lunge: 12,
+  },
+  dempsey: {
+    wind: { ...STANCE, torso: rel(0.42), upperB: abs(1.7), foreB: abs(0.9), upperF: abs(1.4), foreF: abs(-0.8) },
+    hit: { ...STANCE, torso: rel(-0.08), upperB: abs(-0.85), foreB: abs(-1.35), upperF: abs(1.5), foreF: abs(-1.0), thighB: abs(DOWN + 0.4) },
+    lunge: 7,
+  },
+  seiken: {
+    wind: { ...STANCE, torso: rel(0), thighF: abs(1.1), upperB: abs(2.3), foreB: abs(0.6), upperF: abs(1.5), foreF: abs(-1.0) },
+    hit: { ...STANCE, torso: rel(0.15), upperB: abs(0.1), foreB: abs(0.1), upperF: abs(1.5), foreF: abs(-1.0) },
+    lunge: 7,
+  },
+  kaitenGeri: {
+    wind: { ...GUARD, torso: rel(0.77), thighB: abs(-0.5), shinB: abs(-0.4), thighF: abs(DOWN - 0.3), shinF: abs(DOWN) },
+    hit: { upperF: abs(BACK - 0.6), upperB: abs(1.2), torso: rel(-1.03), thighB: abs(0.45), shinB: abs(0.5), thighF: abs(DOWN - 0.1), shinF: abs(DOWN) },
+    lunge: 16,
+    spin: true,
+  },
+  heartPunch: {
+    wind: { ...STANCE, torso: rel(0.07), upperF: abs(0.5), foreF: abs(0.2), upperB: abs(1.5), foreB: abs(-1.0) },
+    hit: { ...STANCE, torso: rel(0.27), upperF: abs(0), foreF: abs(0), upperB: abs(1.5), foreB: abs(-1.0) },
+    lunge: 5,
+  },
+  kneeStomp: {
+    wind: { ...GUARD, thighF: abs(0.6), shinF: abs(2.0), thighB: abs(DOWN + 0.3), shinB: abs(DOWN + 0.1) },
+    hit: { ...GUARD, torso: rel(-0.18), thighF: abs(0.55), shinF: abs(0.55), thighB: abs(DOWN + 0.3) },
+    lunge: 4,
+  },
+  // The Compressed Kick: the front foot stomps in, the rear leg is cocked back, then it swings through like a cannonball.
+  shinCannon: {
+    wind: { ...GUARD, torso: rel(0.22), thighF: abs(1.0), shinF: abs(DOWN), thighB: abs(2.3), shinB: abs(2.6) },
+    hit: { ...GUARD, torso: rel(-0.28), thighF: abs(DOWN - 0.1), shinF: abs(DOWN), thighB: abs(0.15), shinB: abs(0.1) },
+    lunge: 20,
+  },
+  // Thunderclap: a crouched iai, one hand on the hilt and the other on the scabbard, then the whole body goes through the cut.
+  thunderclap: {
+    wind: { thighF: abs(DOWN - 0.65), shinF: abs(DOWN + 0.15), thighB: abs(DOWN + 0.55), shinB: abs(DOWN + 0.3), torso: rel(0.2), upperF: abs(2.3), foreF: abs(0.9), upperB: abs(2.6), foreB: abs(2.3) },
+    hit: { ...STANCE, torso: rel(0.38), upperF: abs(-0.08), foreF: abs(0.05), upperB: abs(2.4), foreB: abs(1.7), thighF: abs(DOWN - 0.8), shinF: abs(DOWN - 0.1), thighB: abs(DOWN + 0.8), shinB: abs(DOWN + 0.6) },
+    lunge: 10,
+  },
+  // Oni Cut: the swords cross over the chest, then are flung wide.
+  oniCut: {
+    wind: { ...STANCE, torso: rel(-0.1), upperF: abs(1.6), foreF: abs(-0.6), upperB: abs(1.5), foreB: abs(-0.7) },
+    hit: { ...STANCE, torso: rel(0.35), upperF: abs(-0.15), foreF: abs(0.1), upperB: abs(BACK - 0.35), foreB: abs(BACK - 0.15), thighF: abs(DOWN - 0.8), shinF: abs(DOWN - 0.1), thighB: abs(DOWN + 0.8), shinB: abs(DOWN + 0.5) },
+    lunge: 12,
+  },
+  // Rubber moves: the arm (or leg) is drawn out longer than a person's while it strikes (render.ts `stretch`).
+  pistol: {
+    wind: { ...FIGHT, torso: rel(-0.15), upperF: abs(BACK - 0.5), foreF: abs(BACK - 0.2) },
+    hit: { ...STANCE, torso: rel(0.3), upperF: abs(-0.02), foreF: abs(-0.02), upperB: abs(1.5), foreB: abs(-1.0) },
+    lunge: 6,
+  },
+  bazooka: {
+    wind: { ...STANCE, torso: rel(-0.25), upperF: abs(BACK - 0.5), foreF: abs(BACK - 0.3), upperB: abs(BACK - 0.6), foreB: abs(BACK - 0.35) },
+    hit: { thighF: abs(DOWN - 0.7), thighB: abs(DOWN + 0.7), torso: rel(0.45), upperF: abs(0), foreF: abs(0), upperB: abs(0.06), foreB: abs(0.04) },
+    lunge: 10,
+  },
+  whip: {
+    wind: { ...GUARD, torso: rel(-0.1), thighF: abs(DOWN - 0.3), shinF: abs(DOWN + 0.5), thighB: abs(DOWN + 0.4) },
+    hit: { ...GUARD, torso: rel(-0.4), thighF: abs(-0.1), shinF: abs(-0.05), thighB: abs(DOWN + 0.2) },
+    lunge: 4,
+  },
+  mudaJab: {
+    wind: FIGHT,
+    hit: { ...STANCE, torso: rel(0.14), upperF: abs(-0.04), foreF: abs(-0.04), upperB: abs(1.5), foreB: abs(-1.0) },
+    alt: { ...STANCE, torso: rel(0.2), upperB: abs(-0.04), foreB: abs(-0.04), upperF: abs(1.5), foreF: abs(-1.1) },
+    lunge: 3,
+  },
+};
+
+// A dungeon boss's own idle loop (src/game/bossLook.ts names it): how its inspiration waits for you.
+const BOSS_IDLE: Record<string, (now: number) => BodyMotion> = {
+  // Muay Thai bounce: the front knee lifts on every beat.
+  brawler: (now) => {
+    const b = Math.sin(now / 170), lift = Math.max(0, b);
+    return still({ ...GUARD, thighF: abs(DOWN - 0.3 - lift * 0.55), shinF: abs(DOWN + 0.05 + lift * 0.7), thighB: abs(DOWN + 0.4), shinB: abs(DOWN + 0.2), torso: rel(0.06 + b * 0.03) });
+  },
+  // Open palms, low and wide, rolling on the spot: ready to take hold.
+  grappler: (now) => {
+    const b = Math.sin(now / 260);
+    return still({ thighF: abs(DOWN - 0.55), shinF: abs(DOWN - 0.05), thighB: abs(DOWN + 0.55), shinB: abs(DOWN + 0.25), upperF: abs(0.55 + b * 0.06), foreF: abs(-0.15), upperB: abs(0.95 - b * 0.06), foreB: abs(-0.1), torso: rel(0.16 + b * 0.02), head: rel(b * 0.02) });
+  },
+  // Peek-a-boo: both fists at the face, the torso weaving to a rhythm.
+  boxer: (now) => {
+    const b = Math.sin(now / 240);
+    return still({ ...STANCE, upperF: abs(1.05), foreF: abs(-1.4), upperB: abs(1.2), foreB: abs(-1.3), torso: rel(0.1 + b * 0.17), head: rel(-b * 0.12) });
+  },
+  // Rooted, wide, the palms low and open; breathing slowly.
+  counter: (now) => {
+    const b = Math.sin(now / 420);
+    return still({ thighF: abs(DOWN - 0.55), shinF: abs(DOWN - 0.05), thighB: abs(DOWN + 0.55), shinB: abs(DOWN + 0.25), upperF: abs(0.7), foreF: abs(0.3), upperB: abs(0.85), foreB: abs(0.2), torso: rel(0.02 + b * 0.015), head: rel(b * 0.01) });
+  },
+  // Three swords, one hand on each hip: a wide and heavy stance.
+  ronin: (now) => {
+    const b = Math.sin(now / 360);
+    return still({ ...STANCE, thighF: abs(DOWN - 0.5), shinF: abs(DOWN - 0.05), thighB: abs(DOWN + 0.5), shinB: abs(DOWN + 0.25), upperF: abs(0.5 + b * 0.03), foreF: abs(-0.2), upperB: abs(2.2), foreB: abs(1.4), torso: rel(0.08 + b * 0.015) });
+  },
+  // A crouched iai: one hand on the hilt and one on the scabbard, trembling very slightly. Dead still otherwise.
+  sheathed: (now) => {
+    const q = Math.sin(now / 40) * 0.012;
+    return still({ thighF: abs(DOWN - 0.75), shinF: abs(DOWN + 0.2), thighB: abs(DOWN + 0.65), shinB: abs(DOWN + 0.35), torso: rel(0.35 + q), head: rel(0.1), upperF: abs(2.3), foreF: abs(0.9), upperB: abs(2.6), foreB: abs(2.3) });
+  },
+  // Loose and bouncing, arms swinging like rubber.
+  rubber: (now) => {
+    const b = Math.sin(now / 200);
+    return still({ ...STANCE, upperF: abs(0.9 + b * 0.25), foreF: abs(0.6 + b * 0.3), upperB: abs(0.9 - b * 0.25), foreB: abs(0.7 - b * 0.3), torso: rel(0.05 + Math.sin(now / 180) * 0.05) });
+  },
+  // Upright and calm, hands in the pockets, floating a little.
+  limitless: (now) => {
+    const b = Math.sin(now / 520);
+    return still({ ...STANCE, thighF: abs(DOWN - 0.12), thighB: abs(DOWN + 0.12), shinF: abs(DOWN - 0.04), shinB: abs(DOWN + 0.04), upperF: abs(1.45), foreF: abs(1.9), upperB: abs(1.65), foreB: abs(1.3), torso: rel(-0.03 + b * 0.01), head: rel(-0.05) }, { hover: 7 + b * 3 });
+  },
+  // Wide and low, fists at the hip, bouncing on the toes.
+  turtle: (now) => {
+    const b = Math.sin(now / 150);
+    return still({ thighF: abs(DOWN - 0.6), shinF: abs(DOWN - 0.05), thighB: abs(DOWN + 0.6), shinB: abs(DOWN + 0.3), upperF: abs(1.0), foreF: abs(-0.9), upperB: abs(1.4), foreB: abs(-0.6), torso: rel(0.08 + b * 0.04), head: rel(b * 0.02) });
+  },
+  // Upright, one hand raised and beckoning, the other on the hip, the head tilted back a little: unhurried.
+  regal: (now) => {
+    const b = Math.sin(now / 480);
+    return still({ ...STANCE, thighF: abs(DOWN - 0.2), thighB: abs(DOWN + 0.2), upperF: abs(-0.35 + b * 0.05), foreF: abs(-0.9 + b * 0.15), upperB: abs(1.0), foreB: abs(-0.4), torso: rel(-0.06 + b * 0.01), head: rel(-0.12) }, { hover: 4 + b * 2 });
+  },
 };
 
 // Idle stance per class: a 2-3 s loop, so a Tank reads heavy and an Attacker light before anyone moves.
-function idleFor(cls: string, now: number): BodyMotion {
+function idleFor(cls: string, now: number, boss?: string): BodyMotion {
+  if (boss && BOSS_IDLE[boss]) return BOSS_IDLE[boss](now);
   if (cls === "Tank") {
     const b = Math.sin(now / 380); // slow, heavy breathing in a low stance
     return still({ ...GUARD, thighF: abs(DOWN - 0.5), shinF: abs(DOWN + 0.05), thighB: abs(DOWN + 0.5), shinB: abs(DOWN + 0.25), torso: rel(0.1 + b * 0.025), head: rel(b * 0.02) });
@@ -172,18 +311,13 @@ function idleFor(cls: string, now: number): BodyMotion {
 
 const still = (pose: PoseTargets, extra: Partial<BodyMotion> = {}): BodyMotion => ({ pose, lunge: 0, fall: 0, flip: false, alpha: 1, ...extra });
 
-export function poseFor(f: F, special: SpecialKind, now: number, cls = ""): BodyMotion {
+export function poseFor(f: F, special: SpecialKind, now: number, cls = "", idle?: string): BodyMotion {
   const t = f.t;
   switch (f.action) {
     case "idle": {
       if (!f.grounded) {
         // Tuck the legs, arms up for balance.
         return still({ thighF: abs(DOWN - 0.8), shinF: abs(DOWN + 0.15), thighB: abs(DOWN - 0.25), shinB: abs(DOWN + 0.7), upperF: rel(-0.7), upperB: rel(0.6) });
-      }
-      // Pencil Case: the boss rummages in its pencil case with both hands: clearly not a fighting pose.
-      if ((f.pv?.swap ?? 0) > 0) {
-        const w = Math.sin(now / 55) * 0.25;
-        return still({ upperF: abs(0.9 + w), foreF: abs(-1.3 - w), upperB: abs(0.8 - w), foreB: abs(-1.2 + w), torso: rel(0.28), head: rel(0.3), ...STANCE });
       }
       if (f.blocking) return still({ ...GUARD, ...STANCE, upperF: abs(0.9), foreF: abs(-1.45), torso: rel(-0.12), head: rel(-0.15) });
       if (f.moving) {
@@ -197,7 +331,7 @@ export function poseFor(f: F, special: SpecialKind, now: number, cls = ""): Body
           torso: rel(0.08),
         });
       }
-      return idleFor(cls, now);
+      return idleFor(cls, now, idle);
     }
     case "attack":
     case "kick": {
@@ -205,7 +339,7 @@ export function poseFor(f: F, special: SpecialKind, now: number, cls = ""): Body
       const mv = MOVES[name];
       const p = MOVE_POSES[name];
       if (t < mv.from) return still(p.wind, { flip: !!p.spin && t > mv.from * 0.5 });
-      if (t <= mv.to + 3) return still(p.hit, { lunge: p.lunge ?? 0 });
+      if (t <= mv.to + 3) return still(p.alt && f.combo % 2 === 1 ? p.alt : p.hit, { lunge: p.lunge ?? 0 });
       return still(FIGHT);
     }
     case "special":
@@ -253,6 +387,21 @@ function specialPose(kind: SpecialKind, f: F, now: number): BodyMotion {
     );
   }
   switch (kind) {
+    case "time_stop_barrage": {
+      // The arms thrown open for the stop, then the fists fly (alternating on the beat) while the world holds still.
+      if (t < TIME_STOP.start) return still({ upperF: abs(UP + 0.55), foreF: abs(UP + 0.3), upperB: abs(BACK - 0.35), foreB: abs(BACK), torso: rel(-0.18), head: rel(-0.2), ...wide });
+      if (f.ultEnd > 0) {
+        const left = Math.floor(t / 2) % 2 === 0;
+        const jitter = Math.sin(t * 2.9) * 0.2;
+        return still(
+          left
+            ? { upperF: abs(jitter), foreF: abs(jitter), upperB: abs(1.6), foreB: abs(-1.0), torso: rel(0.24), ...wide }
+            : { upperB: abs(jitter), foreB: abs(jitter), upperF: abs(1.5), foreF: abs(-1.1), torso: rel(0.3), ...wide },
+          { lunge: 6 },
+        );
+      }
+      return still({ ...FIGHT, torso: rel(0.1) });
+    }
     case "bolt":
     case "arrow":
     case "orb":

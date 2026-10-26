@@ -256,7 +256,7 @@ export class Renderer {
       // A boss changed form: new class look, the page bleeds red (see draw), a banner and a burst.
       this.classes[e.slot] = e.cls;
       this.items[e.slot] = e.item;
-      this.banner = { text: "THE MARGIN TEARS", color: C.hit, life: 140 };
+      this.banner = { text: e.banner ?? "FORM CHANGE", color: C.hit, life: 140 };
       const f = s.fighters[e.slot];
       this.shake = 24;
       this.flash = Math.max(this.flash, 5);
@@ -527,7 +527,7 @@ export class Renderer {
     this.phaseText(cur);
   }
 
-  // A drawn threat: the Regent's ruled line on the floor, or the crosshair and column of a remote detonation.
+  // A drawn threat: the crosshair and column of a delayed cut (remote detonation, the Overdue's knives).
   // It darkens as it nears the cut and flashes for the last 8 ticks.
   private hazard(h: Snapshot["hazards"][number], target: F, now: number) {
     const { ctx } = this;
@@ -536,34 +536,22 @@ export class Renderer {
     ctx.lineCap = "round";
     ctx.strokeStyle = flash ? "#ffffff" : `rgba(190,30,30,${0.25 + 0.6 * p})`;
     ctx.fillStyle = `rgba(190,30,30,${0.06 + 0.16 * p})`;
-    if (h.kind === "line") {
-      ctx.lineWidth = 3 + 3 * p;
-      ctx.beginPath();
-      ctx.moveTo(h.x - h.w / 2, ARENA.ground + 5);
-      ctx.lineTo(h.x + h.w / 2, ARENA.ground + 5);
-      ctx.moveTo(h.x - h.w / 2, ARENA.ground - 8);
-      ctx.lineTo(h.x - h.w / 2, ARENA.ground + 5);
-      ctx.moveTo(h.x + h.w / 2, ARENA.ground - 8);
-      ctx.lineTo(h.x + h.w / 2, ARENA.ground + 5);
-      ctx.stroke();
-    } else {
-      ctx.fillRect(h.x - h.w / 2, 60, h.w, ARENA.ground - 60);
-      ctx.lineWidth = 2 + 2 * p;
-      ctx.beginPath();
-      ctx.moveTo(h.x - h.w / 2, 60);
-      ctx.lineTo(h.x - h.w / 2, ARENA.ground);
-      ctx.moveTo(h.x + h.w / 2, 60);
-      ctx.lineTo(h.x + h.w / 2, ARENA.ground);
-      ctx.stroke();
-      const cy = target.y - BODY.h * 0.55, r = 30 - 10 * p;
-      ctx.beginPath();
-      ctx.arc(h.x, cy, r, 0, Math.PI * 2);
-      ctx.moveTo(h.x - r - 10, cy);
-      ctx.lineTo(h.x + r + 10, cy);
-      ctx.moveTo(h.x, cy - r - 10);
-      ctx.lineTo(h.x, cy + r + 10);
-      ctx.stroke();
-    }
+    ctx.fillRect(h.x - h.w / 2, 60, h.w, ARENA.ground - 60);
+    ctx.lineWidth = 2 + 2 * p;
+    ctx.beginPath();
+    ctx.moveTo(h.x - h.w / 2, 60);
+    ctx.lineTo(h.x - h.w / 2, ARENA.ground);
+    ctx.moveTo(h.x + h.w / 2, 60);
+    ctx.lineTo(h.x + h.w / 2, ARENA.ground);
+    ctx.stroke();
+    const cy = target.y - BODY.h * 0.55, r = 30 - 10 * p;
+    ctx.beginPath();
+    ctx.arc(h.x, cy, r, 0, Math.PI * 2);
+    ctx.moveTo(h.x - r - 10, cy);
+    ctx.lineTo(h.x + r + 10, cy);
+    ctx.moveTo(h.x, cy - r - 10);
+    ctx.lineTo(h.x, cy + r + 10);
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -571,9 +559,9 @@ export class Renderer {
   private bossGlow(f: F, passive: PassiveId, now: number): { color: string; blur: number } | null {
     const pv = f.pv ?? {};
     switch (passive) {
-      case "heat-stacks": {
+      case "fracture": {
         const h = pv.heat ?? 0;
-        return h > 0 ? { color: "#ff8a1f", blur: 4 + h * 4 + (h >= 3 ? Math.sin(now / 45) * 3 : 0) } : null;
+        return h > 0 ? { color: "#ff3b3b", blur: 4 + h * 4 + (h >= 3 ? Math.sin(now / 45) * 3 : 0) } : null;
       }
       case "sheathed-draw":
         return (pv.still ?? 0) >= 20 ? { color: "#ffffff", blur: 16 } : (pv.still ?? 0) > 0 ? { color: "#8fb4ff", blur: 3 + (pv.still ?? 0) / 5 } : null;
@@ -581,45 +569,26 @@ export class Renderer {
         const mv = f.move ? MOVES[f.move] : null;
         return (f.action === "attack" || f.action === "kick") && mv && f.t < mv.from ? { color: "#000000", blur: 14 } : null;
       }
-      case "royal-pride":
-        return f.hp < 80 ? { color: "#7b4fd6", blur: 9 + Math.sin(now / 120) * 2 } : null;
-      case "endless-dance":
-        return (pv.restarts ?? 0) > 0 ? { color: C.gold, blur: 5 + 4 * (pv.restarts ?? 0) } : null;
       case "whiteout-guard":
         return (pv.cracks ?? 0) >= 2 ? { color: "#dfe6ee", blur: 12 } : null;
       case "infinite-margin":
         return (pv.shimmer ?? 0) > 0 ? { color: "#8fd3e8", blur: 14 + Math.sin(now / 50) * 4 } : null;
+      case "charge-up": {
+        const k = Math.min(3, Math.floor((pv.charge ?? 0) / 60));
+        return k > 0 ? { color: k >= 2 ? "#ffd700" : "#00ccff", blur: 6 + k * 5 } : null;
+      }
       default:
         return null;
     }
   }
 
-  // The passive's other tells, drawn over the boss: the crown, the shield cracks, the pencil case, the ruled grid and blink ripple,
-  // heat embers, sword sparks, gold footwork. (x, y) is the fighter's feet in the world; hand is its front hand.
+  // The passive's other tells, drawn over the boss: the shield cracks, the ruled grid and blink ripple, sword sparks, ki rocks.
+  // (x, y) is the fighter's feet in the world; hand is its front hand.
   private bossFx(f: F, passive: PassiveId, x: number, y: number, hand: Vec) {
     const { ctx } = this;
     const pv = f.pv ?? {};
     const rnd = Math.random;
-    if (passive === "royal-pride" && f.hp < 80) {
-      // A crown of ink floats above the head.
-      const cx = x, cy = y - BODY.h * 1.1 - 16;
-      ctx.save();
-      ctx.strokeStyle = C.ink;
-      ctx.fillStyle = C.gold;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(cx - 17, cy + 10);
-      ctx.lineTo(cx - 17, cy - 8);
-      ctx.lineTo(cx - 8, cy + 2);
-      ctx.lineTo(cx, cy - 12);
-      ctx.lineTo(cx + 8, cy + 2);
-      ctx.lineTo(cx + 17, cy - 8);
-      ctx.lineTo(cx + 17, cy + 10);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.restore();
-    } else if (passive === "whiteout-guard" && (pv.cracks ?? 0) > 0) {
+    if (passive === "whiteout-guard" && (pv.cracks ?? 0) > 0) {
       ctx.save();
       ctx.strokeStyle = "#ffffff";
       ctx.lineWidth = 2.5;
@@ -632,19 +601,6 @@ export class Renderer {
       }
       ctx.restore();
       if ((pv.cracks ?? 0) >= 2 && rnd() < 0.4) this.particles.push({ x: hand.x + (rnd() - 0.5) * 40, y: hand.y + (rnd() - 0.5) * 60, vx: 0, vy: -0.8, life: 0, max: 24, color: "#dfe6ee", size: 5 + rnd() * 4 });
-    } else if (passive === "pencil-case" && ((pv.timer ?? 0) >= 420 || (pv.swap ?? 0) > 0)) {
-      // The pencil case pops open above the head and names the weapon coming next.
-      const next = ["SWORD", "SHIELD", "MACE"][pv.weapon ?? 0];
-      ctx.save();
-      ctx.font = `800 13px ${this.fontDisplay}`;
-      ctx.textAlign = "center";
-      ctx.fillStyle = C.ink;
-      ctx.strokeStyle = C.paper;
-      ctx.lineWidth = 4;
-      const ty = y - BODY.h * 1.1 - 22;
-      ctx.strokeText(`✎ ${(pv.swap ?? 0) > 0 ? "SWAPPING" : "NEXT"}: ${next}`, x, ty);
-      ctx.fillText(`✎ ${(pv.swap ?? 0) > 0 ? "SWAPPING" : "NEXT"}: ${next}`, x, ty);
-      ctx.restore();
     } else if (passive === "infinite-margin") {
       // A ruled-line grid shimmers around him; the blink is an ink-blot ripple on him.
       ctx.save();
@@ -672,36 +628,12 @@ export class Renderer {
         }
       }
       ctx.restore();
-    } else if (passive === "heat-stacks" && (pv.heat ?? 0) >= 3 && rnd() < 0.7) {
-      this.particles.push({ x: hand.x + (rnd() - 0.5) * 20, y: hand.y, vx: (rnd() - 0.5) * 1.5, vy: -1.5 - rnd() * 2, life: 0, max: 20, color: rnd() < 0.5 ? "#ff8a1f" : C.hit, size: 4 + rnd() * 4 });
+    } else if (passive === "fracture" && (pv.heat ?? 0) >= 3 && rnd() < 0.7) {
+      this.particles.push({ x: hand.x + (rnd() - 0.5) * 20, y: hand.y, vx: (rnd() - 0.5) * 1.5, vy: -1.5 - rnd() * 2, life: 0, max: 20, color: rnd() < 0.5 ? "#ff3b3b" : C.hit, size: 4 + rnd() * 4 });
     } else if (passive === "sheathed-draw" && (pv.still ?? 0) > 0 && rnd() < 0.5) {
-      // Blue sparks crawl along the blade, then it flashes white.
+      // Sparks crawl along the blade, then it flashes white.
       this.particles.push({ x: hand.x + f.facing * rnd() * 50, y: hand.y - rnd() * 60, vx: 0, vy: -0.4, life: 0, max: 12, color: (pv.still ?? 0) >= 20 ? "#ffffff" : "#8fb4ff", size: 2.5 });
-    } else if (passive === "endless-dance" && (pv.restarts ?? 0) > 0 && (f.action === "attack" || f.action === "kick") && rnd() < 0.8) {
-      this.particles.push({ x: x + (rnd() - 0.5) * 50, y: ARENA.ground - 3, vx: -f.facing * rnd() * 2, vy: -rnd() * 1.5, life: 0, max: 22, color: C.gold, size: 4 + (pv.restarts ?? 0) * 2 });
     }
-  }
-
-  // Curse Marks: red tally strokes on the marked fighter's body, one per mark; the fourth pulses.
-  private marksFx(f: F, x: number, y: number, now: number) {
-    const { ctx } = this;
-    ctx.save();
-    ctx.strokeStyle = C.hit;
-    ctx.lineCap = "round";
-    ctx.lineWidth = f.marks >= 4 && Math.floor(now / 120) % 2 ? 5 : 3;
-    const top = y - BODY.h * 0.78;
-    for (let i = 0; i < f.marks; i++) {
-      ctx.beginPath();
-      if (i < 4) {
-        ctx.moveTo(x - 12 + i * 8, top);
-        ctx.lineTo(x - 12 + i * 8, top + 22);
-      } else {
-        ctx.moveTo(x - 16, top + 18);
-        ctx.lineTo(x + 18, top + 4); // the fifth stroke crosses the four
-      }
-      ctx.stroke();
-    }
-    ctx.restore();
   }
 
   // The manga impact frame: the arena inverted, black and white wedges fanning out from the point of impact.
@@ -922,7 +854,7 @@ export class Renderer {
     const hurt = f.action === "hit" && f.t < 8;
     const nc = normClass(cls);
     const accent = nc === "Tank" || nc === "Attacker" ? C.guard : nc === "Fighter" ? C.hit : C.gold;
-    const look = { ink: hurt ? C.hit : (sprite?.ink ?? C.ink), head: sprite?.head ?? null, prop: sprite?.prop ?? null, cls, item: passive === "pencil-case" ? ["mace", "sword", "shield"][f.pv?.weapon ?? 0] : this.items[f.slot], accent, width: sprite?.width ?? 7, build: this.builds[f.slot], now };
+    const look = { ink: hurt ? C.hit : (sprite?.ink ?? C.ink), head: sprite?.head ?? null, prop: sprite?.prop ?? null, cls, item: this.items[f.slot], accent, width: sprite?.width ?? 7, build: this.builds[f.slot], now };
 
     ctx.save();
     ctx.translate(f.x + dx, f.y);
@@ -1006,7 +938,6 @@ export class Renderer {
     }
     if (f.status && f.action !== "ko") this.statusFx(f.status.kind, f.x + dx - f.facing * 38, f.y + (lift - 150) * sc, now);
     if (passive && f.action !== "ko") this.bossFx(f, passive, f.x + dx, f.y + lift, toWorld(pose.joints.handF));
-    if (f.marks > 0 && f.action !== "ko") this.marksFx(f, f.x + dx, f.y + lift, now);
 
     if (f.blocking) {
       ctx.strokeStyle = C.guard;

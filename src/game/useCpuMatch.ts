@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ArenaId } from "./arena";
 import { cpuThink, newBrain, type Level } from "./cpu";
-import { bossKnobs, type BossRun } from "./dungeon";
+import { bossKnobs, bossPersona, type BossRun } from "./dungeon";
 import type { Lobby, PublicFighter } from "./protocol";
 import { createMatch, EMPTY_INPUT, snapshot, step, TICK_HZ, type Input, type Match, type Snapshot } from "./sim";
 import type { SnapBuffer } from "./useGameRoom";
@@ -23,7 +23,7 @@ export function useCpuMatch(me: PublicFighter, cpu: PublicFighter, level: Level,
 
   useEffect(() => {
     const cpuInput: Input = { ...EMPTY_INPUT };
-    const brain = newBrain(level, boss?.cpu);
+    const brain = newBrain(level, boss?.cpu, boss?.persona);
     const m: Match = createMatch({ ...me }, { ...cpu }, [myInput.current, cpuInput], { ...(boss && { boss: boss.spec }), ...(arena && { arena, seed: Math.floor(Math.random() * 4294967296) }) }); // (an arena fight rolls its own luck: the seed)
     snaps.current = { prev: null, cur: null, at: 0 };
     let last = performance.now();
@@ -34,7 +34,10 @@ export function useCpuMatch(me: PublicFighter, cpu: PublicFighter, level: Level,
       last = now;
       while (acc >= TICK_MS) {
         acc -= TICK_MS;
-        if (boss) brain.knobs = bossKnobs(boss, m.boss?.phase);
+        if (boss) {
+          brain.knobs = bossKnobs(boss, m.boss?.phase);
+          brain.persona = bossPersona(boss, m.boss?.phase);
+        }
         cpuThink(m, 1, brain, cpuInput);
         step(m, [myInput.current, cpuInput]);
         const s = snapshot(m);

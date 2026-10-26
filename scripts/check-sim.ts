@@ -6,10 +6,10 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { heatAt } from "../src/game/arenaRender";
 import { ARENA_STORY_IDS, ARENA_STORY_LENGTH, ARENA_TUNE, arenaBoost, arenaTick, arenaWorld, buffScale, CONSTELLATIONS, lavaY, platformsAt, ringBounds, ringUp, ROCK_DEFS, sceneAt, STAIRS_UP_TICK } from "../src/game/arena";
-import { CLASS_ULT, SLOT1_COST, SPECIAL_KINDS, STYLE_INFO, ULT_COST } from "../src/game/moves";
+import { BOSS_KINDS, chainPower as chainPowerOf, CLASS_ULT, MOVES, SLOT1_COST, SPECIAL_KINDS, specialOf, STYLE_INFO, ULT_COST, ultOf } from "../src/game/moves";
 import { poseFor } from "../src/game/poses";
 import { AVERAGE_BUILD, buildFor, solveStick } from "../src/game/stickman";
-import { ARENA, createMatch, deriveDef, EMPTY_INPUT, resumeMatch, snapshot, step, TICK_HZ, type BossSpec, type FighterStats, type Input, type Match } from "../src/game/sim";
+import { ARENA, createMatch, deriveDef, EMPTY_INPUT, moveReach, resumeMatch, snapshot, step, TICK_HZ, type BossSpec, type FighterStats, type Input, type Match } from "../src/game/sim";
 import { CLASSES, clampStats, ruleStats } from "../src/lib/stats";
 
 const neutral = { size: "medium", pose: "neutral", dominant_colors: [] } as const;
@@ -404,27 +404,27 @@ for (const c of CLASSES) assert.equal(deriveDef(fighter(c)).passive, undefined, 
   void a;
 }
 
-// Heat Stacks: three clean normal hits, then the next sets you on fire; a blocked hit resets the heat.
+// Fracture: three clean normal hits, then the next one makes you bleed; a blocked hit closes the cracks.
 {
-  const x = fight(fighter("Fighter", still()), fighter("Fighter", { style: "Karate" }), 100, bossOf("heat-stacks"));
+  const x = fight(fighter("Fighter", still()), fighter("Fighter", { style: "Karate" }), 100, bossOf("fracture"));
   const [a, b] = x.m.fighters;
   let peak = 0;
-  for (let i = 0; i < 900 && a.status?.kind !== "FIRE"; i++) {
+  for (let i = 0; i < 900 && a.status?.kind !== "BLEED"; i++) {
     a.hp = 200;
     if (b.action === "idle" && b.cooldown === 0) x.ib.attack++;
     run(x, 1);
     peak = Math.max(peak, b.pv.heat ?? 0);
-    if (a.status?.kind === "FIRE") break;
+    if (a.status?.kind === "BLEED") break;
   }
-  assert.equal(a.status?.kind, "FIRE", "three clean hits never lit the fourth");
+  assert.equal(a.status?.kind, "BLEED", "three clean hits never opened the fourth");
   assert.equal(peak, 3);
-  assert.equal(b.pv.heat, 0, "heat should reset on the burning hit");
-  const y = fight(fighter("Fighter", still()), fighter("Fighter", { style: "Karate" }), 100, bossOf("heat-stacks"));
+  assert.equal(b.pv.heat, 0, "the cracks should close on the deconstructing hit");
+  const y = fight(fighter("Fighter", still()), fighter("Fighter", { style: "Karate" }), 100, bossOf("fracture"));
   y.m.fighters[1].pv.heat = 2;
   y.ia.block = true;
   y.ib.attack++;
   run(y, 12);
-  assert.equal(y.m.fighters[1].pv.heat, 0, "a blocked hit should put the heat out");
+  assert.equal(y.m.fighters[1].pv.heat, 0, "a blocked hit should close the cracks");
 }
 
 // Sheathed Draw: still for 20 ticks, then the next opener dashes, hits half again as hard and leaves 12 more ticks of recovery.
@@ -451,98 +451,96 @@ for (const c of CLASSES) assert.equal(deriveDef(fighter(c)).passive, undefined, 
   assert.equal(drawn.cd - quick.cd, 12, "a draw-cut leaves 12 extra recovery ticks");
 }
 
-// Whiteout Guard: the third blocked hit bursts the guard: the attacker is shoved back and frozen.
+// Aikido Redirect (whiteout-guard): the third blocked hit throws the attacker back and leaves him reeling (no frost any more).
 {
   const x = fight(fighter("Fighter", still()), fighter("Tank"), 100, bossOf("whiteout-guard"));
   const [a, b] = x.m.fighters;
   x.ib.block = true;
-  let burst = false;
-  for (let i = 0; i < 400 && !burst; i++) {
+  let thrown = false;
+  for (let i = 0; i < 400 && !thrown; i++) {
     if (a.action === "idle" && a.cooldown === 0) x.ia.attack++;
     run(x, 1);
-    if (a.status?.kind === "FROST") burst = true;
+    if (a.stun === 22) thrown = true;
   }
-  assert.ok(burst, "three blocked hits never burst the guard");
-  assert.equal(b.pv.cracks, 0, "the cracks should reset after the burst");
-  assert.ok(a.vx < -5 && a.action === "hit", "the attacker wasn't shoved back");
-  assert.ok(a.status!.t <= 60, "frost should last only 60 ticks");
+  assert.ok(thrown, "three blocked hits never redirected the attacker");
+  assert.equal(b.pv.cracks, 0, "the cracks should reset after the throw");
+  assert.ok(a.vx < -5 && a.action === "hit", "the attacker wasn't thrown back");
+  assert.equal(a.status, null, "the redirect no longer freezes");
 }
 
-// Royal Pride: below 40% health the meter fills twice as fast and every blast comes in a pair.
+// Guard Crush: a crush move (the Compressed Kick) goes through a guard and keeps it down for 40 ticks; without the passive the same kick is blocked.
 {
-  const energy = (hp: number) => {
-    const x = fight(fighter("Fighter"), fighter("Attacker"), 500, bossOf("royal-pride"));
+  const kick = (passive: "guard-crush" | "rubber") => {
+    const x = fight(fighter("Fighter", still()), fighter("Mace", still()), 100, bossOf(passive, { kit: { kick: ["shinCannon"] } }));
+    const [a, b] = x.m.fighters;
+    x.ia.block = true;
+    x.ib.kick++;
+    let blocked: boolean | null = null;
+    for (let i = 0; i < 40 && blocked === null; i++) {
+      run(x, 1);
+      const h = events(x.m, "hit").find((e) => e.type === "hit" && e.by === 1);
+      if (h && h.type === "hit") blocked = h.blocked;
+    }
+    return { x, a, b, blocked };
+  };
+  const crush = kick("guard-crush"), plain = kick("rubber");
+  assert.equal(plain.blocked, true, "control: the kick should be blocked without the passive");
+  assert.equal(crush.blocked, false, "the Compressed Kick should go through a guard");
+  assert.ok(crush.a.pv.noBlock > 30, "the guard should stay down");
+  assert.ok(crush.a.hp < plain.a.hp, "a crushed guard should cost more than a blocked kick");
+  run(crush.x, 24); // hit-stun is over, the guard button is still held
+  assert.ok(crush.a.action === "idle" && !crush.a.blocking && crush.a.pv.noBlock > 0, "the guard came back too soon");
+  run(crush.x, 30);
+  assert.ok(crush.a.blocking, "the guard should come back after 40 ticks");
+  // Nobody else's blocks are ever held down: the field stays empty in an ordinary fight.
+  const o = fight(fighter("Fighter"), fighter("Mace"), 100);
+  o.ia.block = true;
+  o.ib.kick++;
+  run(o, 40);
+  assert.deepEqual(o.m.fighters[0].pv, {}, "an ordinary fight wrote boss state");
+}
+
+// Rubber Body: punches deal 65% to him; kicks are normal.
+{
+  const loss = (kick: boolean, boss: boolean) => {
+    const x = fight(fighter("Fighter", { atk: 100, style: "Karate", agi: 40 }), fighter("Fighter", still()), 100, boss ? bossOf("rubber") : undefined);
+    if (kick) x.ia.kick++;
+    else x.ia.attack++;
+    for (let i = 0; i < 24 && x.m.fighters[1].hp === 200; i++) run(x, 1);
+    return hpLoss(x.m.fighters[1]);
+  };
+  const punch = loss(false, true) / loss(false, false), foot = loss(true, true) / loss(true, false);
+  assert.ok(punch > 0.55 && punch < 0.75, `a punch should do x0.65 to rubber, got x${punch.toFixed(2)}`);
+  assert.ok(foot > 0.9 && foot < 1.1, `a kick should be normal, got x${foot.toFixed(2)}`);
+}
+
+// Ki Charge: standing still fills the meter 3x faster and builds the charge; moving drains it; a special fired after a full charge hits 30% harder.
+{
+  const meter = (boss: boolean) => {
+    const x = fight(fighter("Fighter", still()), fighter("Fighter", still()), 500, boss ? bossOf("charge-up") : undefined);
     const b = x.m.fighters[1];
-    b.hp = hp;
     b.energy = 0;
     b.tension = 0;
-    run(x, 60);
-    return b.energy;
+    b.pv.charge = 0;
+    run(x, 100);
+    return { energy: b.energy, charge: b.pv.charge ?? 0, x, b };
   };
-  assert.ok(Math.abs(energy(70) / energy(200) - 2) < 0.15 || energy(70) > energy(200) * 1.7, "pride should double the meter below 40%");
-  const blasts = (hp: number) => {
-    const x = fight(fighter("Fighter"), fighter("Attacker"), 500, bossOf("royal-pride"));
-    x.m.fighters[1].hp = hp;
-    x.ib.attack++;
-    run(x, 9);
-    return x.m.projectiles.filter((p) => p.owner === 1 && p.kind === "blast");
+  const c = meter(true), p = meter(false);
+  assert.ok(c.energy > p.energy * 2.7 && c.energy < p.energy * 3.3, `ki should fill the meter 3x (${c.energy} vs ${p.energy})`);
+  assert.ok(c.charge >= 99, "stillness should build the charge");
+  c.x.ib.right = true;
+  run(c.x, 20);
+  assert.ok(c.b.pv.charge < 30, "moving should drain the charge");
+  const bolt = (charge: number) => {
+    const x = fight(fighter("Fighter", still()), fighter("Fighter", { ...still(), specialKind: "bolt" }), 300, bossOf("charge-up"));
+    x.m.fighters[1].energy = 100;
+    x.m.fighters[1].pv.charge = charge;
+    x.ib.special++;
+    for (let i = 0; i < 80 && x.m.fighters[0].hp === 200; i++) run(x, 1);
+    return hpLoss(x.m.fighters[0]);
   };
-  assert.equal(blasts(200).length, 1);
-  const pair = blasts(70);
-  assert.equal(pair.length, 2, "no second blast");
-  assert.ok(pair.some((p) => (p.delay ?? 0) > 0), "the second blast should be delayed");
-}
-
-// Endless Dance: when the last move of a chain lands clean, the chain starts again with no rest (twice at most); a blocked blow stalls it.
-{
-  const dance = (blockIt: boolean) => {
-    const x = fight(fighter("Fighter", still()), fighter("Fighter", { style: "Karate" }), 100, bossOf("endless-dance"));
-    const [a, b] = x.m.fighters;
-    x.ia.block = blockIt;
-    let restarts = 0, lastCd = -1;
-    for (let i = 0; i < 400; i++) {
-      a.hp = 200;
-      // press only until the chain's last move has begun: any further swing is the passive's
-      const chain = STYLE_INFO.Karate.punch;
-      if ((b.action === "idle" && b.cooldown === 0 && !b.pv.restarts) || (b.action === "attack" && b.combo < chain.length - 1 && b.t > 6)) x.ib.attack++;
-      run(x, 1);
-      restarts = Math.max(restarts, b.pv.restarts ?? 0);
-      if (b.action === "idle" && b.comboT === 0 && b.cooldown > 0) lastCd = Math.max(lastCd, b.cooldown);
-    }
-    return { restarts, lastCd };
-  };
-  const clean = dance(false), blocked = dance(true);
-  assert.equal(clean.restarts, 2, `clean hits should restart the chain twice, got ${clean.restarts}`);
-  assert.ok(blocked.restarts < 2, "a blocked dance kept restarting");
-}
-
-// Pencil Case: every 480 ticks it swaps weapon (mace > sword > shield > mace); the 50-tick swap can't attack and takes x1.25.
-{
-  const x = fight(fighter("Fighter", still()), fighter("Mace", { agi: 40 }), 120, bossOf("pencil-case"));
-  const b = x.m.fighters[1];
-  b.pv.timer = 0;
-  const seen: number[] = [];
-  let swapDmg = 0, normalDmg = 0, swapAttacked = false;
-  for (let i = 0; i < 480 * 3 + 300; i++) {
-    x.m.fighters[0].hp = 200;
-    b.hp = 200;
-    if (b.pv.swap === 10 && x.m.fighters[0].action === "idle") x.ia.attack++; // hit it mid-swap
-    if ((b.pv.swap ?? 0) > 0) {
-      x.ib.attack++;
-      run(x, 1);
-      swapAttacked ||= b.action === "attack";
-      if (hpLoss(b) > 0) swapDmg = hpLoss(b);
-    } else run(x, 1);
-    if (seen.at(-1) !== (b.pv.weapon ?? 0)) seen.push(b.pv.weapon ?? 0);
-  }
-  assert.deepEqual(seen, [0, 1, 2, 0], `weapon cycle ${seen}`);
-  assert.ok(!swapAttacked, "it attacked mid-swap");
-  // The same blow outside a swap, for comparison.
-  const y = fight(fighter("Fighter", still()), fighter("Mace", { agi: 40 }), 100, bossOf("pencil-case"));
-  y.ia.attack++;
-  for (let i = 0; i < 14 && y.m.fighters[1].hp === 200; i++) run(y, 1);
-  normalDmg = hpLoss(y.m.fighters[1]);
-  assert.ok(swapDmg > normalDmg * 1.15, `a swap should take x1.25 (${swapDmg} vs ${normalDmg})`);
+  const ratio = bolt(130) / bolt(0);
+  assert.ok(ratio > 1.15 && ratio < 1.45, `a full charge should hit x1.3, got x${ratio.toFixed(2)}`);
 }
 
 // Unbending Spine: a normal hit during its wind-up neither interrupts it nor does full damage; a launcher still interrupts.
@@ -600,81 +598,134 @@ for (const c of CLASSES) assert.equal(deriveDef(fighter(c)).passive, undefined, 
   assert.ok(y.m.fighters[1].hp < 200 && !y.m.fighters[1].pv.shimmer && y.m.fighters[1].pv.near < 5, "a hit should cancel the blink and restart the count");
 }
 
-// Curse Marks: each unblocked hit marks the player; one mark fades per 120 ticks; five detonate (16 flat damage + poison).
+// A boss's kit replaces the chains it names (J = its punches, K = its kicks); everyone else keeps their class's and style's.
 {
-  const x = fight(fighter("Fighter", still()), fighter("Fighter"), 100, bossOf("curse-marks"));
+  const kit = { punch: ["flickerJab", "corkscrew", "gazelleHook", "dempsey"], kick: ["lowKick"] } as const;
+  const x = fight(fighter("Fighter", still()), fighter("Fighter", still()), 400, bossOf("afterimage", { kit: { punch: [...kit.punch], kick: [...kit.kick] } }));
+  const b = x.m.fighters[1];
+  const seen: string[] = [];
+  for (let i = 0; i < 300 && seen.length < 4; i++) {
+    if ((b.action === "idle" && (b.cooldown === 0 || b.comboT > 0)) || (b.action === "attack" && b.t > MOVES[b.move!].to)) x.ib.attack++;
+    run(x, 1);
+    if (b.action === "attack" && b.t === 0 && b.move) seen.push(b.move); // (a move has just begun)
+  }
+  assert.deepEqual(seen.slice(0, 4), [...kit.punch], `the kit's punches ran as ${seen}`);
+  assert.equal(moveReach(x.m.defs[1], "attack"), Math.max(...kit.punch.map((n) => MOVES[n].reach)), "reach follows the kit");
+  assert.equal(moveReach(x.m.defs[0], "attack"), moveReach(deriveDef(fighter("Fighter", still())), "attack"), "the player's chain moved");
+  // ...and the damage of a chain is priced the same way as any other (a four-punch string is not worth more per second than a two-punch one).
+  const dps = (chain: (typeof kit)["punch"]) => chain.reduce((n, m) => n + MOVES[m].mult, 0) / (chain.reduce((n, m) => n + MOVES[m].dur, 0) + 20);
+  const jabs = ["mudaJab", "mudaJab", "mudaJab", "mudaJab"] as unknown as (typeof kit)["punch"];
+  assert.ok(Math.abs(dps(kit.punch) * chainPowerOf([...kit.punch]) - dps(jabs) * chainPowerOf([...jabs])) < 1e-9, "kit chains are normalised to the same damage per second");
+}
+
+// Boss-only kinds are not on any list a player can pick from, and a stat line can't carry one; a boss spec can.
+for (const k of BOSS_KINDS) {
+  assert.ok(!(SPECIAL_KINDS as readonly string[]).includes(k), `${k} is a player kind`);
+  assert.notEqual(specialOf(k, "Fighter"), k);
+  assert.notEqual(ultOf(k, "Fighter"), k);
+  assert.notEqual(deriveDef(fighter("Fighter", { specialKind: k, ultKind: k })).ult, k, "a stat line got a boss-only kind");
+  const m = createMatch(fighter("Fighter"), fighter("Fighter"), [{ ...EMPTY_INPUT }, { ...EMPTY_INPUT }], { boss: bossOf("time-stop", { ult: k }) });
+  assert.equal(m.defs[1].ult, k);
+  assert.notEqual(m.defs[0].ult, k);
+}
+
+// The Overdue's time stop (boss-only kind): after a 10-tick tell anyone within 180 px is held in front of him while eight blows land, then launched;
+// out of reach the stop finds nobody; a hit in the tell cancels it; the second form holds longer and lays more knives.
+{
+  const spec = (extra: Partial<BossSpec> = {}) => bossOf("time-stop", { ult: "time_stop_barrage", ...extra });
+  const cast = (gap: number, extra: Partial<BossSpec> = {}) => {
+    const x = fight(fighter("Fighter", still()), fighter("Fighter", still()), gap, spec(extra));
+    x.m.fighters[1].energy = 100;
+    x.ib.block = true;
+    x.ib.special++; // S + L
+    run(x, 1);
+    x.ib.block = false;
+    return x;
+  };
+  const blows = (x: ReturnType<typeof cast>, ticks: number) => {
+    const a = x.m.fighters[0];
+    let hits = 0, held = 0, clock = x.m.phaseT;
+    for (let i = 0; i < ticks; i++) {
+      const hp = a.hp;
+      run(x, 1);
+      if (a.hp < hp) hits++;
+      if (x.m.phaseT !== clock) { // (hit-stop holds the sim still: count the ticks that really passed)
+        clock = x.m.phaseT;
+        if (a.locked) held++;
+      }
+    }
+    return { hits, held };
+  };
+  const x = cast(150);
   const [a, b] = x.m.fighters;
-  a.marks = 4;
-  const hp = a.hp;
-  x.ib.attack++;
-  for (let i = 0; i < 14 && a.hp === hp; i++) run(x, 1);
-  assert.equal(a.marks, 0, "five marks should detonate");
-  assert.ok(hp - a.hp >= 16 + 1, `the detonation should add 16 damage (lost ${hp - a.hp})`);
-  assert.equal(a.status?.kind, "POISON");
-  assert.equal(b.marks, 0);
-  const y = fight(fighter("Fighter", still()), fighter("Fighter"), 500, bossOf("curse-marks"));
-  y.m.fighters[0].marks = 3;
-  y.m.fighters[0].markT = 0;
-  run(y, 125);
-  assert.equal(y.m.fighters[0].marks, 2, "a mark should fade after 120 ticks");
+  assert.equal(b.action, "special");
+  assert.equal(x.m.defs[1].ult, "time_stop_barrage");
+  run(x, 16 + 5); // the super-freeze and half of the tell
+  assert.ok(!a.locked, "held before the tell was over");
+  const first = blows(x, 160);
+  assert.ok(first.hits >= 9 && first.hits <= 11, `eight blows, a launching one, and the knives that find him, got ${first.hits}`);
+  assert.ok(first.held >= 36 && first.held <= 44, `held for about 40 ticks, got ${first.held}`);
+  assert.ok(!a.locked && x.m.fighters[1].action === "idle", "time should have started again");
+  assert.ok(a.hp < 200 - 15, "the stop should hurt");
+  // The knives he laid: two, falling where the target lands.
+  const y = cast(150);
+  run(y, 16 + 11);
+  assert.equal(y.m.hazards.filter((h) => h.knife).length, 2, "two knives");
+  // Out of reach: nobody is held, nobody is hurt, and he is not stuck in the move for long.
+  const z = cast(320);
+  const far = blows(z, 100);
+  assert.equal(far.held, 0, "held from out of reach");
+  assert.equal(z.m.fighters[0].hp, 200);
+  assert.ok(z.m.fighters[1].action === "idle", "the whiffed stop should end quickly");
+  // A hit in the tell cancels it.
+  const w = cast(100);
+  w.ia.attack++;
+  run(w, 16 + 6);
+  assert.equal(w.m.fighters[1].action, "hit", "the tell should be interruptible");
+  assert.ok(!w.m.fighters[0].locked);
+  // The second form: ten blows, four knives, ten ticks longer.
+  const second = cast(150);
+  second.m.boss = { slot: 1, phase: 2, base: second.m.defs[1], spec: spec() };
+  run(second, 16 + 11);
+  assert.equal(second.m.hazards.filter((h) => h.knife).length, 4, "four knives in the second form");
+  const long = blows(second, 180);
+  assert.ok(long.held >= 46 && long.held <= 54, `held for about 50 ticks in the second form, got ${long.held}`);
+  assert.ok(long.hits >= 11, `ten blows and a launching one in the second form, got ${long.hits}`);
 }
 
 // Phase 2 (floor 10): the blow that would take it under half health leaves it exactly there, then it changes form.
-const p2 = (): BossSpec => bossOf("curse-marks", { phase2: { stats: { ...fighter("Sword", { atk: 112, def: 80, spd: 102, agi: 80, iq: 111, specialKind: "slash", element: "BLEED" }), budget: 485, cap: 115 }, passive: "red-margin-lines", cls: "Sword", item: "sword" } });
+const p2 = (): BossSpec =>
+  bossOf("time-stop", {
+    floor: 10,
+    ult: "time_stop_barrage",
+    phase2: { stats: { ...fighter("Fighter", { atk: 110, def: 82, spd: 104, agi: 82, iq: 110, specialKind: "remote_detonation", element: "BLEED" }), budget: 485, cap: 115 }, passive: "time-stop", cls: "Fighter", item: "nothing", ult: "time_stop_barrage", banner: "TIME UNWINDS" },
+  });
 {
   const x = fight(fighter("Fighter", { atk: 100 }), fighter("Fighter", { agi: 40 }), 100, p2());
   const [a, b] = x.m.fighters;
   b.hp = 104;
-  a.marks = 0;
   b.status = { kind: "FIRE", t: 100, n: 0 };
-  x.m.fighters[0].marks = 3;
   x.ia.attack++;
   for (let i = 0; i < 14 && x.m.boss!.phase === 1; i++) run(x, 1);
-  assert.equal(x.m.boss!.phase, 2, "the Regent never changed form");
+  assert.equal(x.m.boss!.phase, 2, "the boss never changed form");
   assert.equal(b.hp, 100, "the triggering hit must leave exactly half health");
-  assert.equal(x.m.defs[1].special, "slash");
-  assert.equal(x.m.defs[1].passive, "red-margin-lines");
+  assert.equal(x.m.defs[1].special, "remote_detonation");
+  assert.equal(x.m.defs[1].passive, "time-stop");
+  assert.equal(x.m.defs[1].ult, "time_stop_barrage");
   assert.equal(b.status, null);
   assert.ok(Math.abs(b.energy - 50) < 1, "phase 2 starts at half a meter");
-  assert.equal(a.marks, 0, "phase 2 clears the curse marks");
   assert.ok(Math.abs(a.x - b.x) >= 299, `they should be pushed 300 px apart (${Math.abs(a.x - b.x)})`);
   assert.equal(x.m.freeze, 40, "phase 2 holds the fight still for 40 ticks");
   const ev = x.m.events.filter((e) => e.type === "phase");
   assert.equal(ev.length, 1);
-  // ...and the marks keep counting in the second form.
-  x.m.fighters[1].hp = 100;
-  run(x, 45);
-  x.m.fighters[0].x = x.m.fighters[1].x - 90;
-  x.m.defs[1].dodge = 0;
-  x.ib.attack++;
-  for (let i = 0; i < 16 && x.m.fighters[0].marks === 0; i++) run(x, 1);
-  assert.ok(x.m.fighters[0].marks >= 1, "the second form stopped marking");
+  assert.equal(ev[0].type === "phase" && ev[0].banner, "TIME UNWINDS");
+  assert.equal(snapshot(x.m).bossFloor, 10, "the renderer is told which boss it is");
   // A big combo can't skip it: a huge blow from a higher HP still stops at exactly 100.
   const y = fight(fighter("Fighter", { atk: 100 }), fighter("Fighter", { agi: 40 }), 100, p2());
   y.m.fighters[1].hp = 125;
   y.ia.attack++;
   for (let i = 0; i < 14 && y.m.boss!.phase === 1; i++) run(y, 1);
   assert.ok(y.m.fighters[1].hp >= 100, "a blow skipped past phase 2");
-  // Ruled lines: every 240 ticks a line is drawn at the player and cuts 45 ticks later (12 damage); walking off avoids it.
-  const z = fight(fighter("Fighter", still()), fighter("Fighter"), 500, p2());
-  z.m.boss!.phase = 2;
-  z.m.defs[1] = { ...z.m.defs[1], passive: "red-margin-lines", element: "BLEED" };
-  z.m.phaseT = 239;
-  run(z, 2);
-  assert.equal(z.m.hazards.length, 1, "no ruled line was drawn");
-  const line = z.m.hazards[0];
-  assert.ok(Math.abs(line.x - z.m.fighters[0].x) < 1 && line.w === 40);
-  const hp = z.m.fighters[0].hp;
-  run(z, 47);
-  assert.ok(hp - z.m.fighters[0].hp >= 10, "standing on the line should cost ~12");
-  assert.equal(z.m.fighters[0].status?.kind, "BLEED");
-  const w = fight(fighter("Fighter", still()), fighter("Fighter"), 500, p2());
-  w.m.defs[1] = { ...w.m.defs[1], passive: "red-margin-lines" };
-  w.m.phaseT = 239;
-  run(w, 2);
-  w.ia.right = true;
-  run(w, 47);
-  assert.equal(w.m.fighters[0].hp, 200, "walking off the line should avoid it");
   // The next round starts in the first form again.
   const r = fight(fighter("Fighter", { atk: 100 }), fighter("Fighter", { agi: 40 }), 100, p2());
   r.m.fighters[1].hp = 104;
@@ -689,6 +740,7 @@ const p2 = (): BossSpec => bossOf("curse-marks", { phase2: { stats: { ...fighter
   run(r, 20 * TICK_HZ); // through the KO and the round end
   assert.equal(r.m.boss!.phase, 1, "a new round should start in the first form");
   assert.equal(r.m.defs[1].special, deriveDef(fighter("Fighter", { agi: 40 })).special);
+  assert.equal(r.m.defs[1].ult, "time_stop_barrage", "the first form keeps the boss-only ultimate");
 }
 
 // ---------------------------------------------------------------- the five unlockable kinds

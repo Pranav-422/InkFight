@@ -8,8 +8,12 @@ import { normClass } from "../lib/stats";
 // the dungeon unlocks: UNLOCK_FLOOR is the floor whose boss you copy each one from (src/game/dungeon.ts).
 export const BASE_KINDS = ["bolt", "arrow", "orb", "slash", "charge", "uppercut", "beam", "spiral", "wave", "teleport", "barrage", "meteor"] as const;
 export const UNLOCK_KINDS = ["shatter", "counter", "dash_slash", "pull", "remote_detonation"] as const;
+// What players and the API may pick: the twelve and the five. A dungeon boss may also have a kind nobody else can: it enters a fight only through
+// createMatch(..., { boss }) (sim.ts BossSpec), never through a stat line, so `specialOf` / `ultOf` below don't know it.
 export const SPECIAL_KINDS = [...BASE_KINDS, ...UNLOCK_KINDS] as const;
-export type SpecialKind = (typeof SPECIAL_KINDS)[number];
+export const BOSS_KINDS = ["time_stop_barrage"] as const;
+export type BossKind = (typeof BOSS_KINDS)[number];
+export type SpecialKind = (typeof SPECIAL_KINDS)[number] | BossKind;
 export type UnlockKind = (typeof UNLOCK_KINDS)[number];
 export const UNLOCK_FLOOR: Record<UnlockKind, number> = { shatter: 2, counter: 4, dash_slash: 6, pull: 8, remote_detonation: 10 };
 // The floor that must be cleared before a kind can be picked (0: free).
@@ -34,6 +38,7 @@ export const SPECIAL_INFO: Record<SpecialKind, { how: string; looks: string; ran
   dash_slash: { how: "dashes straight through the opponent with one slash and ends up behind them", looks: "a blinding dash that ends back to back", ranged: false },
   pull: { how: "throws a slow hook that drags the target in front of you and steals some of their meter", looks: "a hooked chain or line that reels the target in", ranged: true },
   remote_detonation: { how: "marks the spot where the opponent stands: 0.7 s later a cut falls there (move to dodge)", looks: "a delayed strike that lands where you were", ranged: true },
+  time_stop_barrage: { how: "stops time: anyone within 180 px is frozen while eight blows land, then launched (a boss's)", looks: "a frozen world and a flurry that lands all at once", ranged: false },
 };
 
 // ---------------------------------------------------------------- normal moves
@@ -42,7 +47,10 @@ export type MoveName =
   | "jab" | "cross" | "hook" | "uppercutP" | "elbow" | "knee" | "flyingKnee" | "palm" | "straight" | "headbutt"
   | "frontKick" | "roundhouse" | "spinKick" | "axeKick" | "lowKick" | "sweep"
   // weapon chains (the class's J), air moves
-  | "iai" | "risingSlash" | "thrust" | "overhead" | "slam" | "shieldBash" | "inkPalm" | "airSlash" | "divePunch" | "flyingKick";
+  | "iai" | "risingSlash" | "thrust" | "overhead" | "slam" | "shieldBash" | "inkPalm" | "airSlash" | "divePunch" | "flyingKick"
+  // dungeon bosses' own moves (BossKit below): frame data from docs/research/new research where it has some
+  | "flickerJab" | "corkscrew" | "gazelleHook" | "dempsey" | "seiken" | "kaitenGeri" | "heartPunch" | "kneeStomp" | "shinCannon"
+  | "thunderclap" | "oniCut" | "pistol" | "bazooka" | "whip" | "mudaJab";
 
 // Timings in ticks. Hitbox from `reach` in front of the body, between `top` and `bot`
 // (fractions of body height above the feet). `lunge`: forward push while active.
@@ -52,6 +60,7 @@ export type Move = {
   dur: number; from: number; to: number; reach: number; mult: number; knock: number;
   launch?: number; top: number; bot: number; lunge: number; hop?: number; tip: "hand" | "handB" | "foot" | "footB" | "knee" | "head";
   low?: boolean; armor?: boolean; air?: boolean; dive?: [number, number]; down?: number;
+  crush?: boolean; // a guard doesn't hold against it when its owner has the Guard Crush passive (the Compressed Kick)
 };
 
 export const MOVES: Record<MoveName, Move> = {
@@ -83,7 +92,27 @@ export const MOVES: Record<MoveName, Move> = {
   airSlash: { dur: 20, from: 3, to: 14, reach: 70, mult: 1.0, knock: 6, top: 0.9, bot: 0.1, lunge: 0, tip: "hand", air: true },
   divePunch: { dur: 22, from: 4, to: 16, reach: 60, mult: 1.0, knock: 7, top: 0.8, bot: 0.1, lunge: 0, tip: "hand", air: true, dive: [5, 6] },
   flyingKick: { dur: 24, from: 3, to: 18, reach: 80, mult: 1.2, knock: 9, top: 0.7, bot: 0, lunge: 0, tip: "foot", air: true, dive: [9, 7] },
+  // Dungeon bosses' moves. The boxing and karate ones are the research's (Flicker Jab, Corkscrew Right Cross, Gazelle Liver Hook, Dempsey Rising
+  // Uppercut; Seiken Chudan Tsuki, Rolling Thunder Kick; One-Inch Heart Punch; Oblique Knee Stomp), the rest follow their frame data's shape.
+  flickerJab: { dur: 12, from: 3, to: 6, reach: 72, mult: 0.7, knock: 2, top: 0.95, bot: 0.65, lunge: 4, tip: "hand" },
+  corkscrew: { dur: 18, from: 6, to: 10, reach: 78, mult: 1.15, knock: 7, top: 0.95, bot: 0.6, lunge: 8, tip: "handB" },
+  gazelleHook: { dur: 22, from: 8, to: 13, reach: 66, mult: 1.35, knock: 6, launch: 3, top: 0.7, bot: 0.4, lunge: 12, tip: "hand" },
+  dempsey: { dur: 24, from: 8, to: 14, reach: 60, mult: 1.45, knock: 5, launch: 9, top: 1.0, bot: 0.5, lunge: 7, tip: "handB" },
+  seiken: { dur: 16, from: 5, to: 9, reach: 70, mult: 1.2, knock: 8, top: 0.78, bot: 0.45, lunge: 7, tip: "handB" },
+  kaitenGeri: { dur: 30, from: 12, to: 19, reach: 92, mult: 1.65, knock: 10, launch: 4, top: 1.0, bot: 0.25, lunge: 16, hop: 6, tip: "footB" },
+  heartPunch: { dur: 15, from: 3, to: 6, reach: 58, mult: 1.4, knock: 15, launch: 4, top: 0.82, bot: 0.5, lunge: 5, tip: "hand" },
+  kneeStomp: { dur: 16, from: 5, to: 9, reach: 84, mult: 0.95, knock: 7, top: 0.45, bot: 0.1, lunge: 4, tip: "foot" },
+  shinCannon: { dur: 38, from: 15, to: 20, reach: 104, mult: 2.3, knock: 17, launch: 7, top: 0.55, bot: 0.05, lunge: 7, tip: "footB", crush: true },
+  thunderclap: { dur: 20, from: 5, to: 9, reach: 92, mult: 1.0, knock: 12, top: 0.9, bot: 0.4, lunge: 10, tip: "hand" },
+  oniCut: { dur: 28, from: 9, to: 15, reach: 96, mult: 1.9, knock: 12, launch: 4, top: 1.0, bot: 0.25, lunge: 12, tip: "hand" },
+  pistol: { dur: 20, from: 8, to: 12, reach: 150, mult: 0.9, knock: 7, top: 0.85, bot: 0.5, lunge: 2, tip: "hand" },
+  bazooka: { dur: 26, from: 11, to: 16, reach: 130, mult: 1.7, knock: 14, launch: 3, top: 0.85, bot: 0.45, lunge: 6, tip: "hand" },
+  whip: { dur: 24, from: 9, to: 14, reach: 125, mult: 1.2, knock: 9, top: 0.6, bot: 0.2, lunge: 3, tip: "foot" },
+  mudaJab: { dur: 9, from: 2, to: 4, reach: 66, mult: 0.45, knock: 1, top: 0.9, bot: 0.55, lunge: 2, tip: "hand" },
 };
+
+// A dungeon boss's own punch (J) and kick (K) chains, over its class's and style's (sim.ts FighterDef.kit; the dungeon passes it in BossSpec).
+export type BossKit = { punch?: MoveName[]; kick?: MoveName[] };
 
 // Fighting styles (a nod to Lookism's cast of fighters). Tap punch/kick again
 // before the combo window closes to chain into the next move.
@@ -114,7 +143,7 @@ export const COMBO_WINDOW = 22; // ticks after a move ends in which the next pre
 // when strung out in full (a 4-hit boxing chain otherwise out-damages a 2-hit karate
 // one). Duration counts each move plus the ~20-tick cooldown after the last one.
 const TARGET_DPS = 4.6 / 96; // the boxing punch chain's mult per tick, the reference
-const chainPower = (chain: MoveName[]) => TARGET_DPS / (chain.reduce((n, m) => n + MOVES[m].mult, 0) / (chain.reduce((n, m) => n + MOVES[m].dur, 0) + 20));
+export const chainPower = (chain: MoveName[]) => TARGET_DPS / (chain.reduce((n, m) => n + MOVES[m].mult, 0) / (chain.reduce((n, m) => n + MOVES[m].dur, 0) + 20));
 export const STYLE_POWER = Object.fromEntries(STYLES.map((s) => [s, { punch: chainPower(STYLE_INFO[s].punch), kick: chainPower(STYLE_INFO[s].kick) }])) as Record<Style, { punch: number; kick: number }>;
 // The same for the weapon chains (CLASS_TUNE evens out the rest).
 export const CLASS_CHAIN_POWER = Object.fromEntries(Object.entries(CLASS_CHAIN).map(([c, chain]) => [c, chainPower(chain!)])) as Record<string, number>;
@@ -123,7 +152,7 @@ export const CLASS_CHAIN_POWER = Object.fromEntries(Object.entries(CLASS_CHAIN).
 // and special set so it wins about half its fights against a mixed pool of every
 // style x special with the same stats. Re-run the tuner after changing moves or specials.
 export const STYLE_TUNE: Record<Style, number> = { Boxing: 0.838, Taekwondo: 0.796, "Muay Thai": 0.88, Karate: 0.901, Street: 0.964, Systema: 0.817 };
-export const SPECIAL_TUNE: Record<SpecialKind, number> = { bolt: 1.323, arrow: 1.049, orb: 0.964, slash: 0.606, charge: 0.311, uppercut: 0.986, beam: 2.336, spiral: 1.871, wave: 1.639, teleport: 0.69, barrage: 0.732, meteor: 1.175, shatter: 0.986, counter: 0.732, dash_slash: 1.576, pull: 1.196, remote_detonation: 1.492 };
+export const SPECIAL_TUNE: Record<SpecialKind, number> = { bolt: 1.323, arrow: 1.049, orb: 0.964, slash: 0.606, charge: 0.311, uppercut: 0.986, beam: 2.336, spiral: 1.871, wave: 1.639, teleport: 0.69, barrage: 0.732, meteor: 1.175, shatter: 0.986, counter: 0.732, dash_slash: 1.576, pull: 1.196, remote_detonation: 1.492, time_stop_barrage: 1 };
 
 // Damage factor per class, found by simulation like the two above (scripts/balance.ts --tune):
 // each class's usual stat line and kit wins about half its fights against every class.
@@ -219,6 +248,7 @@ export const SPECIAL_NAMES: Record<SpecialKind, [string, string][]> = {
   dash_slash: [["Sunline Pass", "Through you in a blink, back to back before the page turns"], ["Ruler Dash", "One straight line, drawn straight through you"]],
   pull: [["Iron Reel", "Hooks a line into you and reels you in, meter and all"], ["Bookmark Snare", "Marks your place, then pulls you to it"]],
   remote_detonation: [["Red Margin", "Underlines where you stand, then cuts along the line"], ["Delayed Strikethrough", "Crosses you out, a moment late"]],
+  time_stop_barrage: [["Paused Ink World", "Time stops, the blows land, time starts again"]],
 };
 
 export const ULT_NAMES: Record<SpecialKind, [string, string][]> = {
@@ -238,6 +268,7 @@ export const ULT_NAMES: Record<SpecialKind, [string, string][]> = {
   dash_slash: [["Sunline Pass: Eclipse", "Through you, around you, through you again"], ["Straightedge Execution", "A line so straight the page splits"]],
   pull: [["Iron Reel: Spool Out", "Reels you in and keeps reeling"], ["Margin Chain Finale", "A chain with no loose end"]],
   remote_detonation: [["Red Margin: Final Edit", "Marks you, waits, and cuts the whole line"], ["Strikethrough Sentence", "The cut was always going to land there"]],
+  time_stop_barrage: [["Freeze Frame Flurry", "The page holds still for everyone but one"]],
 };
 
 // The name to show for a fighter's ultimate: its own, or a stock one for old fighters that were made without.
